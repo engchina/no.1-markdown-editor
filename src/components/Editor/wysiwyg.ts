@@ -16,6 +16,7 @@ import {
   WidgetType,
 } from '@codemirror/view'
 import { RangeSetBuilder } from '@codemirror/state'
+import katex from 'katex'
 
 // ── Widgets ────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,40 @@ class HrWidget extends WidgetType {
     return el
   }
   ignoreEvent() { return true }
+}
+
+// KaTeX inline math widget
+class InlineMathWidget extends WidgetType {
+  constructor(private latex: string) { super() }
+  toDOM() {
+    const el = document.createElement('span')
+    el.className = 'cm-wysiwyg-math-inline'
+    try {
+      katex.render(this.latex, el, { throwOnError: false, displayMode: false })
+    } catch {
+      el.textContent = this.latex
+    }
+    return el
+  }
+  ignoreEvent() { return true }
+  eq(other: InlineMathWidget) { return this.latex === other.latex }
+}
+
+// KaTeX block math widget
+class BlockMathWidget extends WidgetType {
+  constructor(private latex: string) { super() }
+  toDOM() {
+    const el = document.createElement('div')
+    el.className = 'cm-wysiwyg-math-block'
+    try {
+      katex.render(this.latex, el, { throwOnError: false, displayMode: true })
+    } catch {
+      el.textContent = this.latex
+    }
+    return el
+  }
+  ignoreEvent() { return true }
+  eq(other: BlockMathWidget) { return this.latex === other.latex }
 }
 
 class CheckboxWidget extends WidgetType {
@@ -131,9 +166,18 @@ function buildDecorations(view: EditorView): DecorationSet {
         }
       }
 
-      // ── Inline patterns (bold, italic, code, strikethrough, links) ────
+      // ── Block math $$...$$  (single or multi-line — handle single-line here)
+      if (text.startsWith('$$') && text.endsWith('$$') && text.length > 4 && !onLine) {
+        const latex = text.slice(2, -2).trim()
+        builder.add(lineFrom, lineTo, Decoration.replace({ widget: new BlockMathWidget(latex), block: false }))
+        pos = line.to + 1
+        continue
+      }
+
+      // ── Inline patterns (bold, italic, code, strikethrough, links, math) ──
       // Only apply when NOT on the line containing the cursor
       if (!onLine) {
+        processInlineMath(builder, text, lineFrom, view)
         processInline(builder, text, lineFrom)
       }
 
@@ -142,6 +186,24 @@ function buildDecorations(view: EditorView): DecorationSet {
   }
 
   return builder.finish()
+}
+
+// Process inline math $...$ within a line
+function processInlineMath(
+  builder: RangeSetBuilder<Decoration>,
+  text: string,
+  lineFrom: number,
+  _view: EditorView
+): void {
+  // Inline math: $expr$ (not $$)
+  const re = /(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const latex = m[1]
+    const from = lineFrom + m.index
+    const to = from + m[0].length
+    builder.add(from, to, Decoration.replace({ widget: new InlineMathWidget(latex) }))
+  }
 }
 
 // Process inline markdown syntax within a line
@@ -276,5 +338,16 @@ export const wysiwygTheme = EditorView.baseTheme({
     fontStyle: 'italic',
     borderLeft: '4px solid var(--accent)',
     paddingLeft: '12px',
+  },
+  '.cm-wysiwyg-math-inline': {
+    display: 'inline-block',
+    verticalAlign: 'middle',
+    cursor: 'default',
+  },
+  '.cm-wysiwyg-math-block': {
+    display: 'block',
+    textAlign: 'center',
+    padding: '8px 0',
+    cursor: 'default',
   },
 })

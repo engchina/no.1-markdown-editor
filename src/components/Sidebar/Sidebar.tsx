@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEditorStore, useActiveTab, type SidebarTab } from '../../store/editor'
+import FileTree from './FileTree'
 
 interface Props {
   width: number
@@ -28,14 +29,13 @@ function extractHeadings(markdown: string): Heading[] {
   return headings
 }
 
-const TABS: { id: SidebarTab; icon: string }[] = [
-  { id: 'outline', icon: '≡' },
-  { id: 'files', icon: '📁' },
-  { id: 'search', icon: '🔍' },
+const TABS: { id: SidebarTab; icon: string; title: string }[] = [
+  { id: 'outline', icon: '≡', title: 'Outline' },
+  { id: 'files', icon: '📁', title: 'Explorer' },
+  { id: 'search', icon: '🔍', title: 'Search' },
 ]
 
 export default function Sidebar({ width }: Props) {
-  const { t } = useTranslation()
   const { sidebarTab, setSidebarTab } = useEditorStore()
   const activeTab = useActiveTab()
   const headings = useMemo(
@@ -57,10 +57,10 @@ export default function Sidebar({ width }: Props) {
         className="flex items-center"
         style={{ borderBottom: '1px solid var(--border)', height: '36px' }}
       >
-        {TABS.map(({ id, icon }) => (
+        {TABS.map(({ id, icon, title }) => (
           <button
             key={id}
-            title={t(`sidebar.${id}`)}
+            title={title}
             onClick={() => setSidebarTab(id)}
             className="flex-1 h-full text-sm transition-colors"
             style={{
@@ -79,7 +79,7 @@ export default function Sidebar({ width }: Props) {
           <OutlinePanel headings={headings} />
         )}
         {sidebarTab === 'files' && (
-          <FilesPanel />
+          <FileTree />
         )}
         {sidebarTab === 'search' && (
           <SearchPanel />
@@ -103,7 +103,7 @@ function OutlinePanel({ headings }: { headings: Heading[] }) {
       {headings.map((h, i) => (
         <li
           key={i}
-          className="flex items-center rounded px-2 py-1 cursor-pointer text-xs transition-colors hover:bg-opacity-50"
+          className="flex items-center rounded-lg px-2 py-1 cursor-pointer text-xs transition-all hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover:text-[var(--accent)] hover-scale"
           style={{
             paddingLeft: `${(h.level - 1) * 12 + 8}px`,
             color: h.level === 1 ? 'var(--text-primary)' : h.level === 2 ? 'var(--text-secondary)' : 'var(--text-muted)',
@@ -128,40 +128,6 @@ function OutlinePanel({ headings }: { headings: Heading[] }) {
   )
 }
 
-function FilesPanel() {
-  const { tabs, activeTabId, setActiveTab, addTab } = useEditorStore()
-
-  return (
-    <div>
-      <ul className="space-y-0.5">
-        {tabs.map((tab) => (
-          <li
-            key={tab.id}
-            className="flex items-center rounded px-2 py-1 cursor-pointer text-xs transition-colors"
-            style={{
-              background: tab.id === activeTabId ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
-              color: tab.id === activeTabId ? 'var(--accent)' : 'var(--text-secondary)',
-            }}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <span className="mr-1">📄</span>
-            <span className="truncate">{tab.isDirty ? '● ' : ''}{tab.name}</span>
-          </li>
-        ))}
-      </ul>
-      <button
-        className="mt-3 w-full text-xs py-1 rounded transition-colors"
-        style={{
-          border: '1px dashed var(--border)',
-          color: 'var(--text-muted)',
-        }}
-        onClick={() => addTab()}
-      >
-        + New
-      </button>
-    </div>
-  )
-}
 
 function SearchPanel() {
   return (

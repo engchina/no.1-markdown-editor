@@ -7,11 +7,13 @@ export default function StatusBar() {
 
   return (
     <div
-      className="flex items-center px-4 gap-4 flex-shrink-0 text-xs select-none"
+      className="flex items-center px-6 gap-6 flex-shrink-0 text-[11px] font-medium select-none rounded-full backdrop-blur-md shadow-sm border transition-all mx-auto opacity-70 hover:opacity-100 hover-scale"
       style={{
-        height: '24px',
-        background: 'var(--statusbar-bg)',
-        color: 'var(--statusbar-text)',
+        height: '28px',
+        width: 'fit-content',
+        background: 'var(--glass-bg)',
+        color: 'var(--text-secondary)',
+        borderColor: 'var(--glass-border)'
       }}
     >
       <span>{t('statusbar.lines', { line: cursorPos.line, col: cursorPos.col })}</span>

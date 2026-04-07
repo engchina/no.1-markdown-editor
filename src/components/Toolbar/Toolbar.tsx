@@ -50,7 +50,7 @@ function ToolbarBtn({ title, onClick, active, children, disabled }: ToolbarBtnPr
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center justify-center w-7 h-7 rounded transition-colors disabled:opacity-40"
+      className="flex items-center justify-center w-8 h-8 rounded-lg hover-scale disabled:opacity-40"
       style={{
         color: active ? 'var(--accent)' : 'var(--text-secondary)',
         background: active ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'transparent',
@@ -122,7 +122,7 @@ function ExportMenu({ onClose }: { onClose: () => void }) {
   )
 }
 
-export default function Toolbar() {
+export default function Toolbar({ onOpenPalette }: { onOpenPalette?: () => void }) {
   const { t } = useTranslation()
   const {
     viewMode, setViewMode,
@@ -161,9 +161,8 @@ export default function Toolbar() {
     <div
       className="relative flex items-center px-3 gap-1 flex-shrink-0"
       style={{
-        height: '44px',
-        background: 'var(--toolbar-bg)',
-        borderBottom: '1px solid var(--border)',
+        height: '48px',
+        background: 'transparent',
       }}
     >
       {/* File ops */}
@@ -241,6 +240,11 @@ export default function Toolbar() {
       )}
 
       <div className="flex-1" />
+
+      {/* Command Palette */}
+      <ToolbarBtn title="Command Palette (Ctrl+Shift+P)" onClick={() => onOpenPalette?.()}>
+        <span className="text-xs font-mono" style={{ fontSize: '13px' }}>⌘</span>
+      </ToolbarBtn>
 
       {/* Export */}
       <div className="relative">

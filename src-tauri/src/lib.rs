@@ -1,3 +1,4 @@
+#[cfg(debug_assertions)]
 use tauri::Manager;
 
 #[tauri::command]
@@ -26,10 +27,10 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![read_file, write_file, get_file_name])
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(debug_assertions)]
             {
-                let window = app.get_webview_window("main").unwrap();
+                let window = _app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
             Ok(())

@@ -31,6 +31,9 @@ export const THEMES: AppTheme[] = [
       '--editor-cursor': '#3B82F6',
       '--preview-bg': '#FAFAFA',
       '--preview-text': '#1A1A1A',
+      '--glass-bg': 'rgba(255, 255, 255, 0.8)',
+      '--glass-border': 'rgba(0, 0, 0, 0.08)',
+      '--shadow-sm': '0 4px 12px rgba(0, 0, 0, 0.05)',
     },
   },
   {
@@ -58,6 +61,9 @@ export const THEMES: AppTheme[] = [
       '--editor-cursor': '#89B4FA',
       '--preview-bg': '#1E1E2E',
       '--preview-text': '#CDD6F4',
+      '--glass-bg': 'rgba(30, 30, 46, 0.75)',
+      '--glass-border': 'rgba(255, 255, 255, 0.05)',
+      '--shadow-sm': '0 4px 16px rgba(0, 0, 0, 0.5)',
     },
   },
   {
@@ -85,6 +91,9 @@ export const THEMES: AppTheme[] = [
       '--editor-cursor': '#0969DA',
       '--preview-bg': '#FFFFFF',
       '--preview-text': '#1F2328',
+      '--glass-bg': 'rgba(255, 255, 255, 0.85)',
+      '--glass-border': 'rgba(208, 215, 222, 0.8)',
+      '--shadow-sm': '0 4px 12px rgba(31, 35, 40, 0.08)',
     },
   },
   {
@@ -112,6 +121,9 @@ export const THEMES: AppTheme[] = [
       '--editor-cursor': '#58A6FF',
       '--preview-bg': '#0D1117',
       '--preview-text': '#E6EDF3',
+      '--glass-bg': 'rgba(13, 17, 23, 0.8)',
+      '--glass-border': 'rgba(48, 54, 61, 0.8)',
+      '--shadow-sm': '0 4px 16px rgba(0, 0, 0, 0.8)',
     },
   },
   {
@@ -139,6 +151,9 @@ export const THEMES: AppTheme[] = [
       '--editor-cursor': '#2383E2',
       '--preview-bg': '#FFFFFF',
       '--preview-text': '#37352F',
+      '--glass-bg': 'rgba(255, 255, 255, 0.8)',
+      '--glass-border': 'rgba(233, 233, 231, 1)',
+      '--shadow-sm': '0 2px 8px rgba(0, 0, 0, 0.05)',
     },
   },
   {
@@ -166,6 +181,9 @@ export const THEMES: AppTheme[] = [
       '--editor-cursor': '#88C0D0',
       '--preview-bg': '#2E3440',
       '--preview-text': '#ECEFF4',
+      '--glass-bg': 'rgba(46, 52, 64, 0.8)',
+      '--glass-border': 'rgba(76, 86, 106, 0.5)',
+      '--shadow-sm': '0 4px 12px rgba(0, 0, 0, 0.3)',
     },
   },
   {
@@ -193,6 +211,9 @@ export const THEMES: AppTheme[] = [
       '--editor-cursor': '#268BD2',
       '--preview-bg': '#FDF6E3',
       '--preview-text': '#657B83',
+      '--glass-bg': 'rgba(253, 246, 227, 0.85)',
+      '--glass-border': 'rgba(211, 203, 172, 0.5)',
+      '--shadow-sm': '0 4px 12px rgba(0, 0, 0, 0.05)',
     },
   },
   {
@@ -220,6 +241,9 @@ export const THEMES: AppTheme[] = [
       '--editor-cursor': '#40A0FF',
       '--preview-bg': '#FFFFFF',
       '--preview-text': '#1A1A1A',
+      '--glass-bg': 'rgba(255, 255, 255, 0.9)',
+      '--glass-border': 'rgba(224, 224, 224, 0.8)',
+      '--shadow-sm': '0 2px 10px rgba(0, 0, 0, 0.06)',
     },
   },
 ]
