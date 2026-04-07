@@ -1,15 +1,24 @@
-# Node
+# Node / frontend
 node_modules/
 dist/
 dist-ssr/
+.vite/
 *.local
 
-# Tauri
+# Tauri / Rust
 src-tauri/target/
 src-tauri/gen/
+src-tauri/.tauri/
+src-tauri/.cargo/config.local.toml
 
-# Editor
+# Test / coverage
+coverage/
+playwright-report/
+test-results/
+
+# Editor / IDE
 .vscode/settings.json
+.vscode/*.code-workspace
 .idea/
 *.swp
 *.swo
@@ -22,11 +31,18 @@ desktop.ini
 # Logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Env
 .env
 .env.local
 .env.*.local
 
-# Build artifacts
+# Cache / temp
+.cache/
 *.tsbuildinfo
+*.tmp
+*.temp
+*.bak
