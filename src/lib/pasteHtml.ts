@@ -57,15 +57,44 @@ const STRUCTURED_TAGS = new Set([
   'h6',
   'hr',
   'img',
+  'kbd',
   'li',
+  'mark',
   'ol',
   'pre',
   'strong',
+  'sub',
+  'sup',
   'table',
+  'u',
   'ul',
 ])
 
+const HTML_OVERRIDE_BLOCKER_TAGS = new Set([
+  'a',
+  'blockquote',
+  'code',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'img',
+  'kbd',
+  'mark',
+  'pre',
+  'sub',
+  'sup',
+  'table',
+  'u',
+])
+
 const SKIPPED_TAGS = new Set(['head', 'meta', 'link', 'script', 'style', 'noscript', 'title'])
+const START_FRAGMENT_COMMENT = '<!--StartFragment-->'
+const END_FRAGMENT_COMMENT = '<!--EndFragment-->'
+
+type TableAlignment = '' | 'left' | 'center' | 'right'
 
 export function convertClipboardHtmlToMarkdown(html: string, plainText = ''): string | null {
   const normalizedPlainText = normalizePastedText(plainText)
@@ -93,8 +122,11 @@ export function renderClipboardHtmlAstToMarkdown(root: ClipboardHtmlAstNode): st
 function parseClipboardHtml(html: string): ClipboardHtmlAstNode | null {
   if (!html || typeof DOMParser === 'undefined') return null
 
+  const normalizedHtml = extractClipboardHtmlFragment(html)
+  if (!normalizedHtml) return null
+
   const parser = new DOMParser()
-  const document = parser.parseFromString(html, 'text/html')
+  const document = parser.parseFromString(normalizedHtml, 'text/html')
   return {
     type: 'root',
     children: Array.from(document.body.childNodes)
@@ -140,8 +172,13 @@ function shouldPreferPlainText(root: ClipboardHtmlAstNode, plainText: string): b
 
   const plainImageCount = countMarkdownImages(plainText)
   const htmlImageCount = countHtmlImages(root)
+  const plainHasStrongMarkdownSyntax = containsStrongMarkdownSyntax(plainText)
 
-  if (looksLikeMarkdownSource(plainText) && plainImageCount >= htmlImageCount) {
+  if (plainHasStrongMarkdownSyntax && plainImageCount >= htmlImageCount) {
+    return true
+  }
+
+  if (looksLikeMarkdownSource(plainText) && plainImageCount >= htmlImageCount && !htmlBlocksPlainTextOverride(root)) {
     return true
   }
 
@@ -188,6 +225,7 @@ function serializeBlocks(nodes: ClipboardHtmlAstNode[], context: { listDepth: nu
 
 function serializeBlockNode(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
   if (node.type !== 'element' || !node.tagName) return ''
+  if (isFootnotesContainer(node)) return serializeFootnotesSection(node, context)
 
   switch (node.tagName) {
     case 'p':
@@ -300,19 +338,48 @@ function serializeInlineNode(node: ClipboardHtmlAstNode, context: { listDepth: n
       return wrapCodeSpan(extractTextContent(node, { preserveWhitespace: false }).trim())
     case 'img':
       return serializeImage(node)
-    case 'sub':
+    case 'input':
+      return serializeCheckbox(node)
     case 'sup': {
-      const content = serializeInlineChildren(node.children, context).trim()
-      return content ? `<${node.tagName}>${content}</${node.tagName}>` : ''
+      const footnoteReference = serializeFootnoteReference(node)
+      if (footnoteReference) return footnoteReference
+      return serializeSemanticInlineTag(node.tagName, node.children, context)
     }
+    case 'kbd':
+    case 'mark':
+    case 'sub':
+    case 'u':
+      return serializeSemanticInlineTag(node.tagName, node.children, context)
     case 'span':
     case 'small':
-    case 'mark':
-    case 'u':
       return serializeInlineChildren(node.children, context)
     default:
       return serializeInlineChildren(node.children, context)
   }
+}
+
+function serializeCheckbox(node: ClipboardHtmlAstNode): string {
+  if (!isCheckboxNode(node)) return ''
+  return (node.attributes?.checked ?? '') !== '' || 'checked' in (node.attributes ?? {}) ? '[x]' : '[ ]'
+}
+
+function serializeSemanticInlineTag(
+  tagName: string,
+  children: ClipboardHtmlAstNode[],
+  context: { listDepth: number }
+): string {
+  const content = serializeInlineChildren(children, context).trim()
+  return content ? `<${tagName}>${content}</${tagName}>` : ''
+}
+
+function serializeFootnoteReference(node: ClipboardHtmlAstNode): string | null {
+  if (node.type !== 'element') return null
+
+  const link = findFirstElement(node, isFootnoteReferenceLink)
+  const label = extractFootnoteLabel(link?.attributes?.href ?? link?.attributes?.id ?? node.attributes?.id)
+  if (!label) return null
+
+  return `[^${escapeFootnoteLabel(label)}]`
 }
 
 function serializeLink(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
@@ -374,7 +441,7 @@ function serializeListItem(
   const indent = '  '.repeat(context.listDepth)
   const prefix = `${indent}${marker} `
   const continuationPrefix = `${indent}${' '.repeat(marker.length + 1)}`
-  const blocks = serializeBlocks(node.children, { listDepth: context.listDepth + 1 })
+  const blocks = serializeBlocks(node.children, { listDepth: context.listDepth })
 
   if (blocks.length === 0) return prefix.trimEnd()
 
@@ -412,14 +479,59 @@ function serializeTable(node: ClipboardHtmlAstNode, context: { listDepth: number
   const paddedRows = normalizedRows.map((row) =>
     row.length === columnCount ? row : [...row, ...Array.from({ length: columnCount - row.length }, () => '')]
   )
+  const alignments = collectColumnAlignments(rows, columnCount)
 
   const headerRow = paddedRows[0]
-  const separatorRow = Array.from({ length: columnCount }, () => '---')
+  const separatorRow = alignments.map((alignment) => formatTableAlignment(alignment))
   const bodyRows = paddedRows.slice(1)
 
   return [headerRow, separatorRow, ...bodyRows]
     .map((row) => `| ${row.join(' | ')} |`)
     .join('\n')
+}
+
+function serializeFootnotesSection(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
+  const items = findFootnoteItems(node)
+  return items
+    .map((item, index) => serializeFootnoteDefinition(item, index + 1, context))
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+function serializeFootnoteDefinition(
+  node: ClipboardHtmlAstNode,
+  fallbackIndex: number,
+  context: { listDepth: number }
+): string {
+  if (node.type !== 'element') return ''
+
+  const label = escapeFootnoteLabel(extractFootnoteLabel(node.attributes?.id) || String(fallbackIndex))
+  const sanitizedNode = cloneAstWithoutNodes(node, isFootnoteBackrefLink)
+  const blocks = sanitizedNode
+    ? serializeBlocks(sanitizedNode.children, context)
+        .map((block) => block.trim())
+        .filter(Boolean)
+    : []
+
+  return formatFootnoteDefinition(label, blocks)
+}
+
+function formatFootnoteDefinition(label: string, blocks: string[]): string {
+  if (blocks.length === 0) return `[^${label}]:`
+
+  const lines: string[] = []
+  const [firstBlock, ...restBlocks] = blocks
+  const [firstLine = '', ...remainingFirstBlockLines] = firstBlock.split('\n')
+
+  lines.push(`[^${label}]: ${firstLine}`)
+  lines.push(...remainingFirstBlockLines.map((line) => `    ${line}`))
+
+  for (const block of restBlocks) {
+    lines.push('')
+    lines.push(...block.split('\n').map((line) => `    ${line}`))
+  }
+
+  return lines.join('\n')
 }
 
 function collectTableRows(node: ClipboardHtmlAstNode): ClipboardHtmlAstNode[][] {
@@ -435,6 +547,48 @@ function collectTableRows(node: ClipboardHtmlAstNode): ClipboardHtmlAstNode[][] 
   }
 
   return node.children.flatMap((child) => collectTableRows(child))
+}
+
+function collectColumnAlignments(rows: ClipboardHtmlAstNode[][], columnCount: number): TableAlignment[] {
+  const alignments = Array.from({ length: columnCount }, (): TableAlignment => '')
+
+  for (const row of rows) {
+    row.forEach((cell, index) => {
+      if (alignments[index]) return
+
+      const alignment = getTableCellAlignment(cell)
+      if (alignment) alignments[index] = alignment
+    })
+  }
+
+  return alignments
+}
+
+function getTableCellAlignment(node: ClipboardHtmlAstNode): TableAlignment {
+  if (node.type !== 'element') return ''
+
+  const align = node.attributes?.align?.trim().toLowerCase()
+  if (align === 'left' || align === 'center' || align === 'right') {
+    return align
+  }
+
+  const style = node.attributes?.style ?? ''
+  const match = style.match(/(?:^|;)\s*text-align\s*:\s*(left|center|right)\b/i)
+  const styleAlign = match?.[1]?.toLowerCase()
+  return styleAlign === 'left' || styleAlign === 'center' || styleAlign === 'right' ? styleAlign : ''
+}
+
+function formatTableAlignment(alignment: TableAlignment): string {
+  switch (alignment) {
+    case 'left':
+      return ':---'
+    case 'center':
+      return ':---:'
+    case 'right':
+      return '---:'
+    default:
+      return '---'
+  }
 }
 
 function extractTextContent(node: ClipboardHtmlAstNode, options: { preserveWhitespace: boolean }): string {
@@ -515,6 +669,10 @@ function looksLikePlaceholderImage(url: string): boolean {
 }
 
 function htmlAddsStructure(node: ClipboardHtmlAstNode): boolean {
+  if (node.type === 'element' && (isCheckboxNode(node) || isFootnotesContainer(node))) {
+    return true
+  }
+
   if (node.type === 'element' && node.tagName && STRUCTURED_TAGS.has(node.tagName)) {
     return true
   }
@@ -531,6 +689,19 @@ function countMarkdownImages(markdown: string): number {
   return (markdown.match(/!\[[^\]]*]\([^)]+\)/g) ?? []).length
 }
 
+function containsStrongMarkdownSyntax(text: string): boolean {
+  return (
+    /(^|\n)\s*#{1,6}\s+\S/.test(text) ||
+    /!\[[^\]]*]\([^)]+\)/.test(text) ||
+    /\[[^\]]+]\([^)]+\)/.test(text) ||
+    /(^|\n)\s*[-*+]\s+\[[ xX]\]\s+\S/.test(text) ||
+    /(^|\n)\s*>\s+\S/.test(text) ||
+    /(^|\n)```/.test(text) ||
+    /(^|\n)\[\^[^\]]+]:\s+\S/.test(text) ||
+    /\[\^[^\]]+]/.test(text)
+  )
+}
+
 function looksLikeMarkdownSource(text: string): boolean {
   return (
     /(^|\n)\s*#{1,6}\s+\S/.test(text) ||
@@ -545,6 +716,22 @@ function looksLikeMarkdownSource(text: string): boolean {
 
 function normalizePastedText(text: string): string {
   return text.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ')
+}
+
+function extractClipboardHtmlFragment(html: string): string {
+  const normalizedHtml = html.replace(/\u0000/g, '').trim()
+  if (!normalizedHtml) return ''
+
+  const fragmentByComments = extractHtmlBetweenMarkers(normalizedHtml, START_FRAGMENT_COMMENT, END_FRAGMENT_COMMENT)
+  if (fragmentByComments) return fragmentByComments
+
+  if (!/^Version:/i.test(normalizedHtml)) return normalizedHtml
+
+  return (
+    extractClipboardHtmlByOffset(normalizedHtml, 'StartFragment', 'EndFragment') ||
+    extractClipboardHtmlByOffset(normalizedHtml, 'StartHTML', 'EndHTML') ||
+    normalizedHtml
+  )
 }
 
 function normalizeInlineMarkdown(text: string): string {
@@ -580,4 +767,136 @@ function escapeTableCell(text: string): string {
 
 function escapeForRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function extractHtmlBetweenMarkers(html: string, startMarker: string, endMarker: string): string {
+  const startIndex = html.indexOf(startMarker)
+  const endIndex = html.indexOf(endMarker)
+  if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex) return ''
+
+  return html.slice(startIndex + startMarker.length, endIndex).trim()
+}
+
+function extractClipboardHtmlByOffset(html: string, startKey: string, endKey: string): string {
+  const start = getClipboardOffset(html, startKey)
+  const end = getClipboardOffset(html, endKey)
+  if (start === null || end === null || end <= start || start < 0 || end > html.length) return ''
+
+  return html.slice(start, end).trim()
+}
+
+function getClipboardOffset(html: string, key: string): number | null {
+  const match = html.match(new RegExp(`${escapeForRegExp(key)}:(\\d+)`, 'i'))
+  if (!match) return null
+
+  const offset = Number(match[1])
+  return Number.isFinite(offset) ? offset : null
+}
+
+function htmlBlocksPlainTextOverride(node: ClipboardHtmlAstNode): boolean {
+  if (node.type === 'element' && (isCheckboxNode(node) || isFootnotesContainer(node))) {
+    return true
+  }
+
+  if (node.type === 'element' && node.tagName && HTML_OVERRIDE_BLOCKER_TAGS.has(node.tagName)) {
+    return true
+  }
+
+  return node.children.some((child) => htmlBlocksPlainTextOverride(child))
+}
+
+function isCheckboxNode(node: ClipboardHtmlAstNode): node is ClipboardHtmlAstNode & { type: 'element' } {
+  return node.type === 'element' && node.tagName === 'input' && node.attributes?.type?.trim().toLowerCase() === 'checkbox'
+}
+
+function isFootnotesContainer(node: ClipboardHtmlAstNode): boolean {
+  return node.type === 'element' && (hasAttribute(node.attributes, 'data-footnotes', '') || hasClass(node, 'footnotes'))
+}
+
+function isFootnoteReferenceLink(node: ClipboardHtmlAstNode): boolean {
+  if (node.type !== 'element' || node.tagName !== 'a') return false
+  if (hasAttribute(node.attributes, 'data-footnote-ref', '')) return true
+
+  const href = node.attributes?.href?.trim() ?? ''
+  return /^#(?:user-content-)*fn(?:ref)?-?/i.test(href)
+}
+
+function isFootnoteBackrefLink(node: ClipboardHtmlAstNode): boolean {
+  if (node.type !== 'element' || node.tagName !== 'a') return false
+  if (hasAttribute(node.attributes, 'data-footnote-backref', '')) return true
+
+  const href = node.attributes?.href?.trim() ?? ''
+  return /^#(?:user-content-)*fnref-?/i.test(href)
+}
+
+function findFirstElement(
+  node: ClipboardHtmlAstNode,
+  predicate: (node: ClipboardHtmlAstNode) => boolean
+): ClipboardHtmlAstNode | null {
+  if (predicate(node)) return node
+
+  for (const child of node.children) {
+    const match = findFirstElement(child, predicate)
+    if (match) return match
+  }
+
+  return null
+}
+
+function findFootnoteItems(node: ClipboardHtmlAstNode): ClipboardHtmlAstNode[] {
+  const list = findFirstElement(
+    node,
+    (candidate) =>
+      candidate.type === 'element' && (candidate.tagName === 'ol' || candidate.tagName === 'ul')
+  )
+
+  if (!list || list.type !== 'element') return []
+
+  return list.children.filter(
+    (child): child is ClipboardHtmlAstNode => child.type === 'element' && child.tagName === 'li'
+  )
+}
+
+function cloneAstWithoutNodes(
+  node: ClipboardHtmlAstNode,
+  predicate: (node: ClipboardHtmlAstNode) => boolean
+): ClipboardHtmlAstNode | null {
+  if (predicate(node)) return null
+
+  if (node.type !== 'element') {
+    return { ...node }
+  }
+
+  return {
+    ...node,
+    children: node.children
+      .map((child) => cloneAstWithoutNodes(child, predicate))
+      .filter((child): child is ClipboardHtmlAstNode => child !== null),
+  }
+}
+
+function extractFootnoteLabel(value?: string): string {
+  if (!value) return ''
+
+  const normalized = value.trim().replace(/^#/, '').replace(/^(?:user-content-)+/i, '')
+  if (!normalized) return ''
+
+  const match = normalized.match(/(?:^|-)fn(?:ref)?-?(.+)$/i)
+  const label = (match?.[1] ?? normalized).replace(/^(?:user-content-)+/i, '').replace(/^-+/, '').trim()
+  return label
+}
+
+function escapeFootnoteLabel(label: string): string {
+  return label.replace(/\\/g, '\\\\').replace(/\]/g, '\\]').replace(/\s+/g, ' ')
+}
+
+function hasAttribute(attributes: Record<string, string> | undefined, name: string, fallback = ''): boolean {
+  return (attributes?.[name] ?? fallback) !== fallback || name in (attributes ?? {})
+}
+
+function hasClass(node: ClipboardHtmlAstNode, className: string): boolean {
+  if (node.type !== 'element') return false
+
+  const classes = (node.attributes?.class ?? '').split(/\s+/).filter(Boolean)
+  return classes.includes(className)
 }

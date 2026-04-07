@@ -113,6 +113,12 @@ test('renderMarkdown preserves underline tags inserted for markdown formatting',
   assert.match(html, /<p>Hello <u>world<\/u><\/p>/)
 })
 
+test('renderMarkdown preserves highlight tags inserted from pasted html', async () => {
+  const html = await renderMarkdown('Hello <mark>world</mark>')
+
+  assert.match(html, /<p>Hello <mark>world<\/mark><\/p>/)
+})
+
 test('renderMarkdown keeps linked remote images from pasted web content', async () => {
   const markdown = '[![img](https://example.com/assets/hero.png)](https://example.com/assets/hero.png)'
   const html = await renderMarkdown(markdown)

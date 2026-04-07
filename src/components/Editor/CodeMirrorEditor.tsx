@@ -16,7 +16,13 @@ import {
 } from './optionalFeatures'
 import { applyFormat } from './formatCommands'
 import { getFormatActionFromShortcut } from './formatShortcuts'
-import { getImageAltText, getImageFileExtension } from '../../lib/fileTypes'
+import { clipboardHasType, readClipboardString } from '../../lib/clipboard'
+import {
+  buildRelativeMarkdownImagePath,
+  DEFAULT_MARKDOWN_IMAGE_DIRECTORY,
+  getImageAltText,
+  getImageFileExtension,
+} from '../../lib/fileTypes'
 import { convertClipboardHtmlToMarkdown } from '../../lib/pasteHtml'
 import { useActiveTab, useEditorStore } from '../../store/editor'
 import SearchBar from '../Search/SearchBar'
@@ -360,14 +366,26 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
       const clipboardData = event.clipboardData
       const items = clipboardData?.items
-      const html = clipboardData?.getData('text/html') ?? ''
-      const plainText = clipboardData?.getData('text/plain') ?? ''
+      const hasHtml = clipboardHasType(clipboardData, 'text/html')
+      const hasImageFiles = Array.from(items ?? []).some((item) => item.type.startsWith('image/'))
 
-      if (html) {
+      if (!hasHtml && !hasImageFiles) return
+
+      event.preventDefault()
+
+      if (hasHtml) {
+        const [html, plainText] = await Promise.all([
+          readClipboardString(clipboardData, 'text/html'),
+          readClipboardString(clipboardData, 'text/plain'),
+        ])
         const markdownText = convertClipboardHtmlToMarkdown(html, plainText)
         if (markdownText) {
-          event.preventDefault()
           replaceSelectionWithMarkdown(view, markdownText)
+          return
+        }
+
+        if (plainText) {
+          replaceSelectionWithMarkdown(view, plainText)
           return
         }
       }
@@ -381,7 +399,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
       if (imageFiles.length === 0) return
 
-      event.preventDefault()
       const markdownText = await buildImageMarkdown(imageFiles, activeTab?.path ?? null)
       replaceSelectionWithMarkdown(view, markdownText)
     }
@@ -469,8 +486,8 @@ async function buildImageMarkdown(files: File[], activeTabPath: string | null): 
       const { mkdir, writeFile } = await import('@tauri-apps/plugin-fs')
       const { dirname, join } = await import('@tauri-apps/api/path')
       const parentDir = await dirname(activeTabPath)
-      const assetDir = await join(parentDir, '_assets')
-      await mkdir(assetDir, { recursive: true })
+      const imageDir = await join(parentDir, DEFAULT_MARKDOWN_IMAGE_DIRECTORY)
+      await mkdir(imageDir, { recursive: true })
 
       const snippets = await Promise.all(
         files.map(async (file, index) => {
@@ -478,10 +495,10 @@ async function buildImageMarkdown(files: File[], activeTabPath: string | null): 
           const altText = getImageAltText(file.name)
           const suffix = files.length > 1 ? `-${index + 1}` : ''
           const fileName = `image-${batchId}${suffix}.${extension}`
-          const assetPath = await join(assetDir, fileName)
+          const imagePath = await join(imageDir, fileName)
 
-          await writeFile(assetPath, new Uint8Array(await file.arrayBuffer()))
-          return `![${altText}](_assets/${fileName})`
+          await writeFile(imagePath, new Uint8Array(await file.arrayBuffer()))
+          return `![${altText}](${buildRelativeMarkdownImagePath(fileName)})`
         })
       )
 

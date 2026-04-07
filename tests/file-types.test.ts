@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getImageAltText, getImageFileExtension, isSupportedDocumentName } from '../src/lib/fileTypes.ts'
+import {
+  buildRelativeMarkdownImagePath,
+  getImageAltText,
+  getImageFileExtension,
+  isSupportedDocumentName,
+} from '../src/lib/fileTypes.ts'
 
 test('isSupportedDocumentName recognizes supported markdown-like documents', () => {
   assert.equal(isSupportedDocumentName('notes.md'), true)
@@ -21,4 +26,10 @@ test('getImageAltText normalizes separators and strips brackets', () => {
   assert.equal(getImageAltText('hero-image_v2.png'), 'hero image v2')
   assert.equal(getImageAltText('[cover]_draft.JPG'), 'cover draft')
   assert.equal(getImageAltText('.png'), 'image')
+})
+
+test('buildRelativeMarkdownImagePath defaults to the sibling images directory', () => {
+  assert.equal(buildRelativeMarkdownImagePath('image-123.png'), './images/image-123.png')
+  assert.equal(buildRelativeMarkdownImagePath('hero.webp', './images/'), './images/hero.webp')
+  assert.equal(buildRelativeMarkdownImagePath('cover.jpg', 'nested\\images'), './nested/images/cover.jpg')
 })

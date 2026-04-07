@@ -3,6 +3,7 @@ import { useEditorStore } from '../store/editor'
 import { useRecentFilesStore } from '../store/recentFiles'
 import i18n from '../i18n'
 import { MARKDOWN_FILE_EXTENSIONS } from '../lib/fileTypes'
+import { materializeEmbeddedMarkdownImages } from '../lib/embeddedImages'
 import { pushErrorNotice } from '../lib/notices'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -16,6 +17,7 @@ export function useFileOps() {
   const openDocument = useEditorStore((state) => state.openDocument)
   const saveTab = useEditorStore((state) => state.saveTab)
   const setTabPath = useEditorStore((state) => state.setTabPath)
+  const updateTabContent = useEditorStore((state) => state.updateTabContent)
   const addRecent = useRecentFilesStore((state) => state.addRecent)
 
   const newFile = useCallback(() => {
@@ -90,10 +92,24 @@ export function useFileOps() {
             savePath = result
           }
 
-          const { writeTextFile } = await import('@tauri-apps/plugin-fs')
-          await writeTextFile(savePath, tab.content)
+          const { mkdir, writeFile, writeTextFile } = await import('@tauri-apps/plugin-fs')
+          const { dirname, join } = await import('@tauri-apps/api/path')
+          const imageDir = await join(await dirname(savePath), 'images')
+          let nextContent = tab.content
+
+          nextContent = await materializeEmbeddedMarkdownImages(nextContent, {
+            persistImage: async (fileName, bytes) => {
+              await mkdir(imageDir, { recursive: true })
+              await writeFile(await join(imageDir, fileName), bytes)
+            },
+          })
+
+          await writeTextFile(savePath, nextContent)
 
           const name = savePath.split(/[\\/]/).pop() ?? tab.name
+          if (nextContent !== tab.content) {
+            updateTabContent(tab.id, nextContent)
+          }
           setTabPath(tab.id, savePath, name)
           saveTab(tab.id)
           addRecent(savePath, name)
@@ -121,7 +137,7 @@ export function useFileOps() {
         return false
       }
     },
-    [addRecent, saveTab, setTabPath]
+    [addRecent, saveTab, setTabPath, updateTabContent]
   )
 
   const saveFile = useCallback(async () => {

@@ -15,9 +15,9 @@ import {
   ViewUpdate,
   WidgetType,
 } from '@codemirror/view'
-import { RangeSetBuilder } from '@codemirror/state'
 import katex from 'katex'
 import { ensureKatexStylesheet } from '../../lib/katexStylesheet'
+import { buildSortedRangeSet, type RangeSpec } from './sortedRangeSet'
 
 // ── Widgets ────────────────────────────────────────────────────────────────
 
@@ -91,8 +91,21 @@ function cursorIsOnLine(view: EditorView, lineFrom: number, lineTo: number): boo
 
 // ── Main WYSIWYG plugin ────────────────────────────────────────────────────
 
+type DecorationSpec = RangeSpec<Decoration>
+
+function queueDecoration(
+  decorations: DecorationSpec[],
+  from: number,
+  to: number,
+  value: Decoration
+): void {
+  decorations.push({ from, to, value })
+}
+
 function buildDecorations(view: EditorView): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>()
+  // Mixed replace/mark decorations often start at the same position.
+  // Collect first, then sort by CodeMirror's range ordering rules.
+  const decorations: DecorationSpec[] = []
   const { doc } = view.state
 
   // Process each visible line
@@ -113,14 +126,16 @@ function buildDecorations(view: EditorView): DecorationSet {
 
         if (!onLine) {
           // Hide the "# " prefix
-          builder.add(
+          queueDecoration(
+            decorations,
             lineFrom,
             lineFrom + prefixLen,
             Decoration.replace({})
           )
         }
         // Style the whole line
-        builder.add(
+        queueDecoration(
+          decorations,
           lineFrom,
           lineTo,
           Decoration.mark({ class: `cm-wysiwyg-h${level}` })
@@ -132,7 +147,8 @@ function buildDecorations(view: EditorView): DecorationSet {
       // ── Horizontal rule ───────────────────────────────────────────────
       if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(text)) {
         if (!onLine) {
-          builder.add(
+          queueDecoration(
+            decorations,
             lineFrom,
             lineTo,
             Decoration.replace({ widget: new HrWidget(), block: false })
@@ -144,9 +160,14 @@ function buildDecorations(view: EditorView): DecorationSet {
 
       // ── Blockquote decoration ─────────────────────────────────────────
       if (text.startsWith('> ')) {
-        builder.add(lineFrom, lineTo, Decoration.mark({ class: 'cm-wysiwyg-blockquote' }))
+        queueDecoration(
+          decorations,
+          lineFrom,
+          lineTo,
+          Decoration.mark({ class: 'cm-wysiwyg-blockquote' })
+        )
         if (!onLine) {
-          builder.add(lineFrom, lineFrom + 2, Decoration.replace({}))
+          queueDecoration(decorations, lineFrom, lineFrom + 2, Decoration.replace({}))
         }
         pos = line.to + 1
         continue
@@ -161,7 +182,8 @@ function buildDecorations(view: EditorView): DecorationSet {
         const checked = taskMatch[2].toLowerCase() === 'x'
 
         if (!onLine) {
-          builder.add(
+          queueDecoration(
+            decorations,
             boxStart,
             boxEnd + 1, // include trailing space
             Decoration.replace({ widget: new CheckboxWidget(checked) })
@@ -172,7 +194,12 @@ function buildDecorations(view: EditorView): DecorationSet {
       // ── Block math $$...$$  (single or multi-line — handle single-line here)
       if (text.startsWith('$$') && text.endsWith('$$') && text.length > 4 && !onLine) {
         const latex = text.slice(2, -2).trim()
-        builder.add(lineFrom, lineTo, Decoration.replace({ widget: new BlockMathWidget(latex), block: false }))
+        queueDecoration(
+          decorations,
+          lineFrom,
+          lineTo,
+          Decoration.replace({ widget: new BlockMathWidget(latex), block: false })
+        )
         pos = line.to + 1
         continue
       }
@@ -180,20 +207,20 @@ function buildDecorations(view: EditorView): DecorationSet {
       // ── Inline patterns (bold, italic, code, strikethrough, links, math) ──
       // Only apply when NOT on the line containing the cursor
       if (!onLine) {
-        processInlineMath(builder, text, lineFrom, view)
-        processInline(builder, text, lineFrom)
+        processInlineMath(decorations, text, lineFrom, view)
+        processInline(decorations, text, lineFrom)
       }
 
       pos = line.to + 1
     }
   }
 
-  return builder.finish()
+  return buildSortedRangeSet(decorations)
 }
 
 // Process inline math $...$ within a line
 function processInlineMath(
-  builder: RangeSetBuilder<Decoration>,
+  decorations: DecorationSpec[],
   text: string,
   lineFrom: number,
   _view: EditorView
@@ -205,37 +232,38 @@ function processInlineMath(
     const latex = m[1]
     const from = lineFrom + m.index
     const to = from + m[0].length
-    builder.add(from, to, Decoration.replace({ widget: new InlineMathWidget(latex) }))
+    queueDecoration(decorations, from, to, Decoration.replace({ widget: new InlineMathWidget(latex) }))
   }
 }
 
 // Process inline markdown syntax within a line
 function processInline(
-  builder: RangeSetBuilder<Decoration>,
+  decorations: DecorationSpec[],
   text: string,
   lineFrom: number
 ): void {
   // Bold **text** or __text__
-  processPattern(builder, text, lineFrom, /(\*\*|__)((?:[^*_]|\*(?!\*))+?)\1/g, 'cm-wysiwyg-bold')
+  processPattern(decorations, text, lineFrom, /(\*\*|__)((?:[^*_]|\*(?!\*))+?)\1/g, 'cm-wysiwyg-bold')
 
   // Italic *text* or _text_ (not bold)
-  processPattern(builder, text, lineFrom, /(?<!\*)(\*)(?!\*)((?:[^*])+?)(\*)(?!\*)/g, 'cm-wysiwyg-italic')
+  processPattern(decorations, text, lineFrom, /(?<!\*)(\*)(?!\*)((?:[^*])+?)(\*)(?!\*)/g, 'cm-wysiwyg-italic')
 
   // Underline <u>text</u>
-  processPattern(builder, text, lineFrom, /(<u>)(.+?)(<\/u>)/gi, 'cm-wysiwyg-underline', { closeGroup: 3 })
+  processPattern(decorations, text, lineFrom, /(<u>)(.+?)(<\/u>)/gi, 'cm-wysiwyg-underline', { closeGroup: 3 })
 
   // Strikethrough ~~text~~
-  processPattern(builder, text, lineFrom, /(~~)((?:[^~])+?)\1/g, 'cm-wysiwyg-strikethrough')
+  processPattern(decorations, text, lineFrom, /(~~)((?:[^~])+?)\1/g, 'cm-wysiwyg-strikethrough')
 
   // Inline code `code`
-  processPattern(builder, text, lineFrom, /(`+)((?:.)+?)\1/g, 'cm-wysiwyg-code')
+  processPattern(decorations, text, lineFrom, /(`+)((?:.)+?)\1/g, 'cm-wysiwyg-code')
 
   // Images ![alt](url)
   const imgRe = /!\[([^\]]*)\]\(([^)]+)\)/g
   let m: RegExpExecArray | null
   while ((m = imgRe.exec(text)) !== null) {
     // Replace entire image markdown with a styled span showing alt text
-    builder.add(
+    queueDecoration(
+      decorations,
       lineFrom + m.index,
       lineFrom + m.index + m[0].length,
       Decoration.mark({ class: 'cm-wysiwyg-image' })
@@ -250,16 +278,21 @@ function processInline(
     const fullEnd = lineFrom + m.index + m[0].length
 
     // Style the link text
-    builder.add(fullStart + 1, textEnd - 1, Decoration.mark({ class: 'cm-wysiwyg-link' }))
+    queueDecoration(
+      decorations,
+      fullStart + 1,
+      textEnd - 1,
+      Decoration.mark({ class: 'cm-wysiwyg-link' })
+    )
     // Hide the [ ] ( url ) wrapping
-    builder.add(fullStart, fullStart + 1, Decoration.replace({}))
-    builder.add(textEnd - 1, textEnd, Decoration.replace({}))
-    builder.add(textEnd, fullEnd, Decoration.replace({}))
+    queueDecoration(decorations, fullStart, fullStart + 1, Decoration.replace({}))
+    queueDecoration(decorations, textEnd - 1, textEnd, Decoration.replace({}))
+    queueDecoration(decorations, textEnd, fullEnd, Decoration.replace({}))
   }
 }
 
 function processPattern(
-  builder: RangeSetBuilder<Decoration>,
+  decorations: DecorationSpec[],
   text: string,
   lineFrom: number,
   re: RegExp,
@@ -280,11 +313,16 @@ function processPattern(
     const closeMarkerLen = closeMarker.length || openMarkerLen
 
     // Hide opening marker
-    builder.add(fullStart, fullStart + openMarkerLen, Decoration.replace({}))
+    queueDecoration(decorations, fullStart, fullStart + openMarkerLen, Decoration.replace({}))
     // Style content
-    builder.add(fullStart + openMarkerLen, fullEnd - closeMarkerLen, Decoration.mark({ class: cls }))
+    queueDecoration(
+      decorations,
+      fullStart + openMarkerLen,
+      fullEnd - closeMarkerLen,
+      Decoration.mark({ class: cls })
+    )
     // Hide closing marker
-    builder.add(fullEnd - closeMarkerLen, fullEnd, Decoration.replace({}))
+    queueDecoration(decorations, fullEnd - closeMarkerLen, fullEnd, Decoration.replace({}))
   }
 }
 
