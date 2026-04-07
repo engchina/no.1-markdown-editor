@@ -10,7 +10,8 @@
     "test": "node scripts/run-tests.mjs",
     "test:smoke": "npm run build && node scripts/run-smoke.mjs",
     "tauri": "node scripts/run-tauri.mjs",
-    "package:win": ".\\scripts\\package-win.cmd"
+    "package:win": ".\\scripts\\package-win.cmd",
+    "package:mac": "bash ./scripts/package-mac.sh"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6",

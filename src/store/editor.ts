@@ -93,6 +93,8 @@ interface EditorState {
   setWysiwygMode: (v: boolean) => void
   activeThemeId: string
   setActiveThemeId: (id: string) => void
+  zoom: number
+  setZoom: (zoom: number) => void
 }
 
 function generateId() {
@@ -267,6 +269,8 @@ export const useEditorStore = create<EditorState>()(
       setWysiwygMode: (wysiwygMode) => set({ wysiwygMode }),
       activeThemeId: 'default-light',
       setActiveThemeId: (activeThemeId) => set({ activeThemeId }),
+      zoom: 100,
+      setZoom: (zoom) => set({ zoom }),
     }),
     {
       name: 'editor-settings',
@@ -284,6 +288,7 @@ export const useEditorStore = create<EditorState>()(
         typewriterMode: s.typewriterMode,
         wysiwygMode: s.wysiwygMode,
         activeThemeId: s.activeThemeId,
+        zoom: s.zoom,
         tabs: s.tabs.filter(isRestorableDraftTab),
         activeTabId: s.tabs.some((tab) => tab.id === s.activeTabId && isRestorableDraftTab(tab))
           ? s.activeTabId

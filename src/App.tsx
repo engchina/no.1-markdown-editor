@@ -81,6 +81,7 @@ export default function App() {
     focusMode,
     typewriterMode,
     activeThemeId,
+    zoom,
   } = useEditorStore()
   const { saveAllDirtyTabs } = useFileOps()
   const [paletteMode, setPaletteMode] = useState<'command' | 'file' | null>(null)
@@ -108,11 +109,33 @@ export default function App() {
         const store = useEditorStore.getState()
         store.setFocusMode(!store.focusMode)
       }
+
+      if (mod) {
+        if (event.key === '=' || event.key === '+') {
+          event.preventDefault()
+          const store = useEditorStore.getState()
+          store.setZoom(Math.min(300, store.zoom + 10))
+        } else if (event.key === '-') {
+          event.preventDefault()
+          const store = useEditorStore.getState()
+          store.setZoom(Math.max(50, store.zoom - 10))
+        } else if (event.key === '0') {
+          event.preventDefault()
+          useEditorStore.getState().setZoom(100)
+        }
+      }
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  useEffect(() => {
+    const scale = zoom / 100
+    ;(document.body.style as any).zoom = `${zoom}%`
+    document.body.style.width = `${100 / scale}vw`
+    document.body.style.height = `${100 / scale}vh`
+  }, [zoom])
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -255,7 +278,7 @@ export default function App() {
 
   return (
     <div
-      className={`flex flex-col h-screen overflow-hidden${focusMode ? ' focus-mode' : ''}${typewriterMode ? ' typewriter-mode' : ''}`}
+      className={`flex flex-col h-full w-full overflow-hidden${focusMode ? ' focus-mode' : ''}${typewriterMode ? ' typewriter-mode' : ''}`}
       style={{ background: 'transparent' }}
     >
       {paletteMode && (
