@@ -17,6 +17,7 @@ import {
 } from '@codemirror/view'
 import katex from 'katex'
 import { ensureKatexStylesheet } from '../../lib/katexStylesheet'
+import { collectFencedCodeRanges, type TextRange } from './fencedCodeRanges'
 import { buildSortedRangeSet, type RangeSpec } from './sortedRangeSet'
 
 // ── Widgets ────────────────────────────────────────────────────────────────
@@ -102,11 +103,12 @@ function queueDecoration(
   decorations.push({ from, to, value })
 }
 
-function buildDecorations(view: EditorView): DecorationSet {
+function buildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange[]): DecorationSet {
   // Mixed replace/mark decorations often start at the same position.
   // Collect first, then sort by CodeMirror's range ordering rules.
   const decorations: DecorationSpec[] = []
   const { doc } = view.state
+  let fenceIndex = 0
 
   // Process each visible line
   for (const { from, to } of view.visibleRanges) {
@@ -117,6 +119,16 @@ function buildDecorations(view: EditorView): DecorationSet {
       const lineFrom = line.from
       const lineTo = line.to
       const onLine = cursorIsOnLine(view, lineFrom, lineTo)
+
+      while (fenceIndex < fencedCodeRanges.length && fencedCodeRanges[fenceIndex].to < lineFrom) {
+        fenceIndex += 1
+      }
+
+      const fencedCodeRange = fencedCodeRanges[fenceIndex]
+      if (fencedCodeRange && lineFrom >= fencedCodeRange.from && lineFrom <= fencedCodeRange.to) {
+        pos = line.to + 1
+        continue
+      }
 
       // ── Headings ──────────────────────────────────────────────────────
       const headingMatch = text.match(/^(#{1,6})\s/)
@@ -331,18 +343,24 @@ function processPattern(
 export const wysiwygPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet
+    fencedCodeRanges: TextRange[]
 
     constructor(view: EditorView) {
-      this.decorations = buildDecorations(view)
+      this.fencedCodeRanges = collectFencedCodeRanges(view.state.doc.toString())
+      this.decorations = buildDecorations(view, this.fencedCodeRanges)
     }
 
     update(update: ViewUpdate) {
+      if (update.docChanged) {
+        this.fencedCodeRanges = collectFencedCodeRanges(update.state.doc.toString())
+      }
+
       if (
         update.docChanged ||
         update.selectionSet ||
         update.viewportChanged
       ) {
-        this.decorations = buildDecorations(update.view)
+        this.decorations = buildDecorations(update.view, this.fencedCodeRanges)
       }
     }
   },

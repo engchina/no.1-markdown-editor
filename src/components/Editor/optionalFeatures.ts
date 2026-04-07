@@ -10,13 +10,26 @@ export interface SearchOptions {
   replace?: string
 }
 
+export interface SearchQuerySnapshot {
+  search: string
+  caseSensitive: boolean
+  regexp: boolean
+  wholeWord: boolean
+  replace: string
+  valid: boolean
+}
+
 export interface SearchSupport {
   extensions: Extension[]
   applyQuery: (view: EditorView, options: SearchOptions) => void
+  readQuery: (view: EditorView) => SearchQuerySnapshot
+  openPanel: (view: EditorView) => void
+  closePanel: (view: EditorView) => void
   findNext: (view: EditorView) => void
   findPrevious: (view: EditorView) => void
   replaceNext: (view: EditorView, options: SearchOptions) => void
   replaceAll: (view: EditorView, options: SearchOptions) => void
+  selectAll: (view: EditorView) => void
 }
 
 let searchSupportPromise: Promise<SearchSupport> | null = null
@@ -81,27 +94,141 @@ export async function loadSearchSupport(): Promise<SearchSupport> {
         replace: options.replace ?? '',
       })
 
+    const readQuery = (view: EditorView): SearchQuerySnapshot => {
+      const query = search.getSearchQuery(view.state)
+      return {
+        search: query.search,
+        caseSensitive: query.caseSensitive,
+        regexp: query.regexp,
+        wholeWord: query.wholeWord,
+        replace: query.replace,
+        valid: query.valid,
+      }
+    }
+
+    const dispatchSearchEvent = (type: 'editor:search' | 'editor:search-close', replace = false): boolean => {
+      if (typeof document === 'undefined') return false
+      document.dispatchEvent(
+        type === 'editor:search'
+          ? new CustomEvent(type, { detail: { replace } })
+          : new CustomEvent(type)
+      )
+      return true
+    }
+
+    const hasValidQuery = (view: EditorView) => readQuery(view).valid
+
+    const selectionMatchesQuery = (view: EditorView): boolean => {
+      const query = search.getSearchQuery(view.state)
+      if (!query.valid) return false
+
+      const selection = view.state.selection.main
+      if (selection.empty) return false
+
+      const match = query.getCursor(view.state, selection.from, selection.to).next()
+      return !match.done && match.value.from === selection.from && match.value.to === selection.to
+    }
+
+    const runSearchCommand = (view: EditorView, command: (view: EditorView) => boolean): void => {
+      if (!hasValidQuery(view)) {
+        dispatchSearchEvent('editor:search')
+        return
+      }
+      command(view)
+    }
+
+    const createHiddenPanel = () => {
+      const dom = document.createElement('div')
+      dom.setAttribute('aria-hidden', 'true')
+      dom.style.position = 'absolute'
+      dom.style.width = '0'
+      dom.style.height = '0'
+      dom.style.overflow = 'hidden'
+      dom.style.pointerEvents = 'none'
+      dom.style.opacity = '0'
+      return { dom }
+    }
+
     return {
       extensions: [
+        search.search({
+          top: true,
+          createPanel: createHiddenPanel,
+        }),
         search.highlightSelectionMatches(),
-        keymap.of(search.searchKeymap),
+        keymap.of([
+          {
+            key: 'F3',
+            run: (view) => {
+              runSearchCommand(view, search.findNext)
+              return true
+            },
+            shift: (view) => {
+              runSearchCommand(view, search.findPrevious)
+              return true
+            },
+            scope: 'editor search-panel',
+            preventDefault: true,
+          },
+          {
+            key: 'Mod-g',
+            run: (view) => {
+              runSearchCommand(view, search.findNext)
+              return true
+            },
+            shift: (view) => {
+              runSearchCommand(view, search.findPrevious)
+              return true
+            },
+            scope: 'editor search-panel',
+            preventDefault: true,
+          },
+          { key: 'Mod-Shift-l', run: search.selectSelectionMatches },
+          { key: 'Mod-Alt-g', run: search.gotoLine },
+          { key: 'Mod-d', run: search.selectNextOccurrence, preventDefault: true },
+        ]),
       ],
       applyQuery(view, options) {
         view.dispatch({ effects: search.setSearchQuery.of(createQuery(options)) })
       },
+      readQuery,
+      openPanel(view) {
+        search.openSearchPanel(view)
+      },
+      closePanel(view) {
+        search.closeSearchPanel(view)
+      },
       findNext(view) {
-        search.findNext(view)
+        runSearchCommand(view, search.findNext)
       },
       findPrevious(view) {
-        search.findPrevious(view)
+        runSearchCommand(view, search.findPrevious)
       },
       replaceNext(view, options) {
         view.dispatch({ effects: search.setSearchQuery.of(createQuery(options)) })
+        if (!hasValidQuery(view)) {
+          dispatchSearchEvent('editor:search', true)
+          return
+        }
+        if (!selectionMatchesQuery(view)) {
+          search.findNext(view)
+        }
         search.replaceNext(view)
       },
       replaceAll(view, options) {
         view.dispatch({ effects: search.setSearchQuery.of(createQuery(options)) })
+        if (!hasValidQuery(view)) {
+          dispatchSearchEvent('editor:search', true)
+          return
+        }
         search.replaceAll(view)
+      },
+      selectAll(view) {
+        if (!hasValidQuery(view)) {
+          dispatchSearchEvent('editor:search')
+          return
+        }
+        search.selectMatches(view)
       },
     }
   })()

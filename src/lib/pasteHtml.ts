@@ -90,7 +90,23 @@ const HTML_OVERRIDE_BLOCKER_TAGS = new Set([
   'u',
 ])
 
-const SKIPPED_TAGS = new Set(['head', 'meta', 'link', 'script', 'style', 'noscript', 'title'])
+const SKIPPED_TAGS = new Set([
+  'head',
+  'meta',
+  'link',
+  'script',
+  'style',
+  'noscript',
+  'title',
+  // Interactive UI chrome that documentation sites inject around content — never useful when pasted.
+  'button',
+  'template',
+  'dialog',
+  'iframe',
+  'object',
+  'embed',
+  'canvas',
+])
 const START_FRAGMENT_COMMENT = '<!--StartFragment-->'
 const END_FRAGMENT_COMMENT = '<!--EndFragment-->'
 
@@ -157,6 +173,31 @@ function domNodeToAst(node: Node): ClipboardHtmlAstNode | null {
     return acc
   }, {})
 
+  // Skip decorative / hidden elements that documentation sites inject into headings and content:
+  //   - aria-hidden="true"   (screen-reader hidden, typically icons)
+  //   - hidden attribute
+  //   - role="presentation" / "none"
+  //   - inline style "display:none" or "visibility:hidden"
+  // Images keep their own semantics (alt text) so we don't strip them here.
+  if (tagName !== 'img') {
+    if ((attributes['aria-hidden'] ?? '').toLowerCase() === 'true') return null
+    if ('hidden' in attributes) return null
+    const role = (attributes['role'] ?? '').toLowerCase()
+    if (role === 'presentation' || role === 'none') return null
+    const style = attributes['style'] ?? ''
+    if (/(?:^|;)\s*display\s*:\s*none\b/i.test(style)) return null
+    if (/(?:^|;)\s*visibility\s*:\s*hidden\b/i.test(style)) return null
+  }
+
+  // Anchor targets: <a id="..."></a> or <a name="..."></a> with no href. These are landmarks,
+  // not links, and should be dropped (mirrors Typora's paste behavior).
+  if (tagName === 'a' && !attributes['href']) {
+    const hasOnlyWhitespaceChildren = Array.from(element.childNodes).every(
+      (child) => child.nodeType === 3 && (child.textContent ?? '').trim() === ''
+    )
+    if (hasOnlyWhitespaceChildren) return null
+  }
+
   return {
     type: 'element',
     tagName,
@@ -174,7 +215,7 @@ function shouldPreferPlainText(root: ClipboardHtmlAstNode, plainText: string): b
   const htmlImageCount = countHtmlImages(root)
   const plainHasStrongMarkdownSyntax = containsStrongMarkdownSyntax(plainText)
 
-  if (plainHasStrongMarkdownSyntax && plainImageCount >= htmlImageCount) {
+  if (plainHasStrongMarkdownSyntax && plainImageCount >= htmlImageCount && !htmlBlocksPlainTextOverride(root)) {
     return true
   }
 
@@ -267,12 +308,6 @@ function serializeBlockNode(node: ClipboardHtmlAstNode, context: { listDepth: nu
         start: Number.isFinite(start) ? start : 1,
       })
     }
-    case 'li':
-      return serializeListItem(node, {
-        listDepth: context.listDepth,
-        ordered: false,
-        index: 0,
-      })
     case 'hr':
       return '---'
     case 'table':
@@ -309,7 +344,11 @@ function serializeInlineChildren(nodes: ClipboardHtmlAstNode[], context: { listD
     }
 
     if (BLOCK_TAGS.has(node.tagName)) {
-      output += serializeBlockNode(node, context)
+      const blockResult = serializeBlockNode(node, context)
+      if (blockResult) {
+        if (output.length > 0 && !output.endsWith('\n')) output += '\n\n'
+        output += blockResult + '\n\n'
+      }
       continue
     }
 
@@ -386,8 +425,27 @@ function serializeLink(node: ClipboardHtmlAstNode, context: { listDepth: number 
   const href = sanitizeUrl(node.attributes?.href)
   const content = serializeInlineChildren(node.children, context).trim()
   if (!href) return content
-  if (!content) return `<${href}>`
+  // Drop decorative/empty anchors (heading permalink icons, font-awesome-only links, etc.)
+  // to match the behavior of editors like Typora. Keep autolinks only when the link points
+  // to an external resource — internal fragment links with no visible text are never useful.
+  if (!content) {
+    if (/^#/.test(href) || isDecorativeAnchor(node)) return ''
+    return `<${href}>`
+  }
   return `[${content}](${formatMarkdownDestination(href)})`
+}
+
+function isDecorativeAnchor(node: ClipboardHtmlAstNode): boolean {
+  // True when every descendant element is a decorative icon wrapper (i, svg, span, use, path)
+  // and there is no visible text anywhere inside.
+  const DECORATIVE_TAGS = new Set(['i', 'svg', 'use', 'path', 'span', 'small', 'g', 'title', 'desc'])
+  const walk = (n: ClipboardHtmlAstNode): boolean => {
+    if (n.type === 'text') return (n.textContent ?? '').trim() === ''
+    if (n.type !== 'element' || !n.tagName) return true
+    if (!DECORATIVE_TAGS.has(n.tagName)) return false
+    return n.children.every(walk)
+  }
+  return node.children.every(walk)
 }
 
 function serializeImage(node: ClipboardHtmlAstNode): string {
@@ -397,7 +455,7 @@ function serializeImage(node: ClipboardHtmlAstNode): string {
   const alt = escapeMarkdownText(node.attributes?.alt?.trim() ?? '')
   const title = node.attributes?.title?.trim()
   const destination = formatMarkdownDestination(src)
-  const titleSuffix = title ? ` "${title.replace(/"/g, '\\"')}"` : ''
+  const titleSuffix = title ? ` "${title.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : ''
   return `![${alt}](${destination}${titleSuffix})`
 }
 
@@ -469,6 +527,17 @@ function prefixBlock(block: string, firstPrefix: string, continuationPrefix: str
 function serializeTable(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
   const rows = collectTableRows(node)
   if (rows.length === 0) {
+    return serializeContainerNode(node.children, context)
+  }
+
+  const hasMergedCells = rows.some((row) =>
+    row.some(
+      (cell) =>
+        (cell.attributes?.colspan !== undefined && cell.attributes.colspan !== '1') ||
+        (cell.attributes?.rowspan !== undefined && cell.attributes.rowspan !== '1')
+    )
+  )
+  if (hasMergedCells) {
     return serializeContainerNode(node.children, context)
   }
 
@@ -605,7 +674,7 @@ function extractTextContent(node: ClipboardHtmlAstNode, options: { preserveWhite
 function extractCodeBlockLanguage(className?: string): string {
   if (!className) return ''
 
-  const match = className.match(/(?:language|lang)-([A-Za-z0-9_-]+)/)
+  const match = className.match(/(?:language|lang)-([A-Za-z0-9_-]+)/i)
   return match?.[1] ?? ''
 }
 
@@ -758,11 +827,20 @@ function prefixLines(content: string, prefix: string): string {
 function escapeMarkdownText(text: string): string {
   return text
     .replace(/\\/g, '\\\\')
-    .replace(/([`\[\]])/g, '\\$1')
+    .replace(/([`\[\]*])/g, '\\$1')
+    .replace(/_/g, (_match, offset, str) => {
+      const prev = str[offset - 1]
+      const next = str[offset + 1]
+      // Intra-word underscores (e.g. DBMS_CLOUD) are safe in CommonMark — no escaping needed
+      if (prev && /[a-zA-Z0-9]/.test(prev) && next && /[a-zA-Z0-9]/.test(next)) {
+        return '_'
+      }
+      return '\\_'
+    })
 }
 
 function escapeTableCell(text: string): string {
-  return text.replace(/\|/g, '\\|')
+  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
 }
 
 function escapeForRegExp(value: string): string {

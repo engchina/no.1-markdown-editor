@@ -30,8 +30,25 @@ export default function SearchBar({ editorView, searchSupport, loading, showRepl
   }, [showReplace])
 
   useEffect(() => {
-    if (!loading) findRef.current?.focus()
+    if (loading) return
+    findRef.current?.focus()
+    findRef.current?.select()
   }, [loading])
+
+  useEffect(() => {
+    if (!editorView || !searchSupport) return
+
+    const query = searchSupport.readQuery(editorView)
+    const selection = editorView.state.selection.main
+    const selectedText =
+      selection.empty || selection.from === selection.to ? '' : editorView.state.sliceDoc(selection.from, selection.to)
+
+    setCaseSensitive(query.caseSensitive)
+    setUseRegex(query.regexp)
+    setWholeWord(query.wholeWord)
+    setReplaceText(query.replace)
+    setFindText(query.search || selectedText)
+  }, [editorView, searchSupport])
 
   const runSearch = useCallback(
     (find: string, opts?: { cs?: boolean; re?: boolean; ww?: boolean }) => {
@@ -42,6 +59,13 @@ export default function SearchBar({ editorView, searchSupport, loading, showRepl
       const ww = opts?.ww ?? wholeWord
 
       if (!find) {
+        searchSupport.applyQuery(editorView, {
+          search: '',
+          caseSensitive: cs,
+          regexp: re,
+          wholeWord: ww,
+          replace: replaceText,
+        })
         setMatchCount('')
         setHasNoMatches(false)
         return
@@ -69,6 +93,32 @@ export default function SearchBar({ editorView, searchSupport, loading, showRepl
   useEffect(() => {
     runSearch(findText)
   }, [findText, runSearch])
+
+  const replaceOne = useCallback(() => {
+    if (!editorView || !searchSupport || !findText) return
+
+    searchSupport.replaceNext(editorView, {
+      search: findText,
+      caseSensitive,
+      regexp: useRegex,
+      wholeWord,
+      replace: replaceText,
+    })
+    runSearch(findText)
+  }, [caseSensitive, editorView, findText, replaceText, runSearch, searchSupport, useRegex, wholeWord])
+
+  const replaceEveryMatch = useCallback(() => {
+    if (!editorView || !searchSupport || !findText) return
+
+    searchSupport.replaceAll(editorView, {
+      search: findText,
+      caseSensitive,
+      regexp: useRegex,
+      wholeWord,
+      replace: replaceText,
+    })
+    runSearch(findText)
+  }, [caseSensitive, editorView, findText, replaceText, runSearch, searchSupport, useRegex, wholeWord])
 
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -174,6 +224,13 @@ export default function SearchBar({ editorView, searchSupport, loading, showRepl
           style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
         >↓</button>
         <button
+          disabled={!findText}
+          onClick={() => editorView && searchSupport.selectAll(editorView)}
+          className="text-xs px-2 h-6 rounded disabled:opacity-40"
+          style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+          title={t('search.selectAll')}
+        >{t('search.selectAll')}</button>
+        <button
           onClick={() => setHasReplace((value) => !value)}
           className="text-xs px-2 h-6 rounded"
           style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
@@ -197,7 +254,14 @@ export default function SearchBar({ editorView, searchSupport, loading, showRepl
               type="text"
               value={replaceText}
               onChange={(event) => setReplaceText(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Escape') onClose() }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  replaceOne()
+                  return
+                }
+                if (event.key === 'Escape') onClose()
+              }}
               placeholder={t('search.replacePlaceholder')}
               className="flex-1 bg-transparent outline-none text-xs"
               style={{ color: 'var(--text-primary)' }}
@@ -205,32 +269,13 @@ export default function SearchBar({ editorView, searchSupport, loading, showRepl
           </div>
           <button
             disabled={!findText}
-            onClick={() => {
-              if (!editorView) return
-              searchSupport.replaceNext(editorView, {
-                search: findText,
-                caseSensitive,
-                regexp: useRegex,
-                wholeWord,
-                replace: replaceText,
-              })
-            }}
+            onClick={replaceOne}
             className="text-xs px-2 h-6 rounded disabled:opacity-40"
             style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
           >{t('search.replaceOne')}</button>
           <button
             disabled={!findText}
-            onClick={() => {
-              if (!editorView) return
-              searchSupport.replaceAll(editorView, {
-                search: findText,
-                caseSensitive,
-                regexp: useRegex,
-                wholeWord,
-                replace: replaceText,
-              })
-              runSearch(findText)
-            }}
+            onClick={replaceEveryMatch}
             className="text-xs px-2 h-6 rounded disabled:opacity-40"
             style={{ background: 'var(--accent)', color: 'white', border: 'none' }}
           >{t('search.replaceAll')}</button>
