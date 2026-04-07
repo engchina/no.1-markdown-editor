@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "node scripts/run-tests.mjs",
     "test:smoke": "npm run build && node scripts/run-smoke.mjs",
+    "test:paste:smoke": "npm run build && node scripts/run-paste-smoke.mjs",
     "tauri": "node scripts/run-tauri.mjs",
     "package:win": ".\\scripts\\package-win.cmd",
     "package:mac": "bash ./scripts/package-mac.sh"

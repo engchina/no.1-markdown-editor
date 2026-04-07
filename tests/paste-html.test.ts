@@ -147,6 +147,74 @@ test('renderClipboardHtmlAstToMarkdown preserves heading, links, and nested list
   )
 })
 
+test('renderClipboardHtmlAstToMarkdown removes flattened duplicate text around equivalent semantic headings', () => {
+  const root = parseHtml(`
+    Markdown Reference
+    <h1>Markdown Reference</h1>
+    Markdown Reference
+  `)
+
+  const markdown = renderClipboardHtmlAstToMarkdown(root)
+
+  assert.equal(markdown, '# Markdown Reference')
+})
+
+test('renderClipboardHtmlAstToMarkdown preserves distinct text nodes next to semantic headings', () => {
+  const root = parseHtml(`
+    Intro line
+    <h1>Markdown Reference</h1>
+  `)
+
+  const markdown = renderClipboardHtmlAstToMarkdown(root)
+
+  assert.equal(
+    markdown,
+    [
+      'Intro line',
+      '',
+      '# Markdown Reference',
+    ].join('\n')
+  )
+})
+
+test('renderClipboardHtmlAstToMarkdown removes flattened text duplicated by multiple semantic blocks', () => {
+  const root = parseHtml(`
+    Markdown Reference Overview
+    <h1>Markdown Reference</h1>
+    <h2>Overview</h2>
+  `)
+
+  const markdown = renderClipboardHtmlAstToMarkdown(root)
+
+  assert.equal(
+    markdown,
+    [
+      '# Markdown Reference',
+      '',
+      '## Overview',
+    ].join('\n')
+  )
+})
+
+test('renderClipboardHtmlAstToMarkdown removes flattened duplicate text when it is interleaved between semantic headings', () => {
+  const root = parseHtml(`
+    <h1>Markdown Reference</h1>
+    Markdown Reference Overview
+    <h2>Overview</h2>
+  `)
+
+  const markdown = renderClipboardHtmlAstToMarkdown(root)
+
+  assert.equal(
+    markdown,
+    [
+      '# Markdown Reference',
+      '',
+      '## Overview',
+    ].join('\n')
+  )
+})
+
 test('convertClipboardHtmlToMarkdown does not fall back to plain text for semantic html tags', () => {
   const originalDomParser = globalThis.DOMParser
   globalThis.DOMParser = FakeDOMParser as unknown as typeof DOMParser
@@ -154,6 +222,45 @@ test('convertClipboardHtmlToMarkdown does not fall back to plain text for semant
   try {
     const markdown = convertClipboardHtmlToMarkdown('<p><u>Underline</u></p>', 'Underline')
     assert.equal(markdown, '<u>Underline</u>')
+  } finally {
+    globalThis.DOMParser = originalDomParser
+  }
+})
+
+test('convertClipboardHtmlToMarkdown prefers semantic headings over duplicated flattened clipboard text', () => {
+  const originalDomParser = globalThis.DOMParser
+  globalThis.DOMParser = FakeDOMParser as unknown as typeof DOMParser
+
+  try {
+    const markdown = convertClipboardHtmlToMarkdown(
+      'Markdown Reference<h1>Markdown Reference</h1>Markdown Reference',
+      'Markdown Reference'
+    )
+
+    assert.equal(markdown, '# Markdown Reference')
+  } finally {
+    globalThis.DOMParser = originalDomParser
+  }
+})
+
+test('convertClipboardHtmlToMarkdown removes interleaved flattened text duplicated by adjacent semantic headings', () => {
+  const originalDomParser = globalThis.DOMParser
+  globalThis.DOMParser = FakeDOMParser as unknown as typeof DOMParser
+
+  try {
+    const markdown = convertClipboardHtmlToMarkdown(
+      '<h1>Markdown Reference</h1>Markdown Reference Overview<h2>Overview</h2>',
+      'Markdown Reference Overview'
+    )
+
+    assert.equal(
+      markdown,
+      [
+        '# Markdown Reference',
+        '',
+        '## Overview',
+      ].join('\n')
+    )
   } finally {
     globalThis.DOMParser = originalDomParser
   }

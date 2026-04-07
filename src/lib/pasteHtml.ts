@@ -6,6 +6,12 @@ export interface ClipboardHtmlAstNode {
   textContent?: string
 }
 
+interface SerializedBlockEntry {
+  markdown: string
+  comparisonText: string
+  source: 'block' | 'inline'
+}
+
 const BLOCK_TAGS = new Set([
   'address',
   'article',
@@ -227,18 +233,28 @@ function shouldPreferPlainText(root: ClipboardHtmlAstNode, plainText: string): b
 }
 
 function serializeBlocks(nodes: ClipboardHtmlAstNode[], context: { listDepth: number }): string[] {
-  const blocks: string[] = []
+  const blocks: SerializedBlockEntry[] = []
   let inlineBuffer = ''
+  let inlineComparisonBuffer = ''
 
   const flushInlineBuffer = () => {
     const block = normalizeInlineMarkdown(inlineBuffer).trim()
-    if (block) blocks.push(block)
+    const comparisonText = normalizeComparisonText(inlineComparisonBuffer)
+    if (block) {
+      blocks.push({
+        markdown: block,
+        comparisonText,
+        source: 'inline',
+      })
+    }
     inlineBuffer = ''
+    inlineComparisonBuffer = ''
   }
 
   for (const node of nodes) {
     if (node.type === 'text') {
       inlineBuffer += serializeInlineText(node.textContent ?? '')
+      inlineComparisonBuffer += extractComparisonText(node)
       continue
     }
 
@@ -246,21 +262,99 @@ function serializeBlocks(nodes: ClipboardHtmlAstNode[], context: { listDepth: nu
 
     if (node.tagName === 'br') {
       inlineBuffer += '\n'
+      inlineComparisonBuffer += '\n'
       continue
     }
 
     if (!BLOCK_TAGS.has(node.tagName)) {
       inlineBuffer += serializeInlineNode(node, context)
+      inlineComparisonBuffer += extractComparisonText(node)
       continue
     }
 
     flushInlineBuffer()
 
     const block = serializeBlockNode(node, context).trim()
-    if (block) blocks.push(block)
+    if (block) {
+      blocks.push({
+        markdown: block,
+        comparisonText: normalizeComparisonText(extractComparisonText(node)),
+        source: 'block',
+      })
+    }
   }
 
   flushInlineBuffer()
+  return dedupeEquivalentBlocks(blocks).map((entry) => entry.markdown)
+}
+
+function dedupeEquivalentBlocks(entries: SerializedBlockEntry[]): SerializedBlockEntry[] {
+  return entries.filter((entry, index) => {
+    if (entry.source !== 'inline' || !entry.comparisonText) {
+      return true
+    }
+
+    return !matchesEquivalentStructuredRun(entries, index, entry.comparisonText)
+  })
+}
+
+function matchesEquivalentStructuredRun(entries: SerializedBlockEntry[], startIndex: number, comparisonText: string): boolean {
+  const previousBlocks = collectAdjacentStructuredBlocks(entries, startIndex, -1)
+  const nextBlocks = collectAdjacentStructuredBlocks(entries, startIndex, 1)
+
+  for (let previousCount = 0; previousCount <= previousBlocks.length; previousCount += 1) {
+    for (let nextCount = 0; nextCount <= nextBlocks.length; nextCount += 1) {
+      if (previousCount === 0 && nextCount === 0) {
+        continue
+      }
+
+      const candidate = normalizeComparisonText(
+        [
+          ...previousBlocks.slice(previousBlocks.length - previousCount),
+          ...nextBlocks.slice(0, nextCount),
+        ].join('\n')
+      )
+
+      if (!candidate) {
+        continue
+      }
+
+      if (candidate === comparisonText) {
+        return true
+      }
+
+      if (candidate.length > comparisonText.length) {
+        if (nextCount === 0) {
+          break
+        }
+        continue
+      }
+    }
+  }
+
+  return false
+}
+
+function collectAdjacentStructuredBlocks(
+  entries: SerializedBlockEntry[],
+  startIndex: number,
+  direction: -1 | 1
+): string[] {
+  const blocks: string[] = []
+
+  for (let index = startIndex + direction; index >= 0 && index < entries.length; index += direction) {
+    const entry = entries[index]
+    if (entry.source !== 'block' || !entry.comparisonText) {
+      break
+    }
+
+    if (direction === -1) {
+      blocks.unshift(entry.comparisonText)
+    } else {
+      blocks.push(entry.comparisonText)
+    }
+  }
+
   return blocks
 }
 
@@ -683,6 +777,17 @@ function serializeInlineText(text: string): string {
   return escapeMarkdownText(text.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').replace(/\s+/g, ' '))
 }
 
+function extractComparisonText(node: ClipboardHtmlAstNode): string {
+  if (node.type === 'text') {
+    return node.textContent ?? ''
+  }
+
+  if (node.type !== 'element') return ''
+  if (node.tagName === 'br') return '\n'
+
+  return node.children.map((child) => extractComparisonText(child)).join('')
+}
+
 function wrapInline(marker: string, content: string): string {
   return content ? `${marker}${content}${marker}` : ''
 }
@@ -785,6 +890,10 @@ function looksLikeMarkdownSource(text: string): boolean {
 
 function normalizePastedText(text: string): string {
   return text.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ')
+}
+
+function normalizeComparisonText(text: string): string {
+  return text.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
 function extractClipboardHtmlFragment(html: string): string {

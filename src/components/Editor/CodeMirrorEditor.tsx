@@ -485,11 +485,12 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
     container.addEventListener('copy', handleCopy)
     container.addEventListener('cut', handleCut)
-    container.addEventListener('paste', handlePaste)
+    // Capture paste before CodeMirror's own bubbling handlers consume the flattened plain-text payload.
+    container.addEventListener('paste', handlePaste, true)
     return () => {
       container.removeEventListener('copy', handleCopy)
       container.removeEventListener('cut', handleCut)
-      container.removeEventListener('paste', handlePaste)
+      container.removeEventListener('paste', handlePaste, true)
     }
   }, [activeTab?.path])
 
