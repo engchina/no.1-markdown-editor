@@ -387,9 +387,9 @@ export const wysiwygTheme = EditorView.baseTheme({
   },
   '.cm-wysiwyg-blockquote': {
     color: 'var(--text-secondary) !important',
-    fontStyle: 'italic',
-    borderLeft: '4px solid var(--accent)',
-    paddingLeft: '12px',
+    fontStyle: 'normal',
+    borderLeft: '4px solid color-mix(in srgb, var(--text-muted) 42%, transparent)',
+    paddingLeft: '14px',
   },
   '.cm-wysiwyg-math-inline': {
     display: 'inline-block',

@@ -217,17 +217,13 @@ body {
   padding: 32px 48px;
   overflow-y: auto;
   height: 100%;
-  --md-block-space: 1em;
-  --md-quote-space: 0.75em;
-}
-
-.markdown-preview > * {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
-.markdown-preview > * + * {
-  margin-top: var(--md-block-space);
+  --md-block-space: 0.75em;
+  --md-quote-space: 0.9em;
+  --md-quote-pad-block: 0.15em;
+  --md-quote-pad-inline-end: 0.15em;
+  --md-quote-pad-inline-start: 1.1em;
+  --md-quote-line-width: 4px;
+  --md-quote-rule-color: color-mix(in srgb, var(--text-muted) 42%, transparent);
 }
 
 .markdown-preview p {
@@ -301,32 +297,11 @@ body {
 }
 
 .markdown-preview blockquote {
-  position: relative;
-  margin: 0;
-  margin-left: 0;
-  padding: 0.85em 1.1em 0.85em 1.5em;
+  padding: var(--md-quote-pad-block) var(--md-quote-pad-inline-end) var(--md-quote-pad-block) var(--md-quote-pad-inline-start);
   color: var(--text-secondary);
-  font-style: italic;
-  background: color-mix(in srgb, var(--accent) 4%, transparent);
-  border-radius: 0 12px 12px 0;
-  transition: background 0.2s ease;
-}
-.markdown-preview blockquote::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.7em;
-  bottom: 0.7em;
-  width: 3px;
-  border-radius: 999px;
-  background: var(--accent);
-  transition: background 0.2s ease;
-}
-.markdown-preview blockquote:hover {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-.markdown-preview blockquote:hover::before {
-  background: var(--accent-hover);
+  font-style: normal;
+  background: none;
+  border-left: var(--md-quote-line-width) solid var(--md-quote-rule-color);
 }
 .markdown-preview blockquote > * {
   margin-top: 0;
@@ -642,6 +617,61 @@ body {
   border-top: 1px solid var(--border);
   font-size: 0.875em;
   color: var(--text-secondary);
+}
+.markdown-preview > :is(
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  blockquote,
+  ul,
+  ol,
+  pre,
+  table,
+  hr,
+  img,
+  .front-matter
+) {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.markdown-preview > :is(
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  blockquote,
+  ul,
+  ol,
+  pre,
+  table,
+  hr,
+  img,
+  .front-matter
+) + :is(
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  blockquote,
+  ul,
+  ol,
+  pre,
+  table,
+  hr,
+  img,
+  .front-matter
+) {
+  margin-top: var(--md-block-space);
 }
 .markdown-preview .footnotes ol { padding-left: 1.5em; }
 .markdown-preview a[data-footnote-ref] {

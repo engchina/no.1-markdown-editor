@@ -86,15 +86,13 @@ export function buildStandaloneHtml(
       max-width: 800px;
       margin: 0 auto;
       padding: 48px 32px;
-      --md-block-space: 1em;
-      --md-quote-space: 0.75em;
-    }
-    body > * {
-      margin-top: 0;
-      margin-bottom: 0;
-    }
-    body > * + * {
-      margin-top: var(--md-block-space);
+      --md-block-space: 0.75em;
+      --md-quote-space: 0.9em;
+      --md-quote-pad-block: 0.15em;
+      --md-quote-pad-inline-end: 0.15em;
+      --md-quote-pad-inline-start: 1.1em;
+      --md-quote-line-width: 4px;
+      --md-quote-rule-color: rgba(161, 161, 170, 0.42);
     }
     h1, h2, h3, h4, h5, h6 {
       line-height: 1.3;
@@ -125,23 +123,11 @@ export function buildStandaloneHtml(
     }
     pre code { background: none; padding: 0; color: inherit; }
     blockquote {
-      position: relative;
-      margin: 0;
-      padding: 0.75em 1em 0.75em 1.375em;
+      padding: var(--md-quote-pad-block) var(--md-quote-pad-inline-end) var(--md-quote-pad-block) var(--md-quote-pad-inline-start);
       color: #4b5563;
-      font-style: italic;
-      background: linear-gradient(90deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.03));
-      border-radius: 0 12px 12px 0;
-    }
-    blockquote::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0.55em;
-      bottom: 0.55em;
-      width: 3px;
-      border-radius: 999px;
-      background: #3b82f6;
+      font-style: normal;
+      background: none;
+      border-left: var(--md-quote-line-width) solid var(--md-quote-rule-color);
     }
     blockquote > * { margin-top: 0; margin-bottom: 0; }
     blockquote > * + * { margin-top: var(--md-quote-space); }
@@ -166,6 +152,14 @@ export function buildStandaloneHtml(
     .front-matter td { border: none; padding: 2px 8px 2px 0; }
     .fm-key { font-weight: 600; color: #2563eb; white-space: nowrap; padding-right: 16px; }
     .fm-val { color: #4b5563; }
+    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, pre, table, hr, img, .front-matter) {
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, pre, table, hr, img, .front-matter)
+      + :is(p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, pre, table, hr, img, .front-matter) {
+      margin-top: var(--md-block-space);
+    }
     @media print {
       body { max-width: 100%; padding: 0; }
     }
