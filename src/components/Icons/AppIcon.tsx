@@ -5,6 +5,7 @@ export type IconName =
   | 'clock'
   | 'code'
   | 'copy'
+  | 'download'
   | 'eye'
   | 'file'
   | 'filePlus'
@@ -19,6 +20,7 @@ export type IconName =
   | 'lineNumbers'
   | 'link'
   | 'list'
+  | 'more'
   | 'orderedList'
   | 'outline'
   | 'palette'
@@ -35,6 +37,7 @@ export type IconName =
   | 'task'
   | 'trash'
   | 'typewriter'
+  | 'underline'
   | 'wrap'
   | 'chevronRight'
   | 'chevronDown'
@@ -46,6 +49,7 @@ const PATHS: Record<IconName, string> = {
   clock: 'M12 7v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
   code: 'M8 8l-4 4 4 4 M16 8l4 4-4 4',
   copy: 'M9 9h10v11H9z M6 15H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1',
+  download: 'M12 3v11 M8 10l4 4 4-4 M5 21h14',
   eye: 'M2 12c2.5-4 6-6 10-6c4 0 7.5 2 10 6c-2.5 4-6 6-10 6c-4 0-7.5-2-10-6z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
   file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6',
   filePlus: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 12v6 M9 15h6',
@@ -60,6 +64,7 @@ const PATHS: Record<IconName, string> = {
   lineNumbers: 'M9 6h11 M9 12h11 M9 18h11 M5 6h.01 M5 12h.01 M5 18h.01',
   link: 'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1.5 1.5 M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7L13.5 19.5',
   list: 'M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01',
+  more: 'M5 12h.01 M12 12h.01 M19 12h.01',
   orderedList: 'M10 6h10 M10 12h10 M10 18h10 M4 7h2l-1 1v1 M4 13h2v2H4l2 2 M4 17h2v3',
   outline: 'M6 6h12 M6 12h12 M6 18h12 M3 6h.01 M3 12h.01 M3 18h.01',
   palette: 'M12 3a9 9 0 1 0 9 9c0 1.7-1.3 3-3 3h-1.2a1.8 1.8 0 1 0 0 3.6H18a6 6 0 0 0 0-12A9 9 0 0 0 12 3 M7.5 12h.01 M8.5 8h.01 M12.5 7h.01 M15.5 10h.01',
@@ -76,6 +81,7 @@ const PATHS: Record<IconName, string> = {
   task: 'M9 11l2 2 4-4 M5 4h14v16H5z',
   trash: 'M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6 M10 11v6 M14 11v6',
   typewriter: 'M4 8h16v8H4z M6 16v4h12v-4 M8 8V5h8v3 M8 12h.01 M12 12h.01 M16 12h.01',
+  underline: 'M8 4v8a4 4 0 0 0 8 0V4 M5 20h14',
   wrap: 'M4 7h11a4 4 0 1 1 0 8H8 M8 11l-4 4 4 4 M14 17h1',
   chevronRight: 'M9 6l6 6-6 6',
   chevronDown: 'M6 9l6 6 6-6',

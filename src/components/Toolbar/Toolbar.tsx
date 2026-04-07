@@ -1,63 +1,91 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode, type Ref, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEditorStore, type ViewMode } from '../../store/editor'
 import { LANGUAGES, type Language } from '../../i18n'
 import { useFileOps } from '../../hooks/useFileOps'
 import { useExport } from '../../hooks/useExport'
 import ThemePanel from '../ThemePanel/ThemePanel'
+import AppIcon, { type IconName } from '../Icons/AppIcon'
 
-// SVG icon helper
-const Icon = ({ d, size = 16 }: { d: string; size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <path d={d} />
-  </svg>
-)
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
-const icons = {
-  new: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6',
-  open: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
-  save: 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z M17 21v-8H7v8 M7 3v5h8',
-  bold: 'M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z',
-  italic: 'M19 4h-9M14 20H5M14.7 4.7L9.2 19.4',
-  link: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
-  image: 'M21 15a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2z M8.5 13.5l2.5-3 2 2.5 2.5-3L19 15',
-  code: 'M16 18l6-6-6-6 M8 6l-6 6 6 6',
-  quote: 'M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z',
-  list: 'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01',
-  table: 'M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18',
-  sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 M2 12h2 M20 12h2 M6.34 17.66l-1.41 1.41 M19.07 4.93l-1.41 1.41',
-  moon: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z',
-  sidebar: 'M3 3h18v18H3zM9 3v18',
-  focus: 'M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3',
-  palette: 'M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20z M12 8v4 M12 16h.01',
-  wysiwyg: 'M4 6h16M4 12h10M4 18h7',
-  export: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
-  source: 'M8 8l-4 4 4 4 M16 8l4 4-4 4',
-  split: 'M3 5h18v14H3z M12 5v14',
-  preview: 'M2 12c2.5-4 6-6 10-6c4 0 7.5 2 10 6c-2.5 4-6 6-10 6c-4 0-7.5-2-10-6z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
-  print: 'M6 9V4h12v5 M6 18H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-1 M7 14h10v6H7z',
-  fileText: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h8 M8 9h3',
-  copy: 'M9 9h10v11H9z M6 15H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1',
+type FormatAction =
+  | 'bold'
+  | 'italic'
+  | 'strikethrough'
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'code'
+  | 'codeblock'
+  | 'link'
+  | 'image'
+  | 'quote'
+  | 'ul'
+  | 'ol'
+  | 'task'
+  | 'hr'
+  | 'table'
+
+type ToolbarButtonVariant = 'square' | 'wide'
+type ToolbarMenuAlign = 'left' | 'right'
+
+interface ToolbarMenuItem {
+  id: string
+  label: string
+  icon?: IconName
+  textIcon?: string
+  action: () => void | Promise<void>
+}
+
+const VIEW_MODES: { mode: ViewMode; icon: IconName }[] = [
+  { mode: 'source', icon: 'code' },
+  { mode: 'split', icon: 'split' },
+  { mode: 'preview', icon: 'eye' },
+]
+
+function emitFormat(action: FormatAction) {
+  document.dispatchEvent(new CustomEvent('editor:format', { detail: action }))
+}
+
+function ToolbarTextMark({ label }: { label: string }) {
+  return (
+    <span className="text-[11px] font-semibold leading-none tracking-[0.02em]" style={{ fontFamily: 'monospace' }}>
+      {label}
+    </span>
+  )
 }
 
 interface ToolbarBtnProps {
   title: string
   onClick: () => void
   active?: boolean
-  children: React.ReactNode
+  children: ReactNode
   disabled?: boolean
-  buttonRef?: React.Ref<HTMLButtonElement>
+  buttonRef?: Ref<HTMLButtonElement>
+  variant?: ToolbarButtonVariant
 }
 
-function ToolbarBtn({ title, onClick, active, children, disabled, buttonRef }: ToolbarBtnProps) {
+function ToolbarBtn({
+  title,
+  onClick,
+  active,
+  children,
+  disabled,
+  buttonRef,
+  variant = 'square',
+}: ToolbarBtnProps) {
+  const sizeClasses = variant === 'wide' ? 'h-8 px-2.5 gap-1.5' : 'w-8 h-8'
+
   return (
     <button
       ref={buttonRef}
       type="button"
       title={title}
+      aria-label={title}
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center justify-center w-8 h-8 rounded-[10px] hover-scale disabled:opacity-40 transition-all duration-200"
+      className={`flex flex-shrink-0 items-center justify-center rounded-[10px] hover-scale disabled:opacity-40 transition-all duration-200 ${sizeClasses}`}
       style={{
         color: active ? 'var(--accent)' : 'var(--text-secondary)',
         background: active ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'transparent',
@@ -66,7 +94,7 @@ function ToolbarBtn({ title, onClick, active, children, disabled, buttonRef }: T
         if (!active && !disabled) (e.currentTarget as HTMLElement).style.background = 'var(--bg-tertiary)'
       }}
       onMouseLeave={(e) => {
-        if (!active) (e.currentTarget as HTMLElement).style.background = active ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'transparent'
+        if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'
       }}
     >
       {children}
@@ -74,46 +102,115 @@ function ToolbarBtn({ title, onClick, active, children, disabled, buttonRef }: T
   )
 }
 
-function Divider() {
-  return <div className="w-px mx-1 self-stretch" style={{ background: 'var(--border)' }} />
+function ToolbarGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="flex flex-shrink-0 items-center gap-0.5 rounded-[14px] px-1 py-1"
+      style={{
+        background: 'color-mix(in srgb, var(--bg-secondary) 84%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--border) 72%, transparent)',
+      }}
+    >
+      {children}
+    </div>
+  )
 }
 
-const VIEW_MODES: { mode: ViewMode; icon: keyof typeof icons }[] = [
-  { mode: 'source', icon: 'source' },
-  { mode: 'split', icon: 'split' },
-  { mode: 'preview', icon: 'preview' },
-]
+function ToolbarMenuGlyph({ icon, textIcon }: { icon?: IconName; textIcon?: string }) {
+  return (
+    <span
+      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md"
+      style={{
+        background: 'color-mix(in srgb, var(--bg-tertiary) 78%, transparent)',
+        color: 'var(--text-muted)',
+      }}
+    >
+      {icon ? <AppIcon name={icon} size={14} /> : <ToolbarTextMark label={textIcon ?? ''} />}
+    </span>
+  )
+}
 
-function ExportMenu({
+function ToolbarMenu({
+  items,
   onClose,
   triggerRef,
+  align = 'left',
+  width = 216,
 }: {
+  items: ToolbarMenuItem[]
   onClose: () => void
-  triggerRef: React.RefObject<HTMLButtonElement>
+  triggerRef: RefObject<HTMLButtonElement | null>
+  align?: ToolbarMenuAlign
+  width?: number
 }) {
-  const { t } = useTranslation()
-  const { exportHtml, exportPdf, exportMarkdown, copyAsHtml } = useExport()
-  const ref = useRef<HTMLDivElement>(null)
-  const [copied, setCopied] = useState(false)
+  const ref = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node | null
+    const handler = (event: MouseEvent) => {
+      const target = event.target as Node | null
       if (!target) return
 
       if (ref.current?.contains(target)) return
       if (triggerRef.current?.contains(target)) return
       onClose()
     }
+
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose, triggerRef])
 
-  const items: { label: string; icon: keyof typeof icons; action: () => void | Promise<void> }[] = [
-    { label: t('export.html'), icon: 'code', action: exportHtml },
-    { label: t('export.pdf'), icon: 'print', action: exportPdf },
-    { label: t('export.markdown'), icon: 'fileText', action: exportMarkdown },
+  return (
+    <div
+      ref={ref}
+      className="absolute top-12 z-50 overflow-hidden rounded-xl shadow-xl animate-in glass-panel"
+      style={{
+        width,
+        background: 'var(--glass-bg)',
+        borderColor: 'var(--glass-border)',
+        left: align === 'left' ? 0 : 'auto',
+        right: align === 'right' ? 0 : 'auto',
+      }}
+    >
+      {items.map(({ id, label, icon, textIcon, action }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => {
+            void action()
+            onClose()
+          }}
+          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors"
+          style={{ color: 'var(--text-primary)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+        >
+          <ToolbarMenuGlyph icon={icon} textIcon={textIcon} />
+          <span>{label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ExportMenu({
+  onClose,
+  triggerRef,
+}: {
+  onClose: () => void
+  triggerRef: RefObject<HTMLButtonElement | null>
+}) {
+  const { t } = useTranslation()
+  const { exportHtml, exportPdf, exportMarkdown, copyAsHtml } = useExport()
+  const [copied, setCopied] = useState(false)
+
+  const items: ToolbarMenuItem[] = [
+    { id: 'html', label: t('export.html'), icon: 'code', action: exportHtml },
+    { id: 'pdf', label: t('export.pdf'), icon: 'print', action: exportPdf },
+    { id: 'markdown', label: t('export.markdown'), icon: 'file', action: exportMarkdown },
     {
+      id: 'copy-html',
       label: copied ? t('export.copied') : t('export.copyHtml'),
       icon: 'copy',
       action: async () => {
@@ -124,240 +221,240 @@ function ExportMenu({
     },
   ]
 
-  return (
-    <div
-      ref={ref}
-      className="absolute right-2 top-12 z-50 rounded-xl shadow-xl overflow-hidden animate-in glass-panel"
-      style={{
-        width: '200px',
-        background: 'var(--glass-bg)',
-        borderColor: 'var(--glass-border)',
-      }}
-    >
-      {items.map(({ label, icon, action }) => (
-        <button
-          key={label}
-          type="button"
-          onClick={() => { action(); onClose() }}
-          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors"
-          style={{ color: 'var(--text-primary)' }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-secondary)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-        >
-          <Icon d={icons[icon]} />
-          <span>{label}</span>
-        </button>
-      ))}
-    </div>
-  )
+  return <ToolbarMenu items={items} onClose={onClose} triggerRef={triggerRef} align="right" width={200} />
 }
 
 export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () => void; saving?: boolean }) {
   const { t } = useTranslation()
   const {
-    viewMode, setViewMode,
-    sidebarOpen, setSidebarOpen,
-    focusMode, setFocusMode,
-    wysiwygMode, setWysiwygMode,
-    language, setLanguage,
-    tabs, activeTabId,
+    viewMode,
+    setViewMode,
+    sidebarOpen,
+    setSidebarOpen,
+    focusMode,
+    setFocusMode,
+    wysiwygMode,
+    setWysiwygMode,
+    language,
+    setLanguage,
+    tabs,
+    activeTabId,
   } = useEditorStore()
 
   const { newFile, openFile, saveFile, saveFileAs } = useFileOps()
   const [showExport, setShowExport] = useState(false)
   const [showTheme, setShowTheme] = useState(false)
-  const exportButtonRef = useRef<HTMLButtonElement>(null)
-  const themeButtonRef = useRef<HTMLButtonElement>(null)
+  const [showHeadings, setShowHeadings] = useState(false)
+  const [showMoreActions, setShowMoreActions] = useState(false)
+  const exportButtonRef = useRef<HTMLButtonElement | null>(null)
+  const themeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const headingButtonRef = useRef<HTMLButtonElement | null>(null)
+  const moreActionsButtonRef = useRef<HTMLButtonElement | null>(null)
 
-  const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
 
-  // Keyboard shortcuts
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const mod = e.ctrlKey || e.metaKey
-      if (mod && e.key === 'n') { e.preventDefault(); newFile() }
-      if (mod && e.key === 'o') { e.preventDefault(); void openFile() }
-      if (mod && e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); void saveFileAs() }
-      if (mod && !e.shiftKey && e.key === 's') { e.preventDefault(); void saveFile() }
+    const handler = (event: KeyboardEvent) => {
+      const mod = event.ctrlKey || event.metaKey
+      if (mod && event.key === 'n') {
+        event.preventDefault()
+        newFile()
+      }
+      if (mod && event.key === 'o') {
+        event.preventDefault()
+        void openFile()
+      }
+      if (mod && event.shiftKey && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        void saveFileAs()
+      }
+      if (mod && !event.shiftKey && event.key === 's') {
+        event.preventDefault()
+        void saveFile()
+      }
     }
+
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [newFile, openFile, saveFile, saveFileAs])
 
+  const headingItems: ToolbarMenuItem[] = [
+    { id: 'h1', label: t('toolbar.h1'), textIcon: 'H1', action: () => emitFormat('h1') },
+    { id: 'h2', label: t('toolbar.h2'), textIcon: 'H2', action: () => emitFormat('h2') },
+    { id: 'h3', label: t('toolbar.h3'), textIcon: 'H3', action: () => emitFormat('h3') },
+  ]
+
+  const moreActionItems: ToolbarMenuItem[] = [
+    { id: 'codeblock', label: t('toolbar.codeBlock'), icon: 'code', action: () => emitFormat('codeblock') },
+    { id: 'quote', label: t('toolbar.quote'), icon: 'quote', action: () => emitFormat('quote') },
+    { id: 'ordered-list', label: t('toolbar.ol'), icon: 'orderedList', action: () => emitFormat('ol') },
+    { id: 'task-list', label: t('toolbar.task'), icon: 'task', action: () => emitFormat('task') },
+    { id: 'image', label: t('toolbar.image'), icon: 'image', action: () => emitFormat('image') },
+    { id: 'table', label: t('toolbar.table'), icon: 'table', action: () => emitFormat('table') },
+    { id: 'strikethrough', label: t('toolbar.strikethrough'), icon: 'strikethrough', action: () => emitFormat('strikethrough') },
+    { id: 'hr', label: t('toolbar.hr'), icon: 'hr', action: () => emitFormat('hr') },
+  ]
+
   return (
     <div
-      className="relative flex items-center px-4 gap-1.5 flex-shrink-0 rounded-[1.25rem] glass-panel transition-all duration-300"
+      className="relative flex flex-shrink-0 items-center gap-2 rounded-[1.25rem] px-4 transition-all duration-300 glass-panel"
       style={{
         height: '48px',
-        boxShadow: 'var(--shadow-elegant)'
+        boxShadow: 'var(--shadow-elegant)',
       }}
     >
-      {/* Sidebar toggle */}
       <ToolbarBtn title={t('toolbar.toggleSidebar')} onClick={() => setSidebarOpen(!sidebarOpen)} active={sidebarOpen}>
-        <Icon d={icons.sidebar} />
+        <AppIcon name="panel" size={16} />
       </ToolbarBtn>
 
-      <Divider />
+      <ToolbarGroup label={t('menu.file')}>
+        <ToolbarBtn title={`${t('toolbar.new')} (Ctrl+N)`} onClick={newFile}>
+          <AppIcon name="filePlus" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn title={`${t('toolbar.open')} (Ctrl+O)`} onClick={() => void openFile()}>
+          <AppIcon name="folderOpen" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn title={`${t('toolbar.save')} (Ctrl+S)`} onClick={() => void saveFile()}>
+          <AppIcon name="save" size={16} />
+        </ToolbarBtn>
+      </ToolbarGroup>
 
-      {/* File ops */}
-      <ToolbarBtn title={`${t('toolbar.new')} (Ctrl+N)`} onClick={newFile}>
-        <Icon d={icons.new} />
-      </ToolbarBtn>
-      <ToolbarBtn title={`${t('toolbar.open')} (Ctrl+O)`} onClick={() => { void openFile() }}>
-        <Icon d={icons.open} />
-      </ToolbarBtn>
-      <ToolbarBtn title={`${t('toolbar.save')} (Ctrl+S)`} onClick={() => { void saveFile() }}>
-        <Icon d={icons.save} />
-      </ToolbarBtn>
+      <ToolbarGroup label={t('menu.edit')}>
+        <div className="relative">
+          <ToolbarBtn
+            title={t('toolbar.headings')}
+            buttonRef={headingButtonRef}
+            onClick={() => setShowHeadings((open) => !open)}
+            active={showHeadings}
+            variant="wide"
+          >
+            <ToolbarTextMark label="H" />
+            <AppIcon name="chevronDown" size={14} />
+          </ToolbarBtn>
+          {showHeadings && <ToolbarMenu items={headingItems} onClose={() => setShowHeadings(false)} triggerRef={headingButtonRef} width={176} />}
+        </div>
 
-      <Divider />
+        <ToolbarBtn title={t('toolbar.bold')} onClick={() => emitFormat('bold')}>
+          <AppIcon name="bold" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn title={t('toolbar.italic')} onClick={() => emitFormat('italic')}>
+          <AppIcon name="italic" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn title={t('toolbar.code')} onClick={() => emitFormat('code')}>
+          <AppIcon name="code" size={16} />
+        </ToolbarBtn>
+      </ToolbarGroup>
 
-      {/* Format ops */}
-      <ToolbarBtn title={t('toolbar.bold')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'bold' }))}>
-        <Icon d={icons.bold} />
-      </ToolbarBtn>
-      <ToolbarBtn title={t('toolbar.italic')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'italic' }))}>
-        <Icon d={icons.italic} />
-      </ToolbarBtn>
+      <ToolbarGroup label={t('toolbar.moreActions')}>
+        <ToolbarBtn title={t('toolbar.link')} onClick={() => emitFormat('link')}>
+          <AppIcon name="link" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn title={t('toolbar.ul')} onClick={() => emitFormat('ul')}>
+          <AppIcon name="list" size={16} />
+        </ToolbarBtn>
 
-      <Divider />
+        <div className="relative">
+          <ToolbarBtn
+            title={t('toolbar.moreActions')}
+            buttonRef={moreActionsButtonRef}
+            onClick={() => setShowMoreActions((open) => !open)}
+            active={showMoreActions}
+          >
+            <AppIcon name="more" size={16} />
+          </ToolbarBtn>
+          {showMoreActions && (
+            <ToolbarMenu
+              items={moreActionItems}
+              onClose={() => setShowMoreActions(false)}
+              triggerRef={moreActionsButtonRef}
+              width={220}
+            />
+          )}
+        </div>
+      </ToolbarGroup>
 
-      <ToolbarBtn title={t('toolbar.h1')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'h1' }))}>
-        <span className="text-xs font-bold" style={{ fontFamily: 'monospace' }}>H1</span>
-      </ToolbarBtn>
-      <ToolbarBtn title={t('toolbar.h2')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'h2' }))}>
-        <span className="text-xs font-bold" style={{ fontFamily: 'monospace' }}>H2</span>
-      </ToolbarBtn>
-      <ToolbarBtn title={t('toolbar.h3')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'h3' }))}>
-        <span className="text-xs font-bold" style={{ fontFamily: 'monospace' }}>H3</span>
-      </ToolbarBtn>
-
-      <Divider />
-
-      <ToolbarBtn title={t('toolbar.link')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'link' }))}>
-        <Icon d={icons.link} />
-      </ToolbarBtn>
-      <ToolbarBtn title={t('toolbar.image')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'image' }))}>
-        <Icon d={icons.image} />
-      </ToolbarBtn>
-      <ToolbarBtn title={t('toolbar.code')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'code' }))}>
-        <Icon d={icons.code} />
-      </ToolbarBtn>
-      <ToolbarBtn title={t('toolbar.quote')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'quote' }))}>
-        <Icon d={icons.quote} />
-      </ToolbarBtn>
-      <ToolbarBtn title={t('toolbar.ul')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'ul' }))}>
-        <Icon d={icons.list} />
-      </ToolbarBtn>
-      <ToolbarBtn title={t('toolbar.table')} onClick={() => document.dispatchEvent(new CustomEvent('editor:format', { detail: 'table' }))}>
-        <Icon d={icons.table} />
-      </ToolbarBtn>
-
-      {/* WYSIWYG toggle */}
-      <Divider />
-      <ToolbarBtn
-        title={`${t('themePanel.wysiwyg')}${wysiwygMode ? ' (ON)' : ''}`}
-        onClick={() => setWysiwygMode(!wysiwygMode)}
-        active={wysiwygMode}
-      >
-        <Icon d={icons.wysiwyg} />
-      </ToolbarBtn>
-
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Title + save indicator */}
-      {activeTab && (
-        <span className="text-sm truncate max-w-xs flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-          {saving
-            ? <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--accent)' }} />
-            : activeTab.isDirty
-            ? <span style={{ color: 'var(--accent)' }}>●</span>
-            : null}
+      {!isTauri && activeTab && (
+        <span className="flex max-w-xs items-center gap-2 truncate text-sm" style={{ color: 'var(--text-secondary)' }}>
+          {saving ? (
+            <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: 'var(--accent)' }} />
+          ) : activeTab.isDirty ? (
+            <span style={{ color: 'var(--accent)' }}>●</span>
+          ) : null}
           {activeTab.name}
         </span>
       )}
 
       <div className="flex-1" />
 
-      {/* Command Palette */}
       <ToolbarBtn title={t('toolbar.commandPalette')} onClick={() => onOpenPalette?.()}>
-        <span className="text-xs font-mono" style={{ fontSize: '13px' }}>⌘</span>
+        <span className="text-xs font-mono" style={{ fontSize: '13px' }}>
+          ⌘
+        </span>
       </ToolbarBtn>
 
-      {/* Export */}
       <div className="relative">
         <ToolbarBtn
           title={t('toolbar.export')}
           buttonRef={exportButtonRef}
-          onClick={() => { setShowExport(!showExport); setShowTheme(false) }}
+          onClick={() => setShowExport((open) => !open)}
+          active={showExport}
         >
-          <Icon d={icons.export} />
+          <AppIcon name="download" size={16} />
         </ToolbarBtn>
         {showExport && <ExportMenu onClose={() => setShowExport(false)} triggerRef={exportButtonRef} />}
       </div>
 
-      {/* View mode */}
-      <div
-        className="flex items-center rounded overflow-hidden mx-1"
-        style={{ border: '1px solid var(--border)', height: '28px' }}
-      >
+      <ToolbarGroup label={t('toolbar.viewMode')}>
         {VIEW_MODES.map(({ mode, icon }) => (
-          <button
-            key={mode}
-            title={t(`viewMode.${mode}`)}
-            onClick={() => setViewMode(mode)}
-            className="px-2 h-full text-xs transition-colors"
-            style={{
-              background: viewMode === mode ? 'var(--accent)' : 'var(--bg-secondary)',
-              color: viewMode === mode ? 'white' : 'var(--text-muted)',
-              borderRight: mode !== 'preview' ? '1px solid var(--border)' : 'none',
-            }}
-          >
-            <Icon d={icons[icon]} size={14} />
-          </button>
+          <ToolbarBtn key={mode} title={t(`viewMode.${mode}`)} onClick={() => setViewMode(mode)} active={viewMode === mode}>
+            <AppIcon name={icon} size={15} />
+          </ToolbarBtn>
         ))}
-      </div>
+      </ToolbarGroup>
 
-      <Divider />
+      <ToolbarBtn
+        title={`${t('themePanel.wysiwyg')}${wysiwygMode ? ' (ON)' : ''}`}
+        onClick={() => setWysiwygMode(!wysiwygMode)}
+        active={wysiwygMode}
+      >
+        <AppIcon name="sparkles" size={16} />
+      </ToolbarBtn>
 
-      {/* Language selector */}
       <select
         value={language}
-        onChange={(e) => setLanguage(e.target.value as Language)}
-        className="text-xs rounded px-1 py-0.5 cursor-pointer outline-none"
+        onChange={(event) => setLanguage(event.target.value as Language)}
+        className="cursor-pointer rounded-[10px] px-2 py-0.5 text-xs outline-none"
         style={{
+          height: '32px',
           background: 'var(--bg-secondary)',
           color: 'var(--text-secondary)',
           border: '1px solid var(--border)',
-          height: '28px',
         }}
       >
-        {LANGUAGES.map((l) => (
-          <option key={l.code} value={l.code}>
-            {l.nativeLabel}
+        {LANGUAGES.map((item) => (
+          <option key={item.code} value={item.code}>
+            {item.nativeLabel}
           </option>
         ))}
       </select>
 
-      {/* Theme panel */}
       <div className="relative">
         <ToolbarBtn
           title={t('toolbar.appearance')}
           buttonRef={themeButtonRef}
-          onClick={() => { setShowTheme(!showTheme); setShowExport(false) }}
+          onClick={() => setShowTheme((open) => !open)}
           active={showTheme}
         >
-          <Icon d={icons.palette} />
+          <AppIcon name="palette" size={16} />
         </ToolbarBtn>
         {showTheme && <ThemePanel onClose={() => setShowTheme(false)} triggerRef={themeButtonRef} />}
       </div>
 
-      {/* Focus mode */}
       <ToolbarBtn title={t('toolbar.focusMode')} onClick={() => setFocusMode(!focusMode)} active={focusMode}>
-        <Icon d={icons.focus} />
+        <AppIcon name="focus" size={16} />
       </ToolbarBtn>
-
     </div>
   )
 }

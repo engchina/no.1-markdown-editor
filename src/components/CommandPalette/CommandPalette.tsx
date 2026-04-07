@@ -123,6 +123,8 @@ function getCommandIndicator(command: Command, mode: Props['mode']): ReactNode {
       return <SvgBadge name="bold" />
     case 'edit.italic':
       return <SvgBadge name="italic" />
+    case 'edit.underline':
+      return <SvgBadge name="underline" />
     case 'edit.strikethrough':
       return <SvgBadge name="strikethrough" />
     case 'edit.code':

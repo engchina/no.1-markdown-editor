@@ -25,6 +25,7 @@
     "save": "Save",
     "bold": "Bold",
     "italic": "Italic",
+    "underline": "Underline",
     "strikethrough": "Strikethrough",
     "code": "Inline Code",
     "codeBlock": "Code Block",
@@ -46,7 +47,9 @@
     "typewriterMode": "Typewriter Mode",
     "commandPalette": "Command Palette (Ctrl+Shift+P)",
     "export": "Export",
-    "appearance": "Appearance"
+    "appearance": "Appearance",
+    "headings": "Headings",
+    "moreActions": "More Formatting Tools"
   },
   "viewMode": {
     "source": "Source",

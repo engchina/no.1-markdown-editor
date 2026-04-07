@@ -1,0 +1,583 @@
+export interface ClipboardHtmlAstNode {
+  type: 'root' | 'element' | 'text'
+  children: ClipboardHtmlAstNode[]
+  tagName?: string
+  attributes?: Record<string, string>
+  textContent?: string
+}
+
+const BLOCK_TAGS = new Set([
+  'address',
+  'article',
+  'aside',
+  'blockquote',
+  'div',
+  'dl',
+  'fieldset',
+  'figcaption',
+  'figure',
+  'footer',
+  'form',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'header',
+  'hr',
+  'li',
+  'main',
+  'nav',
+  'ol',
+  'p',
+  'pre',
+  'section',
+  'table',
+  'tbody',
+  'td',
+  'tfoot',
+  'th',
+  'thead',
+  'tr',
+  'ul',
+])
+
+const STRUCTURED_TAGS = new Set([
+  'a',
+  'blockquote',
+  'code',
+  'del',
+  'em',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'hr',
+  'img',
+  'li',
+  'ol',
+  'pre',
+  'strong',
+  'table',
+  'ul',
+])
+
+const SKIPPED_TAGS = new Set(['head', 'meta', 'link', 'script', 'style', 'noscript', 'title'])
+
+export function convertClipboardHtmlToMarkdown(html: string, plainText = ''): string | null {
+  const normalizedPlainText = normalizePastedText(plainText)
+  const root = parseClipboardHtml(html)
+  if (!root) {
+    return normalizedPlainText || null
+  }
+
+  const convertedMarkdown = cleanupMarkdown(renderClipboardHtmlAstToMarkdown(root))
+  if (!convertedMarkdown) {
+    return normalizedPlainText || null
+  }
+
+  if (shouldPreferPlainText(root, normalizedPlainText)) {
+    return normalizedPlainText || convertedMarkdown
+  }
+
+  return convertedMarkdown
+}
+
+export function renderClipboardHtmlAstToMarkdown(root: ClipboardHtmlAstNode): string {
+  return serializeBlocks(root.children, { listDepth: 0 }).join('\n\n')
+}
+
+function parseClipboardHtml(html: string): ClipboardHtmlAstNode | null {
+  if (!html || typeof DOMParser === 'undefined') return null
+
+  const parser = new DOMParser()
+  const document = parser.parseFromString(html, 'text/html')
+  return {
+    type: 'root',
+    children: Array.from(document.body.childNodes)
+      .map((node) => domNodeToAst(node))
+      .filter((node): node is ClipboardHtmlAstNode => node !== null),
+  }
+}
+
+function domNodeToAst(node: Node): ClipboardHtmlAstNode | null {
+  if (node.nodeType === 3) {
+    return {
+      type: 'text',
+      textContent: node.textContent ?? '',
+      children: [],
+    }
+  }
+
+  if (node.nodeType !== 1) {
+    return null
+  }
+
+  const element = node as Element
+  const tagName = element.tagName.toLowerCase()
+  if (SKIPPED_TAGS.has(tagName)) return null
+
+  const attributes = Array.from(element.attributes).reduce<Record<string, string>>((acc, attribute) => {
+    acc[attribute.name.toLowerCase()] = attribute.value
+    return acc
+  }, {})
+
+  return {
+    type: 'element',
+    tagName,
+    attributes,
+    children: Array.from(element.childNodes)
+      .map((child) => domNodeToAst(child))
+      .filter((child): child is ClipboardHtmlAstNode => child !== null),
+  }
+}
+
+function shouldPreferPlainText(root: ClipboardHtmlAstNode, plainText: string): boolean {
+  if (!plainText) return false
+
+  const plainImageCount = countMarkdownImages(plainText)
+  const htmlImageCount = countHtmlImages(root)
+
+  if (looksLikeMarkdownSource(plainText) && plainImageCount >= htmlImageCount) {
+    return true
+  }
+
+  return !htmlAddsStructure(root)
+}
+
+function serializeBlocks(nodes: ClipboardHtmlAstNode[], context: { listDepth: number }): string[] {
+  const blocks: string[] = []
+  let inlineBuffer = ''
+
+  const flushInlineBuffer = () => {
+    const block = normalizeInlineMarkdown(inlineBuffer).trim()
+    if (block) blocks.push(block)
+    inlineBuffer = ''
+  }
+
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      inlineBuffer += serializeInlineText(node.textContent ?? '')
+      continue
+    }
+
+    if (node.type !== 'element' || !node.tagName) continue
+
+    if (node.tagName === 'br') {
+      inlineBuffer += '\n'
+      continue
+    }
+
+    if (!BLOCK_TAGS.has(node.tagName)) {
+      inlineBuffer += serializeInlineNode(node, context)
+      continue
+    }
+
+    flushInlineBuffer()
+
+    const block = serializeBlockNode(node, context).trim()
+    if (block) blocks.push(block)
+  }
+
+  flushInlineBuffer()
+  return blocks
+}
+
+function serializeBlockNode(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
+  if (node.type !== 'element' || !node.tagName) return ''
+
+  switch (node.tagName) {
+    case 'p':
+    case 'figcaption':
+      return serializeInlineChildren(node.children, context).trim()
+    case 'div':
+    case 'article':
+    case 'aside':
+    case 'figure':
+    case 'footer':
+    case 'header':
+    case 'main':
+    case 'nav':
+    case 'section':
+      return serializeContainerNode(node.children, context)
+    case 'h1':
+    case 'h2':
+    case 'h3':
+    case 'h4':
+    case 'h5':
+    case 'h6': {
+      const level = Number(node.tagName.slice(1))
+      const content = serializeInlineChildren(node.children, context).trim()
+      return content ? `${'#'.repeat(level)} ${content}` : ''
+    }
+    case 'blockquote': {
+      const content = serializeBlocks(node.children, context).join('\n\n')
+      return prefixLines(content, '> ')
+    }
+    case 'pre':
+      return serializeCodeBlock(node)
+    case 'ul':
+      return serializeList(node.children, { ...context, ordered: false, start: 1 })
+    case 'ol': {
+      const start = Number(node.attributes?.start ?? '1')
+      return serializeList(node.children, {
+        ...context,
+        ordered: true,
+        start: Number.isFinite(start) ? start : 1,
+      })
+    }
+    case 'li':
+      return serializeListItem(node, {
+        listDepth: context.listDepth,
+        ordered: false,
+        index: 0,
+      })
+    case 'hr':
+      return '---'
+    case 'table':
+      return serializeTable(node, context)
+    case 'img':
+      return serializeImage(node)
+    default:
+      return serializeContainerNode(node.children, context)
+  }
+}
+
+function serializeContainerNode(children: ClipboardHtmlAstNode[], context: { listDepth: number }): string {
+  if (children.some((child) => child.type === 'element' && child.tagName && BLOCK_TAGS.has(child.tagName))) {
+    return serializeBlocks(children, context).join('\n\n')
+  }
+
+  return serializeInlineChildren(children, context).trim()
+}
+
+function serializeInlineChildren(nodes: ClipboardHtmlAstNode[], context: { listDepth: number }): string {
+  let output = ''
+
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      output += serializeInlineText(node.textContent ?? '')
+      continue
+    }
+
+    if (node.type !== 'element' || !node.tagName) continue
+
+    if (node.tagName === 'br') {
+      output += '\n'
+      continue
+    }
+
+    if (BLOCK_TAGS.has(node.tagName)) {
+      output += serializeBlockNode(node, context)
+      continue
+    }
+
+    output += serializeInlineNode(node, context)
+  }
+
+  return normalizeInlineMarkdown(output)
+}
+
+function serializeInlineNode(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
+  if (node.type !== 'element' || !node.tagName) return ''
+
+  switch (node.tagName) {
+    case 'a':
+      return serializeLink(node, context)
+    case 'b':
+    case 'strong':
+      return wrapInline('**', serializeInlineChildren(node.children, context).trim())
+    case 'em':
+    case 'i':
+      return wrapInline('*', serializeInlineChildren(node.children, context).trim())
+    case 'del':
+    case 's':
+      return wrapInline('~~', serializeInlineChildren(node.children, context).trim())
+    case 'code':
+      return wrapCodeSpan(extractTextContent(node, { preserveWhitespace: false }).trim())
+    case 'img':
+      return serializeImage(node)
+    case 'sub':
+    case 'sup': {
+      const content = serializeInlineChildren(node.children, context).trim()
+      return content ? `<${node.tagName}>${content}</${node.tagName}>` : ''
+    }
+    case 'span':
+    case 'small':
+    case 'mark':
+    case 'u':
+      return serializeInlineChildren(node.children, context)
+    default:
+      return serializeInlineChildren(node.children, context)
+  }
+}
+
+function serializeLink(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
+  const href = sanitizeUrl(node.attributes?.href)
+  const content = serializeInlineChildren(node.children, context).trim()
+  if (!href) return content
+  if (!content) return `<${href}>`
+  return `[${content}](${formatMarkdownDestination(href)})`
+}
+
+function serializeImage(node: ClipboardHtmlAstNode): string {
+  const src = getImageSource(node.attributes)
+  if (!src) return ''
+
+  const alt = escapeMarkdownText(node.attributes?.alt?.trim() ?? '')
+  const title = node.attributes?.title?.trim()
+  const destination = formatMarkdownDestination(src)
+  const titleSuffix = title ? ` "${title.replace(/"/g, '\\"')}"` : ''
+  return `![${alt}](${destination}${titleSuffix})`
+}
+
+function serializeCodeBlock(node: ClipboardHtmlAstNode): string {
+  const codeChild = node.children.find(
+    (child): child is ClipboardHtmlAstNode => child.type === 'element' && child.tagName === 'code'
+  )
+  const language = extractCodeBlockLanguage(codeChild?.attributes?.class)
+  const rawText = extractTextContent(codeChild ?? node, { preserveWhitespace: true }).replace(/\r\n?/g, '\n')
+  const trimmedCode = rawText.replace(/\n+$/, '')
+  const fence = repeatFence('`', trimmedCode, 3)
+  const languageSuffix = language ? language : ''
+
+  return `${fence}${languageSuffix}\n${trimmedCode}\n${fence}`
+}
+
+function serializeList(
+  children: ClipboardHtmlAstNode[],
+  context: { listDepth: number; ordered: boolean; start: number }
+): string {
+  const items = children.filter(
+    (child): child is ClipboardHtmlAstNode => child.type === 'element' && child.tagName === 'li'
+  )
+
+  return items
+    .map((item, index) =>
+      serializeListItem(item, {
+        listDepth: context.listDepth,
+        ordered: context.ordered,
+        index: context.start + index,
+      })
+    )
+    .join('\n')
+}
+
+function serializeListItem(
+  node: ClipboardHtmlAstNode,
+  context: { listDepth: number; ordered: boolean; index: number }
+): string {
+  const marker = context.ordered ? `${context.index}.` : '-'
+  const indent = '  '.repeat(context.listDepth)
+  const prefix = `${indent}${marker} `
+  const continuationPrefix = `${indent}${' '.repeat(marker.length + 1)}`
+  const blocks = serializeBlocks(node.children, { listDepth: context.listDepth + 1 })
+
+  if (blocks.length === 0) return prefix.trimEnd()
+
+  return formatListItemBlocks(blocks, prefix, continuationPrefix)
+}
+
+function formatListItemBlocks(blocks: string[], prefix: string, continuationPrefix: string): string {
+  const lines: string[] = []
+  const [firstBlock, ...restBlocks] = blocks
+
+  lines.push(...prefixBlock(firstBlock, prefix, continuationPrefix))
+  for (const block of restBlocks) {
+    lines.push(`${continuationPrefix.trimEnd()}`)
+    lines.push(...prefixBlock(block, continuationPrefix, continuationPrefix))
+  }
+
+  return lines.join('\n')
+}
+
+function prefixBlock(block: string, firstPrefix: string, continuationPrefix: string): string[] {
+  const lines = block.split('\n')
+  return lines.map((line, index) => `${index === 0 ? firstPrefix : continuationPrefix}${line}`)
+}
+
+function serializeTable(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
+  const rows = collectTableRows(node)
+  if (rows.length === 0) {
+    return serializeContainerNode(node.children, context)
+  }
+
+  const normalizedRows = rows.map((row) =>
+    row.map((cell) => escapeTableCell(serializeContainerNode(cell.children, context).replace(/\n+/g, ' ').trim()))
+  )
+  const columnCount = normalizedRows.reduce((max, row) => Math.max(max, row.length), 0)
+  const paddedRows = normalizedRows.map((row) =>
+    row.length === columnCount ? row : [...row, ...Array.from({ length: columnCount - row.length }, () => '')]
+  )
+
+  const headerRow = paddedRows[0]
+  const separatorRow = Array.from({ length: columnCount }, () => '---')
+  const bodyRows = paddedRows.slice(1)
+
+  return [headerRow, separatorRow, ...bodyRows]
+    .map((row) => `| ${row.join(' | ')} |`)
+    .join('\n')
+}
+
+function collectTableRows(node: ClipboardHtmlAstNode): ClipboardHtmlAstNode[][] {
+  if (node.type !== 'element') return []
+
+  if (node.tagName === 'tr') {
+    return [
+      node.children.filter(
+        (child): child is ClipboardHtmlAstNode =>
+          child.type === 'element' && (child.tagName === 'th' || child.tagName === 'td')
+      ),
+    ]
+  }
+
+  return node.children.flatMap((child) => collectTableRows(child))
+}
+
+function extractTextContent(node: ClipboardHtmlAstNode, options: { preserveWhitespace: boolean }): string {
+  if (node.type === 'text') {
+    return options.preserveWhitespace ? node.textContent ?? '' : serializeInlineText(node.textContent ?? '')
+  }
+
+  if (node.type !== 'element') return ''
+  if (node.tagName === 'br') return options.preserveWhitespace ? '\n' : '\n'
+
+  return node.children.map((child) => extractTextContent(child, options)).join('')
+}
+
+function extractCodeBlockLanguage(className?: string): string {
+  if (!className) return ''
+
+  const match = className.match(/(?:language|lang)-([A-Za-z0-9_-]+)/)
+  return match?.[1] ?? ''
+}
+
+function serializeInlineText(text: string): string {
+  if (!text) return ''
+  return escapeMarkdownText(text.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').replace(/\s+/g, ' '))
+}
+
+function wrapInline(marker: string, content: string): string {
+  return content ? `${marker}${content}${marker}` : ''
+}
+
+function wrapCodeSpan(content: string): string {
+  if (!content) return ''
+
+  const normalized = content.replace(/\r\n?/g, ' ').replace(/\s+/g, ' ')
+  const fence = repeatFence('`', normalized, 1)
+  const padded = normalized.startsWith('`') || normalized.endsWith('`') ? ` ${normalized} ` : normalized
+  return `${fence}${padded}${fence}`
+}
+
+function repeatFence(marker: string, content: string, minimum: number): string {
+  const matches = content.match(new RegExp(`${escapeForRegExp(marker)}+`, 'g')) ?? []
+  const maxRunLength = matches.reduce((max, match) => Math.max(max, match.length), 0)
+  return marker.repeat(Math.max(minimum, maxRunLength + 1))
+}
+
+function formatMarkdownDestination(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return ''
+  return /[\s()<>]/.test(trimmed) ? `<${trimmed.replace(/>/g, '%3E')}>` : trimmed
+}
+
+function getImageSource(attributes?: Record<string, string>): string {
+  if (!attributes) return ''
+
+  const src = sanitizeUrl(attributes.src)
+  const lazySource =
+    sanitizeUrl(attributes['data-src']) ||
+    sanitizeUrl(attributes['data-original']) ||
+    sanitizeUrl(attributes['data-actualsrc']) ||
+    sanitizeUrl(attributes['data-lazy-src'])
+
+  if (src && !looksLikePlaceholderImage(src)) return src
+  return lazySource || src
+}
+
+function sanitizeUrl(value?: string): string {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) return ''
+
+  if (/^(?:javascript|vbscript):/i.test(trimmed)) return ''
+  return trimmed
+}
+
+function looksLikePlaceholderImage(url: string): boolean {
+  return (
+    /^data:image\/gif;base64,R0lGODlhAQAB/i.test(url) ||
+    /(?:spacer|blank|pixel)\.(?:gif|png|jpg|jpeg|webp)(?:$|[?#])/i.test(url)
+  )
+}
+
+function htmlAddsStructure(node: ClipboardHtmlAstNode): boolean {
+  if (node.type === 'element' && node.tagName && STRUCTURED_TAGS.has(node.tagName)) {
+    return true
+  }
+
+  return node.children.some((child) => htmlAddsStructure(child))
+}
+
+function countHtmlImages(node: ClipboardHtmlAstNode): number {
+  const selfCount = node.type === 'element' && node.tagName === 'img' ? 1 : 0
+  return selfCount + node.children.reduce((sum, child) => sum + countHtmlImages(child), 0)
+}
+
+function countMarkdownImages(markdown: string): number {
+  return (markdown.match(/!\[[^\]]*]\([^)]+\)/g) ?? []).length
+}
+
+function looksLikeMarkdownSource(text: string): boolean {
+  return (
+    /(^|\n)\s*#{1,6}\s+\S/.test(text) ||
+    /!\[[^\]]*]\([^)]+\)/.test(text) ||
+    /\[[^\]]+]\([^)]+\)/.test(text) ||
+    /(^|\n)\s*[-*+]\s+\S/.test(text) ||
+    /(^|\n)\s*\d+\.\s+\S/.test(text) ||
+    /(^|\n)\s*>\s+\S/.test(text) ||
+    /(^|\n)```/.test(text)
+  )
+}
+
+function normalizePastedText(text: string): string {
+  return text.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ')
+}
+
+function normalizeInlineMarkdown(text: string): string {
+  return text
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+}
+
+function cleanupMarkdown(markdown: string): string {
+  return markdown
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function prefixLines(content: string, prefix: string): string {
+  return content
+    .split('\n')
+    .map((line) => `${prefix}${line}`.trimEnd())
+    .join('\n')
+}
+
+function escapeMarkdownText(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/([`\[\]])/g, '\\$1')
+}
+
+function escapeTableCell(text: string): string {
+  return text.replace(/\|/g, '\\|')
+}
+
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}

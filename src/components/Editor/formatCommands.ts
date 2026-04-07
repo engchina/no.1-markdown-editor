@@ -7,7 +7,7 @@ import { EditorView } from '@codemirror/view'
 import { EditorSelection } from '@codemirror/state'
 
 type FormatAction =
-  | 'bold' | 'italic' | 'strikethrough'
+  | 'bold' | 'italic' | 'underline' | 'strikethrough'
   | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
   | 'code' | 'codeblock'
   | 'link' | 'image'
@@ -18,6 +18,7 @@ export function applyFormat(view: EditorView, action: FormatAction): void {
   switch (action) {
     case 'bold':          return wrapInline(view, '**', '**', 'bold text')
     case 'italic':        return wrapInline(view, '*', '*', 'italic text')
+    case 'underline':     return wrapInline(view, '<u>', '</u>', 'underlined text')
     case 'strikethrough': return wrapInline(view, '~~', '~~', 'strikethrough')
     case 'code':          return wrapInline(view, '`', '`', 'code')
     case 'h1': return insertHeading(view, 1)

@@ -221,6 +221,9 @@ function processInline(
   // Italic *text* or _text_ (not bold)
   processPattern(builder, text, lineFrom, /(?<!\*)(\*)(?!\*)((?:[^*])+?)(\*)(?!\*)/g, 'cm-wysiwyg-italic')
 
+  // Underline <u>text</u>
+  processPattern(builder, text, lineFrom, /(<u>)(.+?)(<\/u>)/gi, 'cm-wysiwyg-underline', { closeGroup: 3 })
+
   // Strikethrough ~~text~~
   processPattern(builder, text, lineFrom, /(~~)((?:[^~])+?)\1/g, 'cm-wysiwyg-strikethrough')
 
@@ -260,20 +263,28 @@ function processPattern(
   text: string,
   lineFrom: number,
   re: RegExp,
-  cls: string
+  cls: string,
+  options: {
+    closeGroup?: number
+  } = {}
 ): void {
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
     const fullStart = lineFrom + m.index
     const fullEnd = fullStart + m[0].length
-    const markerLen = typeof m[1] === 'string' && m[1].length > 0 ? m[1].length : 1
+    const openMarker = typeof m[1] === 'string' && m[1].length > 0 ? m[1] : ''
+    const closeMarker = typeof m[options.closeGroup ?? 1] === 'string' && m[options.closeGroup ?? 1].length > 0
+      ? m[options.closeGroup ?? 1]
+      : openMarker
+    const openMarkerLen = openMarker.length || 1
+    const closeMarkerLen = closeMarker.length || openMarkerLen
 
     // Hide opening marker
-    builder.add(fullStart, fullStart + markerLen, Decoration.replace({}))
+    builder.add(fullStart, fullStart + openMarkerLen, Decoration.replace({}))
     // Style content
-    builder.add(fullStart + markerLen, fullEnd - markerLen, Decoration.mark({ class: cls }))
+    builder.add(fullStart + openMarkerLen, fullEnd - closeMarkerLen, Decoration.mark({ class: cls }))
     // Hide closing marker
-    builder.add(fullEnd - markerLen, fullEnd, Decoration.replace({}))
+    builder.add(fullEnd - closeMarkerLen, fullEnd, Decoration.replace({}))
   }
 }
 
@@ -317,6 +328,7 @@ export const wysiwygTheme = EditorView.baseTheme({
   // Inline
   '.cm-wysiwyg-bold': { fontWeight: '700', color: 'var(--text-primary) !important' },
   '.cm-wysiwyg-italic': { fontStyle: 'italic', color: 'var(--text-primary) !important' },
+  '.cm-wysiwyg-underline': { textDecoration: 'underline', color: 'var(--text-primary) !important' },
   '.cm-wysiwyg-strikethrough': { textDecoration: 'line-through', color: 'var(--text-muted) !important' },
   '.cm-wysiwyg-code': {
     fontFamily: 'var(--font-mono, monospace)',

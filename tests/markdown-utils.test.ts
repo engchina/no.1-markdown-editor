@@ -82,6 +82,20 @@ test('renderMarkdown keeps safe raw html while stripping scripts', async () => {
   assert.doesNotMatch(html, /alert\(1\)/)
 })
 
+test('renderMarkdown preserves underline tags inserted for markdown formatting', async () => {
+  const html = await renderMarkdown('Hello <u>world</u>')
+
+  assert.match(html, /<p>Hello <u>world<\/u><\/p>/)
+})
+
+test('renderMarkdown keeps linked remote images from pasted web content', async () => {
+  const markdown = '[![img](https://example.com/assets/hero.png)](https://example.com/assets/hero.png)'
+  const html = await renderMarkdown(markdown)
+
+  assert.match(html, /<a href="https:\/\/example.com\/assets\/hero\.png"><img/)
+  assert.match(html, /src="https:\/\/example.com\/assets\/hero\.png"/)
+})
+
 test('buildStandaloneHtml escapes the document title', () => {
   const html = buildStandaloneHtml('<bad "title">', '<p>Body</p>')
 

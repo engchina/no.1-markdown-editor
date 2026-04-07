@@ -6,6 +6,10 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+if ($env:OS -ne 'Windows_NT') {
+  throw 'This script must be run on Windows. Use a Windows host or Windows CI runner to build MSI/EXE installers.'
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptDir '..')
 $bundleRoot = Join-Path $repoRoot 'src-tauri\target\release\bundle'

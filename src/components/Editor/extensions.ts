@@ -103,6 +103,11 @@ export function buildCoreExtensions(options: {
         run: (view) => wrapSelection(view, '*', '*'),
       },
       {
+        key: 'Ctrl-u',
+        mac: 'Cmd-u',
+        run: (view) => wrapSelection(view, '<u>', '</u>'),
+      },
+      {
         key: 'Ctrl-Shift-s',
         mac: 'Cmd-Shift-s',
         run: (view) => wrapSelection(view, '~~', '~~'),

@@ -111,7 +111,7 @@ export default function TitleBar() {
 
   const title = activeTab
     ? `${activeTab.isDirty ? '● ' : ''}${activeTab.name}`
-    : 'No.1 Markdown Editor'
+    : t('app.name')
 
   return (
     <div

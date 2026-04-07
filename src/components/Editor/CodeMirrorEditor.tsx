@@ -16,6 +16,7 @@ import {
 } from './optionalFeatures'
 import { applyFormat } from './formatCommands'
 import { getImageAltText, getImageFileExtension } from '../../lib/fileTypes'
+import { convertClipboardHtmlToMarkdown } from '../../lib/pasteHtml'
 import { useActiveTab, useEditorStore } from '../../store/editor'
 import SearchBar from '../Search/SearchBar'
 
@@ -333,7 +334,20 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       const view = viewRef.current
       if (!view) return
 
-      const items = event.clipboardData?.items
+      const clipboardData = event.clipboardData
+      const items = clipboardData?.items
+      const html = clipboardData?.getData('text/html') ?? ''
+      const plainText = clipboardData?.getData('text/plain') ?? ''
+
+      if (html) {
+        const markdownText = convertClipboardHtmlToMarkdown(html, plainText)
+        if (markdownText) {
+          event.preventDefault()
+          replaceSelectionWithMarkdown(view, markdownText)
+          return
+        }
+      }
+
       if (!items) return
 
       const imageFiles = Array.from(items)
@@ -345,7 +359,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
       event.preventDefault()
       const markdownText = await buildImageMarkdown(imageFiles, activeTab?.path ?? null)
-      insertMarkdown(view, markdownText)
+      replaceSelectionWithMarkdown(view, markdownText)
     }
 
     container.addEventListener('paste', handlePaste)
@@ -374,7 +388,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
       const dropPos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.from
       const markdownText = await buildImageMarkdown(imageFiles, activeTab?.path ?? null)
-      insertMarkdown(view, markdownText, dropPos)
+      insertMarkdown(view, markdownText, { from: dropPos, to: dropPos })
     }
 
     container.addEventListener('dragover', handleDragOver)
@@ -409,10 +423,17 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   )
 }
 
-function insertMarkdown(view: EditorView, markdownText: string, anchor = view.state.selection.main.from): void {
+function replaceSelectionWithMarkdown(view: EditorView, markdownText: string): void {
+  insertMarkdown(view, markdownText, {
+    from: view.state.selection.main.from,
+    to: view.state.selection.main.to,
+  })
+}
+
+function insertMarkdown(view: EditorView, markdownText: string, range: { from: number; to: number }): void {
   view.dispatch({
-    changes: { from: anchor, to: anchor, insert: markdownText },
-    selection: { anchor: anchor + markdownText.length },
+    changes: { from: range.from, to: range.to, insert: markdownText },
+    selection: { anchor: range.from + markdownText.length },
   })
 }
 

@@ -209,6 +209,14 @@ export function useCommands(): Command[] {
         action: () => emitFormat('italic'),
       },
       {
+        id: 'edit.underline',
+        label: t('toolbar.underline'),
+        icon: 'U̲',
+        category: 'edit',
+        shortcut: 'Ctrl+U',
+        action: () => emitFormat('underline'),
+      },
+      {
         id: 'edit.strikethrough',
         label: t('toolbar.strikethrough'),
         icon: 'S̶',

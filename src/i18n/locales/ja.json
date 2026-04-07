@@ -25,6 +25,7 @@
     "save": "保存",
     "bold": "太字",
     "italic": "斜体",
+    "underline": "下線",
     "strikethrough": "取り消し線",
     "code": "インラインコード",
     "codeBlock": "コードブロック",
@@ -46,7 +47,9 @@
     "typewriterMode": "タイプライターモード",
     "commandPalette": "コマンドパレット (Ctrl+Shift+P)",
     "export": "エクスポート",
-    "appearance": "表示設定"
+    "appearance": "表示設定",
+    "headings": "見出し",
+    "moreActions": "その他の書式と挿入"
   },
   "viewMode": {
     "source": "ソース",

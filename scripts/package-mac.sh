@@ -11,6 +11,15 @@ echo ""
 echo -e "\033[36m==> Building macOS installer packages...\033[0m"
 echo "Repo root: $REPO_ROOT"
 
+HOST_OS="$(uname -s)"
+if [ "$HOST_OS" != "Darwin" ]; then
+  echo -e "\033[31mThis script must be run on macOS.\033[0m"
+  echo "Tauri can only create .app and .dmg bundles on a Mac host."
+  echo "Current host: $HOST_OS"
+  echo "Use a macOS machine or macOS CI runner for this package."
+  exit 1
+fi
+
 # Builds an app bundle and a dmg
 npm run tauri -- build
 
