@@ -1,11 +1,17 @@
 use base64::Engine as _;
 use reqwest::header::{CONTENT_TYPE, USER_AGENT};
-#[cfg(debug_assertions)]
-use tauri::Manager;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
 
 const MAX_REMOTE_IMAGE_BYTES: usize = 12 * 1024 * 1024;
 const MAX_LOCAL_IMAGE_BYTES: usize = 24 * 1024 * 1024;
 const PREVIEW_IMAGE_USER_AGENT: &str = "No.1 Markdown Editor Preview Image Loader";
+const SINGLE_INSTANCE_OPEN_FILES_EVENT: &str = "single-instance-open-files";
+
+struct PendingOpenPaths(Mutex<Vec<String>>);
+
 #[tauri::command]
 fn read_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| e.to_string())
@@ -30,6 +36,17 @@ fn get_file_name(path: String) -> String {
         .and_then(|n| n.to_str())
         .unwrap_or("Untitled")
         .to_string()
+}
+
+#[tauri::command]
+fn take_pending_open_paths(
+    state: tauri::State<'_, PendingOpenPaths>,
+) -> Result<Vec<String>, String> {
+    let mut pending_paths = state
+        .0
+        .lock()
+        .map_err(|_| "Failed to access pending open paths".to_string())?;
+    Ok(std::mem::take(&mut *pending_paths))
 }
 
 #[tauri::command]
@@ -184,9 +201,102 @@ fn ensure_parent_directory(path: &str) -> Result<(), String> {
     std::fs::create_dir_all(parent).map_err(|error| error.to_string())
 }
 
+fn collect_launch_paths() -> Vec<String> {
+    let current_dir = std::env::current_dir().ok();
+    collect_launch_paths_from_args(std::env::args_os().skip(1), current_dir.as_deref())
+}
+
+fn collect_launch_paths_from_args<I>(args: I, cwd: Option<&Path>) -> Vec<String>
+where
+    I: IntoIterator,
+    I::Item: Into<OsString>,
+{
+    let mut launch_paths = Vec::new();
+
+    for arg in args {
+        let arg = arg.into();
+        let Some(path) = normalize_launch_arg(&arg, cwd) else {
+            continue;
+        };
+
+        if !launch_paths.contains(&path) {
+            launch_paths.push(path);
+        }
+    }
+
+    launch_paths
+}
+
+fn normalize_launch_arg(arg: &OsStr, cwd: Option<&Path>) -> Option<String> {
+    let raw = arg.to_string_lossy();
+    if raw.is_empty() {
+        return None;
+    }
+
+    let path = if raw.to_ascii_lowercase().starts_with("file:") {
+        let url = reqwest::Url::parse(&raw).ok()?;
+        let path = url.to_file_path().ok()?;
+        if !path.is_file() {
+            return None;
+        }
+        path
+    } else {
+        let candidate = PathBuf::from(arg);
+        if candidate.is_file() {
+            candidate
+        } else if candidate.is_absolute() || raw.starts_with('-') {
+            return None;
+        } else {
+            let resolved = cwd?.join(candidate);
+            if !resolved.is_file() {
+                return None;
+            }
+            resolved
+        }
+    };
+
+    Some(path.to_string_lossy().into_owned())
+}
+
+fn focus_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+#[cfg(any(target_os = "macos", windows, target_os = "linux"))]
+fn register_single_instance_plugin(
+    builder: tauri::Builder<tauri::Wry>,
+) -> tauri::Builder<tauri::Wry> {
+    builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+        focus_main_window(app);
+
+        let current_dir = PathBuf::from(&cwd);
+        let launch_paths = collect_launch_paths_from_args(argv, Some(current_dir.as_path()));
+        if launch_paths.is_empty() {
+            return;
+        }
+
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.emit(SINGLE_INSTANCE_OPEN_FILES_EVENT, launch_paths);
+        }
+    }))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let pending_open_paths = PendingOpenPaths(Mutex::new(collect_launch_paths()));
+    let builder = tauri::Builder::default();
+
+    #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
+    let builder = register_single_instance_plugin(builder);
+
+    builder
+        .manage(pending_open_paths)
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -195,6 +305,7 @@ pub fn run() {
             write_file,
             write_binary_file,
             get_file_name,
+            take_pending_open_paths,
             fetch_remote_image_data_url,
             fetch_local_image_data_url
         ])
@@ -208,4 +319,88 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::collect_launch_paths_from_args;
+    use std::ffi::OsString;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn make_temp_markdown_path(prefix: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock before unix epoch")
+            .as_nanos();
+
+        std::env::temp_dir().join(format!(
+            "no1-markdown-editor-{prefix}-{}-{unique}.md",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn collect_launch_paths_ignores_flags_and_missing_files() {
+        let existing_path = make_temp_markdown_path("launch");
+        fs::write(&existing_path, "# launch").expect("write temp launch file");
+
+        let args = vec![
+            OsString::from("--flag"),
+            existing_path.as_os_str().to_os_string(),
+            OsString::from("missing-launch-file.md"),
+        ];
+
+        let launch_paths = collect_launch_paths_from_args(args, None);
+
+        assert_eq!(launch_paths, vec![existing_path.to_string_lossy().into_owned()]);
+
+        let _ = fs::remove_file(existing_path);
+    }
+
+    #[test]
+    fn collect_launch_paths_supports_file_urls_and_deduplicates_entries() {
+        let existing_path = make_temp_markdown_path("file-url");
+        fs::write(&existing_path, "# file url").expect("write temp file url launch file");
+
+        let file_url = reqwest::Url::from_file_path(&existing_path)
+            .expect("convert temp launch path to file url")
+            .to_string();
+
+        let args = vec![
+            existing_path.as_os_str().to_os_string(),
+            OsString::from(file_url),
+        ];
+
+        let launch_paths = collect_launch_paths_from_args(args, None);
+
+        assert_eq!(launch_paths, vec![existing_path.to_string_lossy().into_owned()]);
+
+        let _ = fs::remove_file(existing_path);
+    }
+
+    #[test]
+    fn collect_launch_paths_resolves_relative_paths_against_cwd() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "no1-markdown-editor-relative-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock before unix epoch")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp_dir).expect("create temp directory");
+
+        let existing_path = temp_dir.join("relative-launch.md");
+        fs::write(&existing_path, "# relative launch").expect("write temp relative launch file");
+
+        let args = vec![OsString::from("relative-launch.md")];
+        let launch_paths = collect_launch_paths_from_args(args, Some(temp_dir.as_path()));
+
+        assert_eq!(launch_paths, vec![existing_path.to_string_lossy().into_owned()]);
+
+        let _ = fs::remove_file(existing_path);
+        let _ = fs::remove_dir(temp_dir);
+    }
 }

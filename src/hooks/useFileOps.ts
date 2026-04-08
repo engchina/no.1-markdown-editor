@@ -3,6 +3,7 @@ import { useEditorStore } from '../store/editor'
 import { useRecentFilesStore } from '../store/recentFiles'
 import i18n from '../i18n'
 import { MARKDOWN_FILE_EXTENSIONS } from '../lib/fileTypes'
+import { openDesktopDocumentPath } from '../lib/desktopFileOpen'
 import { getTauriFilePersistence, saveMarkdownDocumentWithAssets } from '../lib/documentPersistence'
 import { pushErrorNotice } from '../lib/notices'
 
@@ -28,17 +29,13 @@ export function useFileOps() {
     if (isTauri) {
       try {
         const { open } = await import('@tauri-apps/plugin-dialog')
-        const { readTextFile } = await import('@tauri-apps/plugin-fs')
         const path = await open({
           multiple: false,
           filters: [{ name: 'Markdown', extensions: [...MARKDOWN_FILE_EXTENSIONS] }],
         })
         if (!path || typeof path !== 'string') return
 
-        const content = await readTextFile(path)
-        const name = path.split(/[\\/]/).pop() ?? getUntitledName()
-        openDocument({ path, name, content, savedContent: content, isDirty: false })
-        addRecent(path, name)
+        await openDesktopDocumentPath(path)
       } catch (error) {
         console.error('Open file error:', error)
         pushErrorNotice('notices.openFileErrorTitle', 'notices.openFileErrorMessage')

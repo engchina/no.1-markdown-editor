@@ -9,7 +9,7 @@ export const sanitizeSchema = {
   tagNames: Array.from(new Set([...(defaultSchema.tagNames ?? []), 'mark', 'u'])),
   protocols: {
     ...defaultSchema.protocols,
-    src: [...(defaultSchema.protocols?.src ?? []), 'data'],
+    src: Array.from(new Set([...(defaultSchema.protocols?.src ?? []), 'data', 'file'])),
   },
 }
 

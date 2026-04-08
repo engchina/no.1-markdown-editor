@@ -173,6 +173,25 @@ test('renderMarkdown resolves typora-root-url for raw html image sources', async
   assert.match(html, /src="http:\/\/cdn\.example\.com\/content\/hero\/banner\.jpg"/)
 })
 
+test('renderMarkdown preserves Windows absolute markdown image sources by normalizing them to file urls', async () => {
+  const html = await renderMarkdown('![Windows image](C:/Users/thinkpad/Pictures/hero-image.png)')
+
+  assert.match(html, /src="file:\/\/\/C:\/Users\/thinkpad\/Pictures\/hero-image\.png"/)
+})
+
+test('renderMarkdown preserves Windows absolute raw html image sources by normalizing them to file urls', async () => {
+  const html = await renderMarkdown('<img src="C:/Users/thinkpad/Pictures/raw-hero.png" alt="Hero">')
+
+  assert.match(html, /src="file:\/\/\/C:\/Users\/thinkpad\/Pictures\/raw-hero\.png"/)
+})
+
+test('renderMarkdown keeps Windows absolute markdown image sources when the math renderer is active', async () => {
+  const html = await renderMarkdown('Inline $E=mc^2$\n\n![Windows image](C:/Users/thinkpad/Pictures/math-hero.png)')
+
+  assert.match(html, /class="katex"/)
+  assert.match(html, /src="file:\/\/\/C:\/Users\/thinkpad\/Pictures\/math-hero\.png"/)
+})
+
 test('resolveTyporaRootUrlAsset keeps absolute sources untouched and resolves relative ones', () => {
   assert.equal(resolveTyporaRootUrlAsset('cover.png', 'https://assets.example.com/posts'), 'https://assets.example.com/posts/cover.png')
   assert.equal(resolveTyporaRootUrlAsset('http://example.com/hero.png', 'https://assets.example.com/posts'), 'http://example.com/hero.png')
@@ -357,6 +376,18 @@ test('renderMarkdownInWorker keeps the worker-safe path free of KaTeX rendering'
 
   assert.match(html, /\$E=mc\^2\$/)
   assert.doesNotMatch(html, /class="katex"/)
+})
+
+test('renderMarkdownInWorker preserves Windows absolute markdown image sources by normalizing them to file urls', async () => {
+  const html = await renderMarkdownInWorker('![Worker image](C:/Users/thinkpad/Pictures/worker-hero.png)')
+
+  assert.match(html, /src="file:\/\/\/C:\/Users\/thinkpad\/Pictures\/worker-hero\.png"/)
+})
+
+test('renderMarkdownInWorker preserves Windows absolute raw html image sources by normalizing them to file urls', async () => {
+  const html = await renderMarkdownInWorker('<img src="C:/Users/thinkpad/Pictures/worker-raw.png" alt="Worker Hero">')
+
+  assert.match(html, /src="file:\/\/\/C:\/Users\/thinkpad\/Pictures\/worker-raw\.png"/)
 })
 
 test('renderMarkdownInWorker preserves soft paragraph line breaks', async () => {

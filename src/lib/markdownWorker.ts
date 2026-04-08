@@ -7,6 +7,7 @@ import rehypeStringify from 'rehype-stringify'
 import { finalizeRenderedMarkdownHtml, sanitizeSchema, stripFrontMatter } from './markdownShared.ts'
 import { containsLikelyRawHtml } from './markdownHtml.ts'
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
+import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
 import { remarkSoftBreaks } from './remarkSoftBreaks.ts'
 
 const workerProcessor = unified()
@@ -14,6 +15,7 @@ const workerProcessor = unified()
   .use(remarkGfm)
   .use(remarkSoftBreaks)
   .use(remarkRehype)
+  .use(rehypeNormalizeImageSources)
   .use(rehypeSanitize, sanitizeSchema)
   .use(rehypeHeadingIds)
   .use(rehypeStringify)

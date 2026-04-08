@@ -7,6 +7,7 @@ import rehypeSanitize from 'rehype-sanitize'
 import rehypeStringify from 'rehype-stringify'
 import { finalizeRenderedMarkdownHtml, sanitizeSchema, stripFrontMatter } from './markdownShared.ts'
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
+import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
 import { remarkSoftBreaks } from './remarkSoftBreaks.ts'
 
 const processorWithHtml = unified()
@@ -15,6 +16,7 @@ const processorWithHtml = unified()
   .use(remarkSoftBreaks)
   .use(remarkRehype, { allowDangerousHtml: true })
   .use(rehypeRaw)
+  .use(rehypeNormalizeImageSources)
   .use(rehypeSanitize, sanitizeSchema)
   .use(rehypeHeadingIds)
   .use(rehypeStringify)

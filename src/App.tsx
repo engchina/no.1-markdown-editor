@@ -9,6 +9,7 @@ import NotificationCenter from './components/Notifications/NotificationCenter'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useDocumentDrop } from './hooks/useDocumentDrop'
 import { useFileOps } from './hooks/useFileOps'
+import { openDesktopDocumentPaths, SINGLE_INSTANCE_OPEN_FILES_EVENT } from './lib/desktopFileOpen'
 import { useEditorStore } from './store/editor'
 import { applyTheme, getThemeById } from './themes'
 
@@ -92,6 +93,34 @@ export default function App() {
   useEffect(() => {
     applyTheme(getThemeById(activeThemeId))
   }, [activeThemeId])
+
+  useEffect(() => {
+    if (!isTauri) return
+
+    let unlistenOpenFiles: (() => void) | undefined
+
+    void (async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const currentWindow = getCurrentWindow()
+
+        unlistenOpenFiles = await currentWindow.listen<string[]>(SINGLE_INSTANCE_OPEN_FILES_EVENT, (event) => {
+          const paths = Array.isArray(event.payload) ? event.payload : []
+          void openDesktopDocumentPaths(paths)
+        })
+
+        const pendingPaths = await invoke<string[]>('take_pending_open_paths')
+        await openDesktopDocumentPaths(Array.isArray(pendingPaths) ? pendingPaths : [])
+      } catch (error) {
+        console.error('Load launch files error:', error)
+      }
+    })()
+
+    return () => {
+      if (unlistenOpenFiles) unlistenOpenFiles()
+    }
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
