@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Toolbar from './components/Toolbar/Toolbar'
 import Sidebar from './components/Sidebar/Sidebar'
@@ -10,6 +10,7 @@ import { useAutoSave } from './hooks/useAutoSave'
 import { useDocumentDrop } from './hooks/useDocumentDrop'
 import { useFileOps } from './hooks/useFileOps'
 import { openDesktopDocumentPaths, SINGLE_INSTANCE_OPEN_FILES_EVENT } from './lib/desktopFileOpen'
+import { resolveFocusInlinePaddingPx, resolveFocusWidthPx } from './lib/focusWidth'
 import { useEditorStore } from './store/editor'
 import { applyTheme, getThemeById } from './themes'
 
@@ -80,6 +81,8 @@ export default function App() {
     editorRatio,
     setEditorRatio,
     focusMode,
+    focusWidthMode,
+    focusWidthCustomPx,
     typewriterMode,
     activeThemeId,
     zoom,
@@ -88,6 +91,13 @@ export default function App() {
   const [paletteMode, setPaletteMode] = useState<'command' | 'file' | null>(null)
   const [previewActivated, setPreviewActivated] = useState(viewMode === 'preview')
   const { saving } = useAutoSave()
+  const focusColumnWidth = resolveFocusWidthPx(focusWidthMode, focusWidthCustomPx)
+  const focusColumnPadding = resolveFocusInlinePaddingPx(focusColumnWidth)
+  const appStyle = {
+    background: 'transparent',
+    '--focus-column-max-width': `${focusColumnWidth}px`,
+    '--focus-column-inline-padding': `${focusColumnPadding}px`,
+  } as CSSProperties
   useDocumentDrop()
 
   useEffect(() => {
@@ -308,7 +318,7 @@ export default function App() {
   return (
     <div
       className={`flex flex-col h-full w-full overflow-hidden${focusMode ? ' focus-mode' : ''}${typewriterMode ? ' typewriter-mode' : ''}`}
-      style={{ background: 'transparent' }}
+      style={appStyle}
     >
       {paletteMode && (
         <Suspense fallback={null}>
@@ -320,29 +330,26 @@ export default function App() {
 
       {isTauri && <TitleBar />}
 
-      {focusMode && (
-        <div
-          className="fixed top-10 right-3 z-50 text-xs px-3 py-1 rounded-full pointer-events-none select-none opacity-40"
-          style={{
-            background: 'var(--bg-secondary)',
-            color: 'var(--text-muted)',
-            border: '1px solid var(--border)',
-          }}
-        >
-          {t('toolbar.focusMode')} · F11
-        </div>
-      )}
-
       <div
-        className="relative z-20 flex-shrink-0 transition-all duration-300 px-4 pt-4 pb-2"
-        style={{
-          opacity: focusMode ? 0 : 1,
-          height: focusMode ? 0 : 'auto',
-          overflow: focusMode ? 'hidden' : 'visible',
-          pointerEvents: focusMode ? 'none' : 'auto',
-        }}
+        className="relative z-20 flex-shrink-0 px-4 pt-4 pb-2"
+        style={{ minHeight: 'var(--toolbar-shell-height)' }}
       >
-        <Toolbar onOpenPalette={() => setPaletteMode('command')} saving={saving} />
+        {focusMode ? (
+          <div className="flex h-12 items-center justify-end px-1">
+            <div
+              className="text-xs px-3 py-1 rounded-full pointer-events-none select-none opacity-60"
+              style={{
+                background: 'color-mix(in srgb, var(--bg-secondary) 88%, transparent)',
+                color: 'var(--text-muted)',
+                border: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+              }}
+            >
+              {t('toolbar.focusMode')} · F11
+            </div>
+          </div>
+        ) : (
+          <Toolbar onOpenPalette={() => setPaletteMode('command')} saving={saving} />
+        )}
       </div>
 
       <div className="flex flex-1 min-h-0 px-4 pb-4 gap-4">

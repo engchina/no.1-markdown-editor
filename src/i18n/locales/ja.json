@@ -135,6 +135,18 @@
     "appearance": "表示設定",
     "theme": "テーマ",
     "fontSize": "文字サイズ",
+    "focusWidth": "フォーカス幅",
+    "focusWidthHint": "フォーカスモード専用です。プリセット幅は現代の高解像度ディスプレイ向けに引き上げてあり、さらに必要な場合だけカスタムを使います。",
+    "focusWidthPresetsLabel": "推奨幅",
+    "focusWidthPresetHint": "現在はプリセット幅が有効です。これらの値は 2026 年以降の大型ディスプレイに合わせて高めに調整しています。",
+    "customMaxWidth": "カスタム最大幅",
+    "focusWidthCustomHint": "フォーカスモードの幅を手動で指定します。カスタム範囲はウルトラワイドや 5K/6K クラスのモニター向けにさらに広げていますが、プリセットで合わないときだけ使ってください。",
+    "focusWidthPresets": {
+      "narrow": "集中",
+      "comfortable": "快適",
+      "wide": "ワイド読書",
+      "custom": "カスタム"
+    },
     "editorOptions": "エディター設定",
     "wysiwyg": "WYSIWYG (ライブプレビュー)",
     "lineNumbers": "行番号",

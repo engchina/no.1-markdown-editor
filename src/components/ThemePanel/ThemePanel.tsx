@@ -1,5 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  FOCUS_WIDTH_CUSTOM_MAX,
+  FOCUS_WIDTH_CUSTOM_MIN,
+  FOCUS_WIDTH_CUSTOM_STEP,
+  FOCUS_WIDTH_PRESET_VALUES,
+  resolveFocusWidthPx,
+  type FocusWidthMode,
+} from '../../lib/focusWidth'
 import { THEMES, applyTheme, getThemeById } from '../../themes'
 import { useEditorStore } from '../../store/editor'
 
@@ -15,6 +23,10 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
     setActiveThemeId,
     fontSize,
     setFontSize,
+    focusWidthMode,
+    setFocusWidthMode,
+    focusWidthCustomPx,
+    setFocusWidthCustomPx,
     lineNumbers,
     setLineNumbers,
     wordWrap,
@@ -26,6 +38,39 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
   } = useEditorStore()
   const panelRef = useRef<HTMLDivElement>(null)
   const resolvedThemeId = getThemeById(activeThemeId).id
+  const resolvedFocusWidthPx = resolveFocusWidthPx(focusWidthMode, focusWidthCustomPx)
+  const focusWidthPresets: Array<{
+    mode: Exclude<FocusWidthMode, 'custom'>
+    label: string
+    value: number
+  }> = [
+    { mode: 'narrow', label: t('themePanel.focusWidthPresets.narrow'), value: FOCUS_WIDTH_PRESET_VALUES.narrow },
+    { mode: 'comfortable', label: t('themePanel.focusWidthPresets.comfortable'), value: FOCUS_WIDTH_PRESET_VALUES.comfortable },
+    { mode: 'wide', label: t('themePanel.focusWidthPresets.wide'), value: FOCUS_WIDTH_PRESET_VALUES.wide },
+  ]
+  const focusWidthQuickOptions: Array<{
+    label: string
+    active: boolean
+    onClick: () => void
+  }> = [
+    ...focusWidthPresets.map(({ mode, label }) => ({
+      label,
+      active: focusWidthMode === mode,
+      onClick: () => setFocusWidthMode(mode),
+    })),
+    {
+      label: t('themePanel.focusWidthPresets.custom'),
+      active: focusWidthMode === 'custom',
+      onClick: () => setFocusWidthMode('custom'),
+    },
+  ]
+
+  function applyFocusWidth(nextWidth: number) {
+    setFocusWidthCustomPx(nextWidth)
+
+    const matchedPreset = focusWidthPresets.find(({ value }) => value === nextWidth)
+    setFocusWidthMode(matchedPreset?.mode ?? 'custom')
+  }
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -50,9 +95,9 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
       ref={panelRef}
       className="absolute right-2 top-12 z-50 rounded-xl shadow-2xl overflow-hidden animate-in glass-panel"
       style={{
-        width: '320px',
-        background: 'var(--glass-bg)',
-        borderColor: 'var(--glass-border)',
+        width: '344px',
+        background: 'color-mix(in srgb, var(--bg-primary) 96%, transparent)',
+        borderColor: 'color-mix(in srgb, var(--border) 88%, transparent)',
       }}
     >
       <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -126,6 +171,58 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <div className="flex items-start justify-between mb-2 gap-3">
+            <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              {t('themePanel.focusWidth')}
+            </p>
+            <div className="text-right flex-shrink-0">
+              <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{resolvedFocusWidthPx}px</div>
+            </div>
+          </div>
+
+          <input
+            type="range"
+            min={FOCUS_WIDTH_CUSTOM_MIN}
+            max={FOCUS_WIDTH_CUSTOM_MAX}
+            step={FOCUS_WIDTH_CUSTOM_STEP}
+            value={resolvedFocusWidthPx}
+            onChange={(event) => {
+              applyFocusWidth(Number(event.target.value))
+            }}
+            className="w-full h-1 rounded-full appearance-none cursor-pointer"
+            style={{ accentColor: 'var(--accent)', background: 'var(--bg-tertiary)' }}
+          />
+          <div className="flex justify-between mt-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            <span>{FOCUS_WIDTH_CUSTOM_MIN}</span>
+            <span>{FOCUS_WIDTH_CUSTOM_MAX}</span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1.5 mt-2">
+            {focusWidthQuickOptions.map(({ label, active, onClick }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={onClick}
+                className="text-[11px] px-1.5 py-1 rounded transition-all hover-scale truncate"
+                style={{
+                  background: active ? 'var(--accent)' : 'var(--bg-tertiary)',
+                  color: active ? 'white' : 'var(--text-muted)',
+                }}
+                title={label}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {focusWidthMode === 'custom' && (
+            <div className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
+              {t('themePanel.focusWidthCustomHint')}
+            </div>
+          )}
         </div>
 
         <div>

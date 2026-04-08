@@ -138,6 +138,18 @@
     "appearance": "Appearance",
     "theme": "THEME",
     "fontSize": "FONT SIZE",
+    "focusWidth": "FOCUS WIDTH",
+    "focusWidthHint": "Focus Mode only. Presets now target modern high-resolution displays; use Custom when you need to push even further.",
+    "focusWidthPresetsLabel": "RECOMMENDED WIDTHS",
+    "focusWidthPresetHint": "A preset is active now. These widths are intentionally tuned higher for large 2026-era displays and future monitors.",
+    "customMaxWidth": "CUSTOM MAX WIDTH",
+    "focusWidthCustomHint": "Manual width for Focus Mode. This range now extends further for ultrawide and 5K/6K-class monitors; use it only when the presets still feel too narrow or too wide.",
+    "focusWidthPresets": {
+      "narrow": "Focused",
+      "comfortable": "Comfortable",
+      "wide": "Spacious",
+      "custom": "Custom"
+    },
     "editorOptions": "EDITOR OPTIONS",
     "wysiwyg": "WYSIWYG (Live Preview)",
     "lineNumbers": "Line Numbers",

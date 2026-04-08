@@ -53,7 +53,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const fontSize = useEditorStore((state) => state.fontSize)
   const typewriterMode = useEditorStore((state) => state.typewriterMode)
   const wysiwygMode = useEditorStore((state) => state.wysiwygMode)
-  const focusMode = useEditorStore((state) => state.focusMode)
   const pendingNavigation = useEditorStore((state) => state.pendingNavigation)
   const setPendingNavigation = useEditorStore((state) => state.setPendingNavigation)
   const setCursorPos = useEditorStore((state) => state.setCursorPos)
@@ -539,8 +538,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         className="flex-1 min-h-0 overflow-hidden transition-all duration-300"
         style={{
           fontSize: `${fontSize}px`,
-          maxWidth: focusMode ? '720px' : undefined,
-          margin: focusMode ? '0 auto' : undefined,
         }}
       />
     </div>

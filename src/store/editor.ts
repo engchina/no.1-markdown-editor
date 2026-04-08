@@ -2,6 +2,11 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import i18n, { type Language } from '../i18n'
 import {
+  clampFocusWidthPx,
+  FOCUS_WIDTH_PRESET_VALUES,
+  type FocusWidthMode,
+} from '../lib/focusWidth'
+import {
   countRestorableDraftTabs,
   isRestorableDraftTab,
   restoreDraftTabs,
@@ -82,6 +87,10 @@ interface EditorState {
   // Modes
   focusMode: boolean
   setFocusMode: (v: boolean) => void
+  focusWidthMode: FocusWidthMode
+  setFocusWidthMode: (mode: FocusWidthMode) => void
+  focusWidthCustomPx: number
+  setFocusWidthCustomPx: (px: number) => void
   typewriterMode: boolean
   setTypewriterMode: (v: boolean) => void
   lineNumbers: boolean
@@ -258,6 +267,10 @@ export const useEditorStore = create<EditorState>()(
       // Modes
       focusMode: false,
       setFocusMode: (focusMode) => set({ focusMode }),
+      focusWidthMode: 'comfortable',
+      setFocusWidthMode: (focusWidthMode) => set({ focusWidthMode }),
+      focusWidthCustomPx: FOCUS_WIDTH_PRESET_VALUES.comfortable,
+      setFocusWidthCustomPx: (focusWidthCustomPx) => set({ focusWidthCustomPx: clampFocusWidthPx(focusWidthCustomPx) }),
       typewriterMode: false,
       setTypewriterMode: (typewriterMode) => set({ typewriterMode }),
       lineNumbers: true,
@@ -283,6 +296,8 @@ export const useEditorStore = create<EditorState>()(
         sidebarOpen: s.sidebarOpen,
         sidebarTab: s.sidebarTab,
         editorRatio: s.editorRatio,
+        focusWidthMode: s.focusWidthMode,
+        focusWidthCustomPx: s.focusWidthCustomPx,
         lineNumbers: s.lineNumbers,
         wordWrap: s.wordWrap,
         fontSize: s.fontSize,

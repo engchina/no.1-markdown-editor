@@ -36,6 +36,9 @@
   --glass-border: rgba(255, 255, 255, 0.5);
   --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   --shadow-elegant: 0 10px 40px -10px rgba(0, 0, 0, 0.1), 0 0 1px 1px rgba(0, 0, 0, 0.05);
+  --toolbar-shell-height: 72px;
+  --focus-column-max-width: 1600px;
+  --focus-column-inline-padding: 112px;
 }
 
 .dark {
@@ -563,7 +566,7 @@ body {
 
 /* Centered writing column */
 .focus-mode-column {
-  max-width: 720px;
+  max-width: var(--focus-column-max-width);
   margin: 0 auto;
   height: 100%;
 }
@@ -574,11 +577,11 @@ body {
 }
 
 .focus-mode-container .cm-content {
-  padding: 48px 0 !important;
+  padding: 24px 0 !important;
 }
 
 .focus-mode-container .cm-line {
-  padding: 0 48px !important;
+  padding: 0 var(--focus-column-inline-padding) !important;
 }
 
 /* Hide gutters (line numbers) in focus mode */

@@ -135,6 +135,18 @@
     "appearance": "外观",
     "theme": "主题",
     "fontSize": "字体大小",
+    "focusWidth": "专注宽度",
+    "focusWidthHint": "仅影响专注模式。预设已按现代高分辨率显示器重新提高；如果还需要更大范围，再使用自定义。",
+    "focusWidthPresetsLabel": "推荐宽度",
+    "focusWidthPresetHint": "当前使用的是预设宽度。这些值已按 2026 年及未来的大屏显示器重新提高。",
+    "customMaxWidth": "自定义最大宽度",
+    "focusWidthCustomHint": "手动设置专注模式宽度。现在自定义范围已经扩展，更适合超宽屏和 5K/6K 级显示器；只有在预设仍偏窄或偏宽时才建议使用。",
+    "focusWidthPresets": {
+      "narrow": "专注",
+      "comfortable": "舒适",
+      "wide": "宽阅读",
+      "custom": "自定义"
+    },
     "editorOptions": "编辑器选项",
     "wysiwyg": "WYSIWYG（实时预览）",
     "lineNumbers": "行号",
