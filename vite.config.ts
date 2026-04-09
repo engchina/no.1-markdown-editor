@@ -27,6 +27,11 @@ export default defineConfig(async () => ({
       '@mermaid-js/parser': path.resolve(__dirname, './src/lib/mermaidParser.ts'),
     },
   },
+  optimizeDeps: {
+    // Mermaid only becomes reachable after the preview surface is mounted, so we
+    // pre-bundle it up front to avoid late dev-time optimizer churn.
+    include: ['mermaid'],
+  },
   build: {
     // Mermaid's upstream parser core bundles several grammars into a single optional
     // lazy chunk. It's not on the initial load path, so we allow a slightly higher

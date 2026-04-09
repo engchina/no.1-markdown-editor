@@ -1,4 +1,5 @@
 import type { SupportedMermaidParserType } from './mermaidParser.ts'
+import { attemptDynamicImportRecovery, wasDynamicImportRecoveryTriggered } from './vitePreloadRecovery.ts'
 
 export type MermaidTheme = 'default' | 'dark'
 
@@ -66,7 +67,11 @@ interface MermaidShellLabels {
 }
 
 function loadMermaid() {
-  mermaidPromise ??= import('mermaid')
+  mermaidPromise ??= import('mermaid').catch((error) => {
+    mermaidPromise = null
+    attemptDynamicImportRecovery(error)
+    throw error
+  })
   return mermaidPromise
 }
 
@@ -378,6 +383,10 @@ export async function renderMermaidShells(
         error: shell.dataset.mermaidErrorLabel ?? 'Diagram could not be rendered',
       })
     } catch (error) {
+      if (wasDynamicImportRecoveryTriggered(error)) {
+        return false
+      }
+
       console.error('Mermaid error:', error)
       setMermaidShellStatus(
         shell,
@@ -435,6 +444,10 @@ export async function renderMermaidInHtml(html: string, theme: MermaidTheme): Pr
       container.innerHTML = svg
       pre.replaceWith(container)
     } catch (error) {
+      if (wasDynamicImportRecoveryTriggered(error)) {
+        continue
+      }
+
       console.error('Mermaid export error:', error)
     }
   }

@@ -17,6 +17,7 @@ import { buildLocalPreviewImageKey, rewritePreviewHtmlLocalImages } from '../../
 import { buildExternalPreviewImageKey, rewritePreviewHtmlExternalImages } from '../../lib/previewExternalImages'
 import { getPreviewExternalLink } from '../../lib/previewLinks'
 import { loadExternalPreviewImage } from '../../lib/previewRemoteImage'
+import { wasDynamicImportRecoveryTriggered } from '../../lib/vitePreloadRecovery'
 import { useMarkdown } from '../../hooks/useMarkdown'
 import { useActiveTab, useEditorStore } from '../../store/editor'
 
@@ -72,6 +73,7 @@ export default function MarkdownPreview() {
 
   const warmMermaidTask = (task: Promise<void>) => {
     void task.catch((error) => {
+      if (wasDynamicImportRecoveryTriggered(error)) return
       console.error('Warm Mermaid error:', error)
     })
   }
