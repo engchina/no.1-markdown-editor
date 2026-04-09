@@ -14,7 +14,7 @@ import { ensureKatexStylesheet } from '../../lib/katexStylesheet'
 import { pushErrorNotice } from '../../lib/notices'
 import { loadLocalPreviewImage } from '../../lib/previewLocalImage'
 import { buildLocalPreviewImageKey, rewritePreviewHtmlLocalImages } from '../../lib/previewLocalImages'
-import { rewritePreviewHtmlExternalImages } from '../../lib/previewExternalImages'
+import { buildExternalPreviewImageKey, rewritePreviewHtmlExternalImages } from '../../lib/previewExternalImages'
 import { getPreviewExternalLink } from '../../lib/previewLinks'
 import { loadExternalPreviewImage } from '../../lib/previewRemoteImage'
 import { useMarkdown } from '../../hooks/useMarkdown'
@@ -31,7 +31,7 @@ export default function MarkdownPreview() {
   const deferredContent = useDeferredValue(content)
   const html = useMarkdown(deferredContent)
   const [resolvedLocalImages, setResolvedLocalImages] = useState<Record<string, string>>({})
-  const failedLocalImagesRef = useRef(new Set<string>())
+  const [resolvedExternalImages, setResolvedExternalImages] = useState<Record<string, string>>({})
   const previewOrigin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
   const previewLocationHref = typeof window === 'undefined' ? 'http://localhost/' : window.location.href
   const previewHtml = useMemo(
@@ -45,9 +45,13 @@ export default function MarkdownPreview() {
           blockedLabel: t('preview.externalImageBlocked'),
           clickLabel: t('preview.externalImageClickToLoad'),
         },
-        previewOrigin
+        previewOrigin,
+        {
+          bridgeAllExternalImages: isTauri,
+          resolvedImages: resolvedExternalImages,
+        }
       ),
-    [documentPath, html, i18n.language, previewOrigin, resolvedLocalImages, t]
+    [documentPath, html, i18n.language, isTauri, previewOrigin, resolvedExternalImages, resolvedLocalImages, t]
   )
   const previewRef = useRef<HTMLDivElement>(null)
   const [pendingMermaidCount, setPendingMermaidCount] = useState(0)
@@ -135,7 +139,6 @@ export default function MarkdownPreview() {
     if (!externalSource || image.dataset.externalImage === 'loading') return
 
     const placeholderSource = image.dataset.externalPlaceholder ?? image.src
-    const host = image.dataset.externalHost ?? 'external source'
     image.dataset.externalImage = 'loading'
     image.setAttribute('aria-busy', 'true')
 
@@ -178,13 +181,15 @@ export default function MarkdownPreview() {
           return
         }
 
+        if (!resolvedSource) {
+          resetToBlocked()
+          return
+        }
+
         image.src = resolvedSource
       })
       .catch(() => {
         resetToBlocked()
-        pushErrorNotice('notices.externalImageLoadErrorTitle', 'notices.externalImageLoadErrorMessage', {
-          values: { host },
-        })
       })
   }
 
@@ -285,6 +290,32 @@ export default function MarkdownPreview() {
   }, [openExternalPreviewLink, previewLocationHref])
 
   useEffect(() => {
+    if (!isTauri) return
+
+    const preview = previewRef.current
+    if (!preview) return
+
+    const pendingExternalImages = Array.from(
+      preview.querySelectorAll<HTMLImageElement>('img[data-external-src]')
+    )
+    for (const image of pendingExternalImages) {
+      const externalSource = image.dataset.externalSrc
+      if (!externalSource) continue
+
+      const key = buildExternalPreviewImageKey(externalSource)
+      if (resolvedExternalImages[key]) continue
+
+      void loadExternalPreviewImage(externalSource)
+        .then((resolvedSource) => {
+          if (!resolvedSource) return
+          setResolvedExternalImages((current) =>
+            current[key] === resolvedSource ? current : { ...current, [key]: resolvedSource }
+          )
+        })
+    }
+  }, [isTauri, previewHtml, resolvedExternalImages])
+
+  useEffect(() => {
     const preview = previewRef.current
     if (!preview) return
 
@@ -296,18 +327,14 @@ export default function MarkdownPreview() {
       if (!localSource) continue
 
       const key = buildLocalPreviewImageKey(localSource, documentPath)
-      if (resolvedLocalImages[key] || failedLocalImagesRef.current.has(key)) continue
+      if (resolvedLocalImages[key]) continue
 
       void loadLocalPreviewImage(localSource, documentPath)
         .then((resolvedSource) => {
-          failedLocalImagesRef.current.delete(key)
+          if (!resolvedSource) return
           setResolvedLocalImages((current) =>
             current[key] === resolvedSource ? current : { ...current, [key]: resolvedSource }
           )
-        })
-        .catch((error) => {
-          failedLocalImagesRef.current.add(key)
-          console.error('Load local preview image error:', error)
         })
     }
   }, [documentPath, previewHtml, resolvedLocalImages])

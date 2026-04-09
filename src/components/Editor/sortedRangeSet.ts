@@ -18,9 +18,22 @@ export function compareRangeSpecs<T extends RangeValue>(a: RangeSpec<T>, b: Rang
 export function buildSortedRangeSet<T extends RangeValue>(ranges: readonly RangeSpec<T>[]): RangeSet<T> {
   const builder = new RangeSetBuilder<T>()
 
-  for (const { from, to, value } of [...ranges].sort(compareRangeSpecs)) {
-    builder.add(from, to, value)
+  for (const range of [...ranges].filter(isValidRangeSpec).sort(compareRangeSpecs)) {
+    try {
+      builder.add(range.from, range.to, range.value)
+    } catch {
+      // Formatting glitches should degrade gracefully instead of taking down the editor.
+    }
   }
 
   return builder.finish()
+}
+
+function isValidRangeSpec<T extends RangeValue>(range: RangeSpec<T>): boolean {
+  return (
+    Number.isFinite(range.from) &&
+    Number.isFinite(range.to) &&
+    range.from >= 0 &&
+    range.to >= range.from
+  )
 }

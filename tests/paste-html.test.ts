@@ -96,7 +96,7 @@ test('renderClipboardHtmlAstToMarkdown keeps semantic inline tags, task lists, f
   const html = await renderMarkdown(markdown)
 
   assert.match(markdown, /<u>Underline<\/u>/)
-  assert.match(markdown, /<mark>highlight<\/mark>/)
+  assert.match(markdown, /==highlight==/)
   assert.match(markdown, /H<sub>2<\/sub>O/)
   assert.match(markdown, /X<sup>2<\/sup>/)
   assert.match(markdown, /- \[ ] list syntax required/)

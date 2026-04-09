@@ -110,6 +110,14 @@ export function buildStandaloneHtml(
     h3 { font-size: 1.25em; }
     a { color: #2563eb; text-decoration: none; }
     a:hover { text-decoration: underline; }
+    mark {
+      color: inherit;
+      background: rgba(250, 204, 21, 0.35);
+      border-radius: 0.25em;
+      padding: 0 0.18em;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
     p { margin: 0; }
     code {
       font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
@@ -138,6 +146,9 @@ export function buildStandaloneHtml(
     blockquote > * + * { margin-top: var(--md-quote-space); }
     table { border-collapse: collapse; width: 100%; margin: 0; }
     th, td { border: 1px solid #e5e7eb; padding: 8px 16px; text-align: left; }
+    th[align="left"], td[align="left"] { text-align: left; }
+    th[align="center"], td[align="center"] { text-align: center; }
+    th[align="right"], td[align="right"] { text-align: right; }
     th { background: #f9fafb; font-weight: 600; }
     tr:nth-child(even) td { background: #f9fafb; }
     img { max-width: 100%; border-radius: 4px; }

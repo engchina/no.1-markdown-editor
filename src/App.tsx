@@ -9,6 +9,8 @@ import TitleBar from './components/TitleBar/TitleBar'
 import NotificationCenter from './components/Notifications/NotificationCenter'
 import ExternalFileConflictDialog from './components/ExternalFileConflicts/ExternalFileConflictDialog'
 import ExternalMissingFileDialog from './components/ExternalFileConflicts/ExternalMissingFileDialog'
+import RecoverableErrorBoundary from './components/ErrorBoundary/RecoverableErrorBoundary'
+import ErrorFallback from './components/ErrorBoundary/ErrorFallback'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useDocumentDrop } from './hooks/useDocumentDrop'
 import { useExternalFileChanges } from './hooks/useExternalFileChanges'
@@ -16,7 +18,7 @@ import { useFileOps } from './hooks/useFileOps'
 import { openDesktopDocumentPaths, SINGLE_INSTANCE_OPEN_FILES_EVENT } from './lib/desktopFileOpen'
 import { resolveFocusInlinePaddingPx, resolveFocusWidthPx } from './lib/focusWidth'
 import { matchesPrimaryShortcut } from './lib/platform'
-import { useEditorStore } from './store/editor'
+import { useActiveTab, useEditorStore } from './store/editor'
 import { applyTheme, getThemeById } from './themes'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -90,7 +92,9 @@ export default function App() {
     focusWidthCustomPx,
     typewriterMode,
     activeThemeId,
+    wysiwygMode,
   } = useEditorStore()
+  const activeTab = useActiveTab()
   const { saveAllDirtyTabs } = useFileOps()
   const [paletteMode, setPaletteMode] = useState<'command' | 'file' | null>(null)
   const [previewActivated, setPreviewActivated] = useState(viewMode === 'preview')
@@ -282,9 +286,25 @@ export default function App() {
   const sidebarStartWidth = useRef(0)
 
   const renderEditorPane = () => (
-    <Suspense fallback={<EditorPlaceholder />}>
-      <EditorPane />
-    </Suspense>
+    <RecoverableErrorBoundary
+      resetKeys={[activeTab?.id ?? '', viewMode, wysiwygMode]}
+      renderFallback={({ reset }) => <ErrorFallback scope="surface" onRetry={reset} className="h-full" />}
+    >
+      <Suspense fallback={<EditorPlaceholder />}>
+        <EditorPane />
+      </Suspense>
+    </RecoverableErrorBoundary>
+  )
+
+  const renderPreviewPane = () => (
+    <RecoverableErrorBoundary
+      resetKeys={[activeTab?.id ?? '', activeTab?.path ?? '', activeThemeId, viewMode]}
+      renderFallback={({ reset }) => <ErrorFallback scope="surface" onRetry={reset} className="h-full" />}
+    >
+      <Suspense fallback={<PreviewPlaceholder onActivate={() => setPreviewActivated(true)} />}>
+        <MarkdownPreview />
+      </Suspense>
+    </RecoverableErrorBoundary>
   )
 
   const onSidebarResizeStart = useCallback(
@@ -415,9 +435,7 @@ export default function App() {
               {showPreview && (
                 <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
                   {previewActivated ? (
-                    <Suspense fallback={<PreviewPlaceholder onActivate={() => setPreviewActivated(true)} />}>
-                      <MarkdownPreview />
-                    </Suspense>
+                    renderPreviewPane()
                   ) : (
                     <PreviewPlaceholder onActivate={() => setPreviewActivated(true)} />
                   )}

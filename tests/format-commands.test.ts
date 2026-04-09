@@ -38,3 +38,23 @@ test('applyFormat removes underline tags when the full wrapped selection is sele
   assert.equal(view.state.selection.main.from, 0)
   assert.equal(view.state.selection.main.to, 5)
 })
+
+test('applyFormat wraps selected text with highlight markers', () => {
+  const view = createTestView('hello world', 0, 5)
+
+  applyFormat(view, 'highlight')
+
+  assert.equal(view.state.doc.toString(), '==hello== world')
+  assert.equal(view.state.selection.main.from, 2)
+  assert.equal(view.state.selection.main.to, 7)
+})
+
+test('applyFormat removes highlight markers when the full wrapped selection is selected', () => {
+  const view = createTestView('==hello==', 0, 9)
+
+  applyFormat(view, 'highlight')
+
+  assert.equal(view.state.doc.toString(), 'hello')
+  assert.equal(view.state.selection.main.from, 0)
+  assert.equal(view.state.selection.main.to, 5)
+})

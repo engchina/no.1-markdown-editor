@@ -144,6 +144,15 @@ test('renderMarkdown preserves highlight tags inserted from pasted html', async 
   assert.match(html, /<p>Hello <mark>world<\/mark><\/p>/)
 })
 
+test('renderMarkdown converts ==highlight== syntax to mark tags across inline nodes', async () => {
+  const markdown = 'Hello ==**world**=='
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  assert.match(html, /<p>Hello <mark><strong>world<\/strong><\/mark><\/p>/)
+  assert.match(workerHtml, /<p>Hello <mark><strong>world<\/strong><\/mark><\/p>/)
+})
+
 test('renderMarkdown keeps linked remote images from pasted web content', async () => {
   const markdown = '[![img](https://example.com/assets/hero.png)](https://example.com/assets/hero.png)'
   const html = await renderMarkdown(markdown)
@@ -233,6 +242,55 @@ test('rewritePreviewHtmlExternalImages keeps https remote images intact on secur
   assert.match(previewHtml, /src="https:\/\/example.com\/assets\/hero.png"/)
   assert.doesNotMatch(previewHtml, /data-external-src=/)
   assert.doesNotMatch(previewHtml, /data-external-image=/)
+  assert.match(previewHtml, /loading="lazy"/)
+  assert.match(previewHtml, /decoding="async"/)
+})
+
+test('rewritePreviewHtmlExternalImages bridges secure remote images when requested', () => {
+  const html = '<p><img src="https://example.com/assets/hero.png" alt="Hero"></p>'
+
+  const previewHtml = rewritePreviewHtmlExternalImages(
+    html,
+    {
+      blockedLabel: 'External image blocked',
+      clickLabel: 'Click to load from the original host',
+    },
+    'https://tauri.localhost',
+    { bridgeAllExternalImages: true }
+  )
+
+  assert.match(previewHtml, /src="data:image\/svg\+xml/)
+  assert.match(previewHtml, /data-external-src="https:\/\/example.com\/assets\/hero.png"/)
+  assert.match(previewHtml, /data-external-image="blocked"/)
+  assert.match(previewHtml, /class="[^"]*preview-external-image/)
+  assert.match(previewHtml, /referrerpolicy="no-referrer"/)
+  assert.match(previewHtml, /loading="lazy"/)
+  assert.match(previewHtml, /decoding="async"/)
+})
+
+test('rewritePreviewHtmlExternalImages restores resolved bridged sources', () => {
+  const html = '<p><img src="https://example.com/assets/hero.png" alt="Hero"></p>'
+
+  const previewHtml = rewritePreviewHtmlExternalImages(
+    html,
+    {
+      blockedLabel: 'External image blocked',
+      clickLabel: 'Click to load from the original host',
+    },
+    'https://tauri.localhost',
+    {
+      bridgeAllExternalImages: true,
+      resolvedImages: {
+        'https://example.com/assets/hero.png': 'data:image/png;base64,abc',
+      },
+    }
+  )
+
+  assert.match(previewHtml, /src="data:image\/png;base64,abc"/)
+  assert.doesNotMatch(previewHtml, /data-external-src=/)
+  assert.doesNotMatch(previewHtml, /data-external-image=/)
+  assert.doesNotMatch(previewHtml, /preview-external-image/)
+  assert.doesNotMatch(previewHtml, /referrerpolicy=/)
   assert.match(previewHtml, /loading="lazy"/)
   assert.match(previewHtml, /decoding="async"/)
 })

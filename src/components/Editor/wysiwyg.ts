@@ -228,7 +228,7 @@ function buildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange
         continue
       }
 
-      // ── Inline patterns (bold, italic, code, strikethrough, links, math) ──
+      // ── Inline patterns (bold, italic, highlight, code, strikethrough, links, math) ──
       // Only apply when NOT on the line containing the cursor
       if (!onLine) {
         processInlineMath(decorations, text, lineFrom, view)
@@ -240,6 +240,14 @@ function buildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange
   }
 
   return buildSortedRangeSet(decorations)
+}
+
+function safeBuildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange[]): DecorationSet {
+  try {
+    return buildDecorations(view, fencedCodeRanges)
+  } catch {
+    return Decoration.none
+  }
 }
 
 // Process inline math $...$ within a line
@@ -278,6 +286,9 @@ function processInline(
   // Strikethrough ~~text~~
   processPattern(decorations, text, lineFrom, /(~~)((?:[^~])+?)\1/g, 'cm-wysiwyg-strikethrough')
 
+  // Highlight ==text==
+  processPattern(decorations, text, lineFrom, /(==)(?=[^=\s])(.+?)(?<=[^=\s])\1/g, 'cm-wysiwyg-highlight')
+
   // Inline code `code`
   processPattern(decorations, text, lineFrom, /(`+)((?:.)+?)\1/g, 'cm-wysiwyg-code')
 
@@ -295,7 +306,7 @@ function processInline(
   }
 
   // Links [text](url) — hide the (url) part
-  const linkRe = /\[([^\]]+)\]\(([^)]+)\)/g
+  const linkRe = /(?<!!)\[([^\]]+)\]\(([^)]+)\)/g
   while ((m = linkRe.exec(text)) !== null) {
     const fullStart = lineFrom + m.index
     const textEnd = fullStart + 1 + m[1].length + 1  // past ]
@@ -375,7 +386,7 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
 
     constructor(view: EditorView) {
       this.fencedCodeRanges = collectFencedCodeRanges(view.state.doc.toString())
-      this.decorations = buildDecorations(view, this.fencedCodeRanges)
+      this.decorations = safeBuildDecorations(view, this.fencedCodeRanges)
     }
 
     update(update: ViewUpdate) {
@@ -388,7 +399,7 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
         update.selectionSet ||
         update.viewportChanged
       ) {
-        this.decorations = buildDecorations(update.view, this.fencedCodeRanges)
+        this.decorations = safeBuildDecorations(update.view, this.fencedCodeRanges)
       }
     }
   },
@@ -427,6 +438,12 @@ export const wysiwygTheme = EditorView.baseTheme({
   '.cm-wysiwyg-italic': { fontStyle: 'italic', color: 'var(--text-primary) !important' },
   '.cm-wysiwyg-underline': { textDecoration: 'underline', color: 'var(--text-primary) !important' },
   '.cm-wysiwyg-strikethrough': { textDecoration: 'line-through', color: 'var(--text-muted) !important' },
+  '.cm-wysiwyg-highlight': {
+    backgroundColor: 'color-mix(in srgb, #FACC15 52%, transparent)',
+    borderRadius: '0.28em',
+    color: 'var(--text-primary) !important',
+    padding: '0 0.18em',
+  },
   '.cm-wysiwyg-code': {
     fontFamily: 'var(--font-mono, monospace)',
     fontSize: '0.875em',

@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks'
-import { loadExternalPreviewImage } from '../src/lib/previewRemoteImage.ts'
+import { loadLocalPreviewImage } from '../src/lib/previewLocalImage.ts'
 
-test('loadExternalPreviewImage falls back to the original url outside Tauri', async () => {
-  const source = 'https://example.com/assets/hero.png'
+test('loadLocalPreviewImage falls back to the original source outside Tauri', async () => {
+  const source = './images/hero.png'
 
-  assert.equal(await loadExternalPreviewImage(source), source)
+  assert.equal(await loadLocalPreviewImage(source, 'D:\\docs\\draft.md'), source)
 })
 
-test('loadExternalPreviewImage returns null when the Tauri bridge cannot fetch the image', async () => {
+test('loadLocalPreviewImage returns null when the Tauri bridge cannot read the image', async () => {
   const previousWindow = globalThis.window
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
@@ -18,15 +18,14 @@ test('loadExternalPreviewImage returns null when the Tauri bridge cannot fetch t
 
   try {
     mockIPC((cmd) => {
-      if (cmd === 'fetch_remote_image_data_url') {
-        throw new Error('404')
+      if (cmd === 'fetch_local_image_data_url') {
+        throw new Error('missing')
       }
 
       return null
     })
 
-    const source = 'https://example.com/assets/missing.png'
-    assert.equal(await loadExternalPreviewImage(source), null)
+    assert.equal(await loadLocalPreviewImage('./images/missing.png', 'D:\\docs\\draft.md'), null)
   } finally {
     clearMocks()
     if (previousWindow === undefined) {

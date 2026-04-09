@@ -33,3 +33,18 @@ test('buildSortedRangeSet stabilizes mixed replace and mark decorations at the s
     ]
   )
 })
+
+test('buildSortedRangeSet ignores invalid ranges instead of throwing', () => {
+  const set = buildSortedRangeSet([
+    { from: 4, to: 2, value: Decoration.mark({ class: 'reversed' }) },
+    { from: -1, to: 1, value: Decoration.mark({ class: 'negative' }) },
+    { from: 0, to: 4, value: Decoration.mark({ class: 'valid' }) },
+  ])
+
+  const seen: Array<{ from: number; to: number }> = []
+  set.between(0, 4, (from, to) => {
+    seen.push({ from, to })
+  })
+
+  assert.deepEqual(seen, [{ from: 0, to: 4 }])
+})

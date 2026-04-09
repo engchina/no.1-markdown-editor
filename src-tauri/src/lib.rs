@@ -4,6 +4,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
+use tauri_plugin_fs::FsExt;
 
 const MAX_REMOTE_IMAGE_BYTES: usize = 12 * 1024 * 1024;
 const MAX_LOCAL_IMAGE_BYTES: usize = 24 * 1024 * 1024;
@@ -36,6 +37,30 @@ fn get_file_name(path: String) -> String {
         .and_then(|n| n.to_str())
         .unwrap_or("Untitled")
         .to_string()
+}
+
+#[tauri::command]
+fn allow_fs_scope_path<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    path: String,
+    directory: bool,
+    recursive: bool,
+) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Missing file system path".to_string());
+    }
+
+    let scope = app.fs_scope();
+    let candidate = PathBuf::from(trimmed);
+
+    if directory {
+        scope
+            .allow_directory(candidate, recursive)
+            .map_err(|error| error.to_string())
+    } else {
+        scope.allow_file(candidate).map_err(|error| error.to_string())
+    }
 }
 
 #[tauri::command]
@@ -330,6 +355,7 @@ pub fn run() {
             write_file,
             write_binary_file,
             get_file_name,
+            allow_fs_scope_path,
             take_pending_open_paths,
             fetch_remote_image_data_url,
             fetch_local_image_data_url

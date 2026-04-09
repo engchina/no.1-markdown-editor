@@ -27,6 +27,7 @@
     "italic": "斜体",
     "underline": "下划线",
     "strikethrough": "删除线",
+    "highlight": "标记",
     "code": "行内代码",
     "codeBlock": "代码块",
     "quote": "引用",
@@ -325,6 +326,16 @@
     "copyHtmlSuccessTitle": "HTML 已复制",
     "copyHtmlSuccessMessage": "渲染后的 HTML 已复制到剪贴板。",
     "dismissLabel": "关闭通知"
+  },
+  "runtimeError": {
+    "appEyebrow": "运行时错误",
+    "appTitle": "编辑器遇到了意外错误",
+    "appDescription": "当前会话在完成渲染前被中断了。请重新加载应用以恢复。",
+    "surfaceEyebrow": "面板已隔离",
+    "surfaceTitle": "这个面板遇到了意外错误",
+    "surfaceDescription": "错误已经被限制在当前面板内，编辑器其余部分仍可继续使用。请重试加载这个面板。",
+    "retry": "重试",
+    "reload": "重新加载应用"
   },
   "placeholder": "开始用 Markdown 写作...\n\n# 你好，世界！\n\n这是 **No.1 Markdown编辑器** — 快速、美观、永久免费。"
 }

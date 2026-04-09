@@ -12,6 +12,7 @@ import {
   stripFrontMatter,
 } from './markdownShared.ts'
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
+import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
 import { remarkSoftBreaks } from './remarkSoftBreaks.ts'
 
@@ -21,6 +22,7 @@ const processorWithMath = unified()
   .use(remarkMath)
   .use(remarkSoftBreaks)
   .use(remarkRehype)
+  .use(rehypeHighlightMarkers)
   .use(rehypeNormalizeImageSources)
   .use(rehypeSanitize, sanitizeSchema)
   .use(rehypeKatex)

@@ -5,32 +5,11 @@ import { LANGUAGES, type Language } from '../../i18n'
 import { useFileOps } from '../../hooks/useFileOps'
 import { useExport } from '../../hooks/useExport'
 import { formatPrimaryShortcut } from '../../lib/platform'
+import type { FormatAction } from '../Editor/formatCommands'
 import ThemePanel from '../ThemePanel/ThemePanel'
 import AppIcon, { type IconName } from '../Icons/AppIcon'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-
-type FormatAction =
-  | 'bold'
-  | 'italic'
-  | 'underline'
-  | 'strikethrough'
-  | 'h1'
-  | 'h2'
-  | 'h3'
-  | 'h4'
-  | 'h5'
-  | 'h6'
-  | 'code'
-  | 'codeblock'
-  | 'link'
-  | 'image'
-  | 'quote'
-  | 'ul'
-  | 'ol'
-  | 'task'
-  | 'hr'
-  | 'table'
 
 type ToolbarButtonVariant = 'square' | 'wide'
 type ToolbarMenuAlign = 'left' | 'right'
@@ -376,6 +355,9 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
         </ToolbarBtn>
         <ToolbarBtn title={t('toolbar.strikethrough')} onClick={() => emitFormat('strikethrough')}>
           <AppIcon name="strikethrough" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn title={t('toolbar.highlight')} onClick={() => emitFormat('highlight')}>
+          <ToolbarTextMark label="==" />
         </ToolbarBtn>
 
         <div className="relative">

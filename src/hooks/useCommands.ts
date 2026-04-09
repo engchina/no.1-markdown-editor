@@ -237,6 +237,13 @@ export function useCommands(): Command[] {
         action: () => emitFormat('strikethrough'),
       },
       {
+        id: 'edit.highlight',
+        label: t('toolbar.highlight'),
+        icon: '==',
+        category: 'edit',
+        action: () => emitFormat('highlight'),
+      },
+      {
         id: 'edit.code',
         label: t('toolbar.code'),
         icon: '</>',

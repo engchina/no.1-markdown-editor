@@ -27,6 +27,7 @@
     "italic": "Italic",
     "underline": "Underline",
     "strikethrough": "Strikethrough",
+    "highlight": "Highlight",
     "code": "Inline Code",
     "codeBlock": "Code Block",
     "quote": "Blockquote",
@@ -331,6 +332,16 @@
     "copyHtmlSuccessTitle": "HTML copied",
     "copyHtmlSuccessMessage": "The rendered HTML is now on the clipboard.",
     "dismissLabel": "Dismiss notification"
+  },
+  "runtimeError": {
+    "appEyebrow": "Runtime Error",
+    "appTitle": "The editor hit an unexpected error",
+    "appDescription": "The current session was interrupted before it could finish rendering. Reload the app to recover.",
+    "surfaceEyebrow": "Panel Recovered",
+    "surfaceTitle": "This panel hit an unexpected error",
+    "surfaceDescription": "The failure was isolated so the rest of the editor can keep running. Try loading this panel again.",
+    "retry": "Try Again",
+    "reload": "Reload App"
   },
   "placeholder": "Start writing in Markdown...\n\n# Hello, World!\n\nThis is **No.1 Markdown Editor** — fast, beautiful, free forever."
 }

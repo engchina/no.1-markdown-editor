@@ -467,6 +467,8 @@ function serializeInlineNode(node: ClipboardHtmlAstNode, context: { listDepth: n
     case 'del':
     case 's':
       return wrapInline('~~', serializeInlineChildren(node.children, context).trim())
+    case 'mark':
+      return wrapInline('==', serializeInlineChildren(node.children, context).trim())
     case 'code':
       return wrapCodeSpan(extractTextContent(node, { preserveWhitespace: true }).trim())
     case 'img':
@@ -479,7 +481,6 @@ function serializeInlineNode(node: ClipboardHtmlAstNode, context: { listDepth: n
       return serializeSemanticInlineTag(node.tagName, node.children, context)
     }
     case 'kbd':
-    case 'mark':
     case 'sub':
     case 'u':
       return serializeSemanticInlineTag(node.tagName, node.children, context)

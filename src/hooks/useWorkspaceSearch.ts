@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useRef, useState } from 'react'
 import { useEditorStore } from '../store/editor'
 import { useFileTreeStore } from '../store/fileTree'
+import { ensureFsPathAccess } from '../lib/fsAccess'
 import { isSupportedDocumentName } from '../lib/fileTypes'
 import { findDocumentMatches, type DocumentSearchMatch } from '../lib/search'
 
@@ -115,6 +116,8 @@ async function searchWorkspaceFiles(
   excludedPaths: Set<string>
 ): Promise<WorkspaceSearchResult[]> {
   if (limit <= 0) return []
+
+  await ensureFsPathAccess(rootPath, { kind: 'dir', recursive: true })
 
   const [{ readDir, readTextFile }, { join }] = await Promise.all([
     import('@tauri-apps/plugin-fs'),

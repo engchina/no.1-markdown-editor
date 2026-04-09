@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useEditorStore } from '../store/editor'
 import { useFileTreeStore, type FileNode } from '../store/fileTree'
 import { useRecentFilesStore } from '../store/recentFiles'
+import { ensureFsPathAccess } from '../lib/fsAccess'
 import { pushErrorNotice } from '../lib/notices'
 import {
   ensureMarkdownFileName,
@@ -133,6 +134,7 @@ export function useFileTree() {
 
   const refreshTree = useCallback(
     async (targetRootPath: string, previousTree: FileNode[] = []) => {
+      await ensureFsPathAccess(targetRootPath, { kind: 'dir', recursive: true })
       const snapshot = await buildTreeSnapshot(targetRootPath, previousTree)
       setTree(snapshot)
     },
@@ -185,6 +187,7 @@ export function useFileTree() {
 
     void (async () => {
       try {
+        await ensureFsPathAccess(rootPath, { kind: 'dir', recursive: true })
         const { watch } = await import('@tauri-apps/plugin-fs')
         if (disposed) return
 

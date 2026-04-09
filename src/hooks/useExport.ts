@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useActiveTab } from '../store/editor'
 import { renderClipboardHtmlFromMarkdown } from '../lib/clipboardHtml'
+import { ensureFsPathAccess } from '../lib/fsAccess'
 import { pushErrorNotice, pushSuccessNotice } from '../lib/notices'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -96,6 +97,7 @@ export function useExport() {
           defaultPath: fileName,
         })
         if (!path) return
+        await ensureFsPathAccess(path)
         await writeTextFile(path, fullHtml)
         return
       }
@@ -144,6 +146,7 @@ export function useExport() {
           defaultPath: fileName,
         })
         if (!path) return
+        await ensureFsPathAccess(path)
         await writeTextFile(path, activeTab.content)
         return
       }

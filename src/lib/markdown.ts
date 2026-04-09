@@ -13,6 +13,7 @@ import {
 } from './markdownShared.ts'
 import { containsLikelyRawHtml } from './markdownHtml.ts'
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
+import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
 import { remarkSoftBreaks } from './remarkSoftBreaks.ts'
 
@@ -21,6 +22,7 @@ const processorWithoutMath = unified()
   .use(remarkGfm)
   .use(remarkSoftBreaks)
   .use(remarkRehype)
+  .use(rehypeHighlightMarkers)
   .use(rehypeNormalizeImageSources)
   .use(rehypeSanitize, sanitizeSchema)
   .use(rehypeHeadingIds)

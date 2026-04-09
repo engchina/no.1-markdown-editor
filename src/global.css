@@ -354,6 +354,15 @@ a:focus-visible {
   text-decoration: underline;
 }
 
+.markdown-preview mark {
+  color: inherit;
+  background: color-mix(in srgb, #FACC15 52%, transparent);
+  border-radius: 0.28em;
+  padding: 0 0.18em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 .markdown-preview code {
   background: var(--bg-tertiary);
   padding: 0.125em 0.375em;
@@ -443,6 +452,21 @@ a:focus-visible {
   border: 1px solid var(--border);
   padding: 8px 16px;
   text-align: left;
+}
+
+.markdown-preview th[align="left"],
+.markdown-preview td[align="left"] {
+  text-align: left;
+}
+
+.markdown-preview th[align="center"],
+.markdown-preview td[align="center"] {
+  text-align: center;
+}
+
+.markdown-preview th[align="right"],
+.markdown-preview td[align="right"] {
+  text-align: right;
 }
 
 .markdown-preview th {
@@ -573,6 +597,10 @@ a:focus-visible {
 
 .dark .markdown-preview .mermaid-card-status {
   color: #fca5a5;
+}
+
+.dark .markdown-preview mark {
+  background: color-mix(in srgb, #FACC15 34%, transparent);
 }
 
 .markdown-preview .mermaid-card-code:hover {

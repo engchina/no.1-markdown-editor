@@ -27,6 +27,7 @@
     "italic": "斜体",
     "underline": "下線",
     "strikethrough": "取り消し線",
+    "highlight": "ハイライト",
     "code": "インラインコード",
     "codeBlock": "コードブロック",
     "quote": "引用",
@@ -325,6 +326,16 @@
     "copyHtmlSuccessTitle": "HTML をコピーしました",
     "copyHtmlSuccessMessage": "レンダリング済み HTML をクリップボードにコピーしました。",
     "dismissLabel": "通知を閉じる"
+  },
+  "runtimeError": {
+    "appEyebrow": "ランタイムエラー",
+    "appTitle": "エディターで予期しないエラーが発生しました",
+    "appDescription": "現在のセッションは描画を完了する前に中断されました。復旧するにはアプリを再読み込みしてください。",
+    "surfaceEyebrow": "パネルを隔離しました",
+    "surfaceTitle": "このパネルで予期しないエラーが発生しました",
+    "surfaceDescription": "失敗はこのパネル内に閉じ込めたため、エディターの他の部分はそのまま使えます。もう一度このパネルを読み込んでください。",
+    "retry": "再試行",
+    "reload": "アプリを再読み込み"
   },
   "placeholder": "Markdownで書き始めましょう...\n\n# こんにちは、世界！\n\nこれは **No.1 Markdownエディタ** です — 高速・美しい・永遠無料。"
 }

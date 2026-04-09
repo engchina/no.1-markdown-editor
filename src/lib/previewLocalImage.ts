@@ -1,15 +1,13 @@
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+const localPreviewImageCache = new Map<string, Promise<string | null>>()
 
-const localPreviewImageCache = new Map<string, Promise<string>>()
-
-export async function loadLocalPreviewImage(source: string, documentPath: string | null): Promise<string> {
+export async function loadLocalPreviewImage(source: string, documentPath: string | null): Promise<string | null> {
   const trimmedSource = source.trim()
   const trimmedDocumentPath = documentPath?.trim() ?? ''
   if (!trimmedSource) {
-    throw new Error('Missing local image source')
+    return null
   }
 
-  if (!isTauri) {
+  if (!isTauriRuntime()) {
     return trimmedSource
   }
 
@@ -21,17 +19,27 @@ export async function loadLocalPreviewImage(source: string, documentPath: string
 
   const task = (async () => {
     const { invoke } = await import('@tauri-apps/api/core')
-    return invoke<string>('fetch_local_image_data_url', {
-      source: normalizeLocalImageSource(trimmedSource),
-      documentPath: trimmedDocumentPath || null,
-    })
-  })().catch((error) => {
-    localPreviewImageCache.delete(cacheKey)
-    throw error
-  })
+    try {
+      return await invoke<string>('fetch_local_image_data_url', {
+        source: normalizeLocalImageSource(trimmedSource),
+        documentPath: trimmedDocumentPath || null,
+      })
+    } catch {
+      return null
+    }
+  })()
 
   localPreviewImageCache.set(cacheKey, task)
+  void task.then((resolvedSource) => {
+    if (resolvedSource === null) {
+      localPreviewImageCache.delete(cacheKey)
+    }
+  })
   return task
+}
+
+function isTauriRuntime(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 
 function normalizeLocalImageSource(source: string): string {

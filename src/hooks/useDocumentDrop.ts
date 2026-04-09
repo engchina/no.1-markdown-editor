@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useRecentFilesStore } from '../store/recentFiles'
 import { useEditorStore } from '../store/editor'
+import { ensureFsPathAccess } from '../lib/fsAccess'
 import { isSupportedDocumentName } from '../lib/fileTypes'
 import { pushErrorNotice } from '../lib/notices'
 
@@ -27,6 +28,7 @@ export function useDocumentDrop() {
         for (const file of files) {
           if (isTauri) {
             const path = (file as { path?: string }).path ?? null
+            if (path) await ensureFsPathAccess(path)
             const text = path
               ? await (await import('@tauri-apps/plugin-fs')).readTextFile(path)
               : await file.text()

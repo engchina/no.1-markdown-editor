@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useEditorStore } from '../store/editor'
 import { useRecentFilesStore, type RecentFile } from '../store/recentFiles'
+import { ensureFsPathAccess } from '../lib/fsAccess'
 import { pushErrorNotice, pushInfoNotice } from '../lib/notices'
 
 export type { RecentFile } from '../store/recentFiles'
@@ -21,6 +22,7 @@ export function useRecentFiles() {
       }
 
       try {
+        await ensureFsPathAccess(file.path)
         const { readTextFile } = await import('@tauri-apps/plugin-fs')
         const content = await readTextFile(file.path)
         openDocument({

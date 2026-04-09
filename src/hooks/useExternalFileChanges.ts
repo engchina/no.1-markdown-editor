@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../store/editor'
+import { ensureFsPathAccess, ensureFsPathAccessBatch } from '../lib/fsAccess'
 import { pushInfoNotice } from '../lib/notices'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -72,6 +73,7 @@ export function useExternalFileChanges() {
 
     void (async () => {
       try {
+        await ensureFsPathAccessBatch(watchedPaths)
         const { watch } = await import('@tauri-apps/plugin-fs')
         if (disposed) return
 
@@ -111,6 +113,7 @@ async function verifyExternalFileChange(
   if (!currentTab) return
 
   try {
+    await ensureFsPathAccess(path)
     const { exists } = await import('@tauri-apps/plugin-fs')
     const onDisk = await exists(path)
     if (!onDisk) {
