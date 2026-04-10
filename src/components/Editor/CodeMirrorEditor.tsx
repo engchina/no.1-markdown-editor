@@ -60,6 +60,7 @@ import { clipboardHasType, readClipboardString } from '../../lib/clipboard'
 import { buildPlainTextClipboardHtml, renderClipboardHtmlFromMarkdown } from '../../lib/clipboardHtml'
 import { getImageAltText } from '../../lib/fileTypes'
 import { getTauriFilePersistence, persistImageFilesAsMarkdown } from '../../lib/documentPersistence'
+import { prepareImageMarkdownInsertion } from '../../lib/imageMarkdownInsertion'
 import { convertClipboardHtmlToMarkdown } from '../../lib/pasteHtml'
 import { pushErrorNotice, pushInfoNotice } from '../../lib/notices'
 import { useAIStore } from '../../store/ai'
@@ -684,7 +685,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       if (imageFiles.length === 0) return
 
       const markdownText = await buildImageMarkdown(imageFiles, activeTab?.path ?? null)
-      replaceSelectionWithMarkdown(view, markdownText)
+      replaceSelectionWithImageMarkdown(view, markdownText)
     }
 
     const handleCopyOrCut = async (event: ClipboardEvent, mode: 'copy' | 'cut') => {
@@ -1095,7 +1096,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
       const dropPos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.from
       const markdownText = await buildImageMarkdown(imageFiles, activeTab?.path ?? null)
-      insertMarkdown(view, markdownText, { from: dropPos, to: dropPos })
+      insertImageMarkdown(view, markdownText, { from: dropPos, to: dropPos })
     }
 
     container.addEventListener('dragover', handleDragOver)
@@ -1175,6 +1176,20 @@ function replaceSelectionWithMarkdown(view: EditorView, markdownText: string): v
   })
 }
 
+function replaceSelectionWithImageMarkdown(view: EditorView, markdownText: string): void {
+  insertImageMarkdown(view, markdownText, {
+    from: view.state.selection.main.from,
+    to: view.state.selection.main.to,
+  })
+}
+
+function insertImageMarkdown(view: EditorView, markdownText: string, range: { from: number; to: number }): void {
+  const insertion = prepareImageMarkdownInsertion(markdownText, view.state.sliceDoc(range.to))
+  insertMarkdown(view, insertion.text, range, {
+    selectionAnchor: range.from + insertion.selectionOffset,
+  })
+}
+
 function insertMarkdown(
   view: EditorView,
   markdownText: string,
@@ -1183,11 +1198,12 @@ function insertMarkdown(
     isolateHistoryBoundary?: boolean
     userEvent?: string
     effects?: StateEffect<unknown>[]
+    selectionAnchor?: number
   } = {}
 ): void {
   view.dispatch({
     changes: { from: range.from, to: range.to, insert: markdownText },
-    selection: { anchor: range.from + markdownText.length },
+    selection: { anchor: options.selectionAnchor ?? range.from + markdownText.length },
     annotations: options.isolateHistoryBoundary ? isolateHistory.of('full') : undefined,
     effects: options.effects,
     userEvent: options.userEvent,
