@@ -61,15 +61,19 @@ export default function ExternalFileConflictDialog() {
     dismissExternalFileConflict(conflict.tabId)
   }, [conflict, dismissExternalFileConflict, tab])
 
-  if (missingFiles.length > 0 || !conflict || !tab) return null
-
-  const queuedConflicts = conflicts.length - 1
-  const blocks = useMemo(() => diffTextByLine(tab.content, conflict.diskContent), [conflict.diskContent, tab.content])
+  const blocks = useMemo(
+    () => (conflict && tab ? diffTextByLine(tab.content, conflict.diskContent) : []),
+    [conflict?.diskContent, tab?.content]
+  )
   const changedBlocks = useMemo(() => blocks.filter((block) => block.type === 'change'), [blocks])
   const mergedContent = useMemo(
     () => buildMergedTextFromLineDiff(blocks, new Map(Object.entries(blockChoices))),
     [blockChoices, blocks]
   )
+
+  if (missingFiles.length > 0 || !conflict || !tab) return null
+
+  const queuedConflicts = conflicts.length - 1
   const localSummary = summarizeDocument(tab.content)
   const diskSummary = summarizeDocument(conflict.diskContent)
   const mergedSummary = summarizeDocument(mergedContent)

@@ -1,3 +1,5 @@
+import { normalizeLocalPreviewImageSource } from './previewLocalImages.ts'
+
 const localPreviewImageCache = new Map<string, Promise<string | null>>()
 
 export async function loadLocalPreviewImage(source: string, documentPath: string | null): Promise<string | null> {
@@ -43,13 +45,11 @@ function isTauriRuntime(): boolean {
 }
 
 function normalizeLocalImageSource(source: string): string {
-  if (!source || /^file:/i.test(source)) {
-    return source
-  }
+  if (!source) return source
 
   try {
-    return decodeURI(source)
+    return normalizeLocalPreviewImageSource(decodeURI(source))
   } catch {
-    return source
+    return normalizeLocalPreviewImageSource(source)
   }
 }

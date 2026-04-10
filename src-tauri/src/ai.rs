@@ -392,6 +392,7 @@ fn validate_ai_messages(messages: &[AiRequestMessage]) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 fn extract_ai_completion_response(response_json: Value) -> Result<AiRunCompletionResponse, String> {
     let request_id = response_json
         .get("id")

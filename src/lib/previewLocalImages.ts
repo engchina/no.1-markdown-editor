@@ -51,8 +51,23 @@ export function isLocalPreviewImageSource(source: string, documentPath: string |
   return Boolean(documentPath?.trim())
 }
 
+export function normalizeLocalPreviewImageSource(source: string): string {
+  const trimmed = source.trim()
+  if (!trimmed) return ''
+  if (
+    /^file:/i.test(trimmed) ||
+    /^[A-Za-z]:[\\/]/.test(trimmed) ||
+    trimmed.startsWith('\\\\') ||
+    trimmed.startsWith('/')
+  ) {
+    return trimmed
+  }
+
+  return trimmed.replace(/^(?:\.\/|\.\\)+/g, '').replace(/\\/g, '/')
+}
+
 export function buildLocalPreviewImageKey(source: string, documentPath: string | null | undefined): string {
-  return `${documentPath?.trim() ?? ''}\n${source.trim()}`
+  return `${documentPath?.trim() ?? ''}\n${normalizeLocalPreviewImageSource(source)}`
 }
 
 function buildImageTag(attributes: string, selfClosingSlash: string): string {

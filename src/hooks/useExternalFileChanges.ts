@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../store/editor'
+import { resolveExternalFileContentChange } from '../lib/externalFileChanges'
 import { ensureFsPathAccess, ensureFsPathAccessBatch } from '../lib/fsAccess'
 import { pushInfoNotice } from '../lib/notices'
 
@@ -149,28 +150,28 @@ async function verifyExternalFileChange(
 
   const latestTab = useEditorStore.getState().tabs.find((tab) => tab.path === path)
   if (!latestTab) return
-  if (diskContent === latestTab.content && diskContent === latestTab.savedContent) {
-    warnedConflict.delete(path)
-    useEditorStore.getState().dismissExternalFileConflictByPath(path)
-    return
+  switch (resolveExternalFileContentChange(latestTab, diskContent)) {
+    case 'noop':
+      warnedConflict.delete(path)
+      useEditorStore.getState().dismissExternalFileConflictByPath(path)
+      return
+    case 'conflict':
+      if (warnedConflict.get(path) === diskContent) return
+      warnedConflict.set(path, diskContent)
+      useEditorStore.getState().upsertExternalFileConflict({
+        tabId: latestTab.id,
+        path,
+        name: latestTab.name,
+        diskContent,
+      })
+      return
+    case 'reload':
+      warnedConflict.delete(path)
+      useEditorStore.getState().replaceTabFromDisk(latestTab.id, diskContent)
+      pushInfoNotice('notices.externalFileReloadedTitle', 'notices.externalFileReloadedMessage', {
+        values: { name: latestTab.name },
+        timeoutMs: 2800,
+      })
+      return
   }
-
-  if (latestTab.isDirty) {
-    if (warnedConflict.get(path) === diskContent) return
-    warnedConflict.set(path, diskContent)
-    useEditorStore.getState().upsertExternalFileConflict({
-      tabId: latestTab.id,
-      path,
-      name: latestTab.name,
-      diskContent,
-    })
-    return
-  }
-
-  warnedConflict.delete(path)
-  useEditorStore.getState().replaceTabFromDisk(latestTab.id, diskContent)
-  pushInfoNotice('notices.externalFileReloadedTitle', 'notices.externalFileReloadedMessage', {
-    values: { name: latestTab.name },
-    timeoutMs: 2800,
-  })
 }
