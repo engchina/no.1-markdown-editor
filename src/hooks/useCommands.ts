@@ -5,6 +5,9 @@ import { useFileOps } from './useFileOps'
 import { useExport } from './useExport'
 import { useRecentFiles } from './useRecentFiles'
 import { applyTheme, getThemeById, THEMES } from '../themes'
+import { dispatchEditorAIGhostText, dispatchEditorAIOpen } from '../lib/ai/events'
+import { createAIQuickActionOpenDetail } from '../lib/ai/quickActions'
+import { createAITemplateOpenDetail } from '../lib/ai/templateLibrary'
 import { getFormatShortcutLabel } from '../components/Editor/formatShortcuts'
 import type { Language } from '../i18n'
 import { formatPrimaryShortcut } from '../lib/platform'
@@ -14,7 +17,7 @@ export interface Command {
   label: string
   description?: string
   icon?: string
-  category: 'file' | 'edit' | 'view' | 'theme' | 'export' | 'language'
+  category: 'file' | 'edit' | 'ai' | 'view' | 'theme' | 'export' | 'language'
   shortcut?: string
   action: () => void
 }
@@ -39,6 +42,7 @@ export function useCommands(): Command[] {
   const resetFontShortcut = formatPrimaryShortcut('0')
   const findShortcut = formatPrimaryShortcut('F')
   const replaceShortcut = formatPrimaryShortcut('H')
+  const aiShortcut = formatPrimaryShortcut('J')
 
   return useMemo<Command[]>(() => {
     const recentCommands = recentFiles.slice(0, 5).map((file) => ({
@@ -203,6 +207,94 @@ export function useCommands(): Command[] {
         category: 'edit',
         shortcut: replaceShortcut,
         action: () => document.dispatchEvent(new CustomEvent('editor:search', { detail: { replace: true } })),
+      },
+      {
+        id: 'ai.ask',
+        label: t('commands.aiAsk'),
+        icon: '✨',
+        category: 'ai',
+        shortcut: aiShortcut,
+        action: () => {
+          dispatchEditorAIOpen({ ...createAIQuickActionOpenDetail('ask', t), source: 'command-palette' })
+        },
+      },
+      {
+        id: 'ai.editSelection',
+        label: t('commands.aiEditSelection'),
+        icon: '✨',
+        category: 'ai',
+        action: () => {
+          dispatchEditorAIOpen({ source: 'command-palette', intent: 'edit', outputTarget: 'replace-selection' })
+        },
+      },
+      {
+        id: 'ai.continueWriting',
+        label: t('commands.aiContinueWriting'),
+        icon: '✨',
+        category: 'ai',
+        action: () => {
+          dispatchEditorAIOpen({ ...createAIQuickActionOpenDetail('continueWriting', t), source: 'command-palette' })
+        },
+      },
+      {
+        id: 'ai.ghostTextContinuation',
+        label: t('commands.aiGhostTextContinuation'),
+        icon: '✨',
+        category: 'ai',
+        action: () => {
+          dispatchEditorAIGhostText({ source: 'command-palette' })
+        },
+      },
+      {
+        id: 'ai.newNote',
+        label: t('commands.aiDraftNewNote'),
+        icon: '✨',
+        category: 'ai',
+        action: () => {
+          dispatchEditorAIOpen({ ...createAITemplateOpenDetail('newNote', t, 'command-palette') })
+        },
+      },
+      {
+        id: 'ai.workspaceRun',
+        label: t('commands.aiWorkspaceRun'),
+        icon: '✨',
+        category: 'ai',
+        action: () => {
+          dispatchEditorAIOpen({ ...createAITemplateOpenDetail('workspaceRun', t, 'command-palette') })
+        },
+      },
+      {
+        id: 'ai.insertUnderHeading',
+        label: t('commands.aiInsertUnderHeading'),
+        icon: '✨',
+        category: 'ai',
+        action: () => {
+          dispatchEditorAIOpen({
+            source: 'command-palette',
+            intent: 'generate',
+            scope: 'current-heading',
+            outputTarget: 'insert-under-heading',
+            prompt: t('ai.templates.insertUnderHeadingPrompt'),
+          })
+        },
+      },
+      {
+        id: 'ai.summarizeSelection',
+        label: t('commands.aiSummarizeSelection'),
+        icon: '✨',
+        category: 'ai',
+        action: () => {
+          dispatchEditorAIOpen({ ...createAIQuickActionOpenDetail('summarize', t), source: 'command-palette' })
+        },
+      },
+      {
+        id: 'ai.translateSelection',
+        label: t('commands.aiTranslateSelection'),
+        icon: '✨',
+        category: 'ai',
+        action: () => {
+          dispatchEditorAIOpen({ ...createAIQuickActionOpenDetail('translate', t), source: 'command-palette' })
+        },
       },
       {
         id: 'edit.bold',
@@ -436,6 +528,7 @@ export function useCommands(): Command[] {
     exportHtml,
     exportMarkdown,
     exportPdf,
+    aiShortcut,
     findShortcut,
     decreaseFontShortcut,
     increaseFontShortcut,

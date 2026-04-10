@@ -10,6 +10,7 @@ import {
 import { pushInfoNotice } from '../../lib/notices'
 import { useEditorStore } from '../../store/editor'
 import AppIcon from '../Icons/AppIcon'
+import { focusElementWithoutScroll, useDialogFocusRestore } from '../../hooks/useDialogFocusRestore'
 
 function summarizeDocument(content: string): { lines: number; words: number; chars: number } {
   return {
@@ -30,6 +31,8 @@ export default function ExternalFileConflictDialog() {
   const keepButtonRef = useRef<HTMLButtonElement>(null)
   const [blockChoices, setBlockChoices] = useState<Record<string, LineDiffChoice>>({})
 
+  useDialogFocusRestore(keepButtonRef)
+
   const conflict = conflicts[0] ?? null
   const tab = useMemo(
     () => (conflict ? tabs.find((entry) => entry.id === conflict.tabId) ?? null : null),
@@ -39,7 +42,7 @@ export default function ExternalFileConflictDialog() {
   useEffect(() => {
     if (!conflict) return
     if (tab) setActiveTab(tab.id)
-    keepButtonRef.current?.focus()
+    focusElementWithoutScroll(keepButtonRef.current)
   }, [conflict?.tabId, setActiveTab, tab])
 
   useEffect(() => {

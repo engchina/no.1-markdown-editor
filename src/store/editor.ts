@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import i18n, { type Language } from '../i18n/index.ts'
+import type { AIHistoryProviderRerankBudget, AISelectedTextRole } from '../lib/ai/types.ts'
 import {
   clampFocusWidthPx,
   FOCUS_WIDTH_PRESET_VALUES,
@@ -11,12 +12,14 @@ import {
   isRestorableDraftTab,
   restoreDraftTabs,
 } from '../lib/draftRecovery'
+import { clampSidebarWidth, SIDEBAR_DEFAULT_WIDTH } from '../lib/layout'
 import { pathMatchesPrefix, remapPathPrefix } from '../lib/fileTreePaths'
 import { pushInfoNotice } from '../lib/notices'
+import type { AIDefaultWriteTarget } from '../lib/ai/opening.ts'
 
 export type Theme = 'light' | 'dark'
 export type ViewMode = 'source' | 'split' | 'preview' | 'focus'
-export type SidebarTab = 'files' | 'outline' | 'search' | 'recent'
+export type SidebarTab = 'ai' | 'files' | 'outline' | 'search' | 'recent'
 
 export interface FileTab {
   id: string
@@ -139,6 +142,14 @@ interface EditorState {
   setActiveThemeId: (id: string) => void
   zoom: number
   setZoom: (zoom: number) => void
+  aiDefaultWriteTarget: AIDefaultWriteTarget
+  setAiDefaultWriteTarget: (target: AIDefaultWriteTarget) => void
+  aiDefaultSelectedTextRole: AISelectedTextRole
+  setAiDefaultSelectedTextRole: (role: AISelectedTextRole) => void
+  aiHistoryProviderRerankEnabled: boolean
+  setAiHistoryProviderRerankEnabled: (enabled: boolean) => void
+  aiHistoryProviderRerankBudget: AIHistoryProviderRerankBudget
+  setAiHistoryProviderRerankBudget: (budget: AIHistoryProviderRerankBudget) => void
 }
 
 function generateId() {
@@ -185,8 +196,8 @@ export const useEditorStore = create<EditorState>()(
       setViewMode: (viewMode) => set({ viewMode }),
 
       // Layout
-      sidebarWidth: 220,
-      setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
+      sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
+      setSidebarWidth: (sidebarWidth) => set({ sidebarWidth: clampSidebarWidth(sidebarWidth) }),
       sidebarOpen: true,
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
       sidebarTab: 'outline',
@@ -508,6 +519,14 @@ export const useEditorStore = create<EditorState>()(
       setActiveThemeId: (activeThemeId) => set({ activeThemeId }),
       zoom: 100,
       setZoom: (zoom) => set({ zoom }),
+      aiDefaultWriteTarget: 'at-cursor',
+      setAiDefaultWriteTarget: (aiDefaultWriteTarget) => set({ aiDefaultWriteTarget }),
+      aiDefaultSelectedTextRole: 'transform-target',
+      setAiDefaultSelectedTextRole: (aiDefaultSelectedTextRole) => set({ aiDefaultSelectedTextRole }),
+      aiHistoryProviderRerankEnabled: true,
+      setAiHistoryProviderRerankEnabled: (aiHistoryProviderRerankEnabled) => set({ aiHistoryProviderRerankEnabled }),
+      aiHistoryProviderRerankBudget: 'balanced',
+      setAiHistoryProviderRerankBudget: (aiHistoryProviderRerankBudget) => set({ aiHistoryProviderRerankBudget }),
     }),
     {
       name: 'editor-settings',
@@ -528,6 +547,10 @@ export const useEditorStore = create<EditorState>()(
         wysiwygMode: s.wysiwygMode,
         activeThemeId: s.activeThemeId,
         zoom: s.zoom,
+        aiDefaultWriteTarget: s.aiDefaultWriteTarget,
+        aiDefaultSelectedTextRole: s.aiDefaultSelectedTextRole,
+        aiHistoryProviderRerankEnabled: s.aiHistoryProviderRerankEnabled,
+        aiHistoryProviderRerankBudget: s.aiHistoryProviderRerankBudget,
         tabs: s.tabs.filter(isRestorableDraftTab),
         activeTabId: s.tabs.some((tab) => tab.id === s.activeTabId && isRestorableDraftTab(tab))
           ? s.activeTabId
@@ -539,11 +562,19 @@ export const useEditorStore = create<EditorState>()(
           tabs: current.tabs,
           activeTabId: current.activeTabId,
         })
-
-        return {
+        const mergedState = {
           ...current,
           ...persistedState,
           ...restoredState,
+        }
+
+        return {
+          ...mergedState,
+          sidebarWidth: clampSidebarWidth(
+            typeof persistedState?.sidebarWidth === 'number'
+              ? persistedState.sidebarWidth
+              : current.sidebarWidth
+          ),
         }
       },
       onRehydrateStorage: () => (state) => {

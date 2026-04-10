@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { useAIStore } from '../store/ai'
 import { useEditorStore } from '../store/editor'
 import { useFileTreeStore, type FileNode } from '../store/fileTree'
 import { useRecentFilesStore } from '../store/recentFiles'
@@ -126,6 +127,8 @@ export function useFileTree() {
   const openDocument = useEditorStore((state) => state.openDocument)
   const remapTabsForPathChange = useEditorStore((state) => state.remapTabsForPathChange)
   const closeTabsByPathPrefix = useEditorStore((state) => state.closeTabsByPathPrefix)
+  const remapHistoryForPathChange = useAIStore((state) => state.remapHistoryForPathChange)
+  const removeHistoryByPathPrefix = useAIStore((state) => state.removeHistoryByPathPrefix)
   const addRecent = useRecentFilesStore((state) => state.addRecent)
   const remapRecentForPathChange = useRecentFilesStore((state) => state.remapRecentForPathChange)
   const removeRecentByPathPrefix = useRecentFilesStore((state) => state.removeRecentByPathPrefix)
@@ -401,6 +404,7 @@ export function useFileTree() {
 
         await rename(node.path, nextPath)
         remapTabsForPathChange(node.path, nextPath)
+        remapHistoryForPathChange(node.path, nextPath)
         remapRecentForPathChange(node.path, nextPath)
         if (node.type === 'file') addRecent(nextPath, nextName)
 
@@ -415,7 +419,7 @@ export function useFileTree() {
         return { ok: false, reason: 'unknown' }
       }
     },
-    [addRecent, refreshTree, remapRecentForPathChange, remapTabsForPathChange, rootPath]
+    [addRecent, refreshTree, remapHistoryForPathChange, remapRecentForPathChange, remapTabsForPathChange, rootPath]
   )
 
   const deleteNode = useCallback(
@@ -424,6 +428,7 @@ export function useFileTree() {
         const { remove } = await import('@tauri-apps/plugin-fs')
         await remove(node.path, { recursive: node.type === 'dir' })
         closeTabsByPathPrefix(node.path)
+        removeHistoryByPathPrefix(node.path)
         removeRecentByPathPrefix(node.path)
 
         const currentTree = useFileTreeStore.getState().tree.filter((entry) => !pathMatchesPrefix(entry.path, node.path))
@@ -437,7 +442,7 @@ export function useFileTree() {
         return false
       }
     },
-    [closeTabsByPathPrefix, refreshTree, removeRecentByPathPrefix, rootPath]
+    [closeTabsByPathPrefix, refreshTree, removeHistoryByPathPrefix, removeRecentByPathPrefix, rootPath]
   )
 
   const moveNode = useCallback(
@@ -466,6 +471,7 @@ export function useFileTree() {
 
         await rename(node.path, nextPath)
         remapTabsForPathChange(node.path, nextPath)
+        remapHistoryForPathChange(node.path, nextPath)
         remapRecentForPathChange(node.path, nextPath)
 
         const currentTree = useFileTreeStore.getState().tree
@@ -479,7 +485,7 @@ export function useFileTree() {
         return { ok: false, reason: 'unknown' }
       }
     },
-    [refreshTree, remapRecentForPathChange, remapTabsForPathChange, rootPath]
+    [refreshTree, remapHistoryForPathChange, remapRecentForPathChange, remapTabsForPathChange, rootPath]
   )
 
   return {

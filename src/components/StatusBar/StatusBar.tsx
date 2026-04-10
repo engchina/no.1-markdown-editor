@@ -11,7 +11,7 @@ export default function StatusBar({ saving }: Props) {
 
   return (
     <div
-      className="flex items-center px-4 gap-4 flex-shrink-0 text-xs select-none"
+      className="flex flex-shrink-0 select-none items-center gap-3 px-3 text-[11px]"
       style={{
         height: '24px',
         background: 'var(--statusbar-bg)',

@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { useAIStore } from '../store/ai'
 import { useEditorStore } from '../store/editor'
 import { useRecentFilesStore } from '../store/recentFiles'
 import i18n from '../i18n'
@@ -19,6 +20,7 @@ export function useFileOps() {
   const saveTab = useEditorStore((state) => state.saveTab)
   const setTabPath = useEditorStore((state) => state.setTabPath)
   const updateTabContent = useEditorStore((state) => state.updateTabContent)
+  const rekeyDocumentHistory = useAIStore((state) => state.rekeyDocumentHistory)
   const addRecent = useRecentFilesStore((state) => state.addRecent)
 
   const newFile = useCallback(() => {
@@ -97,6 +99,7 @@ export function useFileOps() {
             updateTabContent(tab.id, nextContent)
           }
           setTabPath(tab.id, savePath, name)
+          rekeyDocumentHistory(tab.id, tab.path, savePath)
           saveTab(tab.id)
           addRecent(savePath, name)
           return true
@@ -123,7 +126,7 @@ export function useFileOps() {
         return false
       }
     },
-    [addRecent, saveTab, setTabPath, updateTabContent]
+    [addRecent, rekeyDocumentHistory, saveTab, setTabPath, updateTabContent]
   )
 
   const saveFile = useCallback(async () => {

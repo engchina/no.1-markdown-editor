@@ -4,13 +4,14 @@ import { useCommands, type Command } from '../../hooks/useCommands'
 import { useRecentFiles } from '../../hooks/useRecentFiles'
 import { useEditorStore } from '../../store/editor'
 import AppIcon, { type IconName } from '../Icons/AppIcon'
+import { useDialogFocusRestore } from '../../hooks/useDialogFocusRestore'
 
 interface Props {
   mode: 'command' | 'file'
   onClose: () => void
 }
 
-const CATEGORY_ORDER = ['file', 'edit', 'view', 'export', 'theme', 'language'] as const
+const CATEGORY_ORDER = ['file', 'edit', 'ai', 'view', 'export', 'theme', 'language'] as const
 const COMMAND_PRIORITY = new Map<string, number>([
   ['file.new', 10],
   ['file.open', 11],
@@ -40,6 +41,11 @@ const COMMAND_PRIORITY = new Map<string, number>([
   ['edit.h6', 135],
   ['edit.find', 140],
   ['edit.replace', 141],
+  ['ai.ask', 150],
+  ['ai.editSelection', 151],
+  ['ai.continueWriting', 152],
+  ['ai.summarizeSelection', 153],
+  ['ai.translateSelection', 154],
   ['view.source', 210],
   ['view.split', 211],
   ['view.preview', 212],
@@ -151,6 +157,7 @@ function SvgBadge({ name }: { name: IconName }) {
 function getCommandIndicator(command: Command, mode: Props['mode']): ReactNode {
   if (command.id.startsWith('file.recent.') || command.id.startsWith('palette.recent.')) return <SvgBadge name="clock" />
   if (mode === 'file') return <SvgBadge name="file" />
+  if (command.id.startsWith('ai.')) return <SvgBadge name="sparkles" />
   if (command.id.startsWith('theme.')) return <SvgBadge name="palette" />
   if (command.id.startsWith('lang.')) return <SvgBadge name="globe" />
 
@@ -245,7 +252,8 @@ export default function CommandPalette({ mode, onClose }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
-  const previousFocusRef = useRef<HTMLElement | null>(null)
+
+  useDialogFocusRestore(inputRef)
 
   const commands = useCommands()
   const { tabs } = useEditorStore()
@@ -307,16 +315,6 @@ export default function CommandPalette({ mode, onClose }: Props) {
 
   // Reset selection on filter change
   useEffect(() => { setSelectedIndex(0) }, [filtered.length, query])
-
-  useEffect(() => {
-    previousFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null
-    inputRef.current?.focus()
-
-    return () => {
-      previousFocusRef.current?.focus()
-    }
-  }, [])
 
   // Scroll selected item into view
   useEffect(() => {

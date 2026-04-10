@@ -73,9 +73,9 @@ export default function DocumentTabs() {
     <div
       role="tablist"
       aria-label={t('menu.file')}
-      className="flex min-w-0 flex-shrink-0 items-end overflow-x-auto px-2"
+      className="flex min-w-0 flex-shrink-0 items-end overflow-x-auto px-3"
       style={{
-        minHeight: '44px',
+        minHeight: '40px',
         background: 'color-mix(in srgb, var(--bg-secondary) 92%, transparent)',
         borderBottom: '1px solid var(--border)',
       }}
@@ -86,7 +86,7 @@ export default function DocumentTabs() {
         return (
           <div
             key={tab.id}
-            className="group -mb-px mt-2 flex h-[34px] max-w-[220px] flex-shrink-0 items-center rounded-t-xl border border-b-0 transition-colors"
+            className="group -mb-px mt-2 flex h-8 max-w-[220px] flex-shrink-0 items-center rounded-t-[14px] border border-b-0 transition-colors"
             style={{
               background: isActive ? 'var(--bg-primary)' : 'transparent',
               borderColor: isActive ? 'var(--border)' : 'transparent',

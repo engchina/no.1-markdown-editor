@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { countDocumentStats } from '../../lib/editorStats'
 import { MARKDOWN_FILE_EXTENSIONS } from '../../lib/fileTypes'
 import { pushErrorNotice, pushInfoNotice } from '../../lib/notices'
+import { useAIStore } from '../../store/ai'
 import { useRecentFilesStore } from '../../store/recentFiles'
 import { useEditorStore } from '../../store/editor'
 import { useFileOps } from '../../hooks/useFileOps'
 import AppIcon from '../Icons/AppIcon'
+import { focusElementWithoutScroll, useDialogFocusRestore } from '../../hooks/useDialogFocusRestore'
 
 function summarizeDocument(content: string): { lines: number; words: number; chars: number } {
   return {
@@ -24,12 +26,15 @@ export default function ExternalMissingFileDialog() {
   const convertTabToDraft = useEditorStore((state) => state.convertTabToDraft)
   const closeTab = useEditorStore((state) => state.closeTab)
   const relinkTabToPath = useEditorStore((state) => state.relinkTabToPath)
+  const rekeyDocumentHistory = useAIStore((state) => state.rekeyDocumentHistory)
   const upsertExternalFileConflict = useEditorStore((state) => state.upsertExternalFileConflict)
   const dismissExternalMissingFile = useEditorStore((state) => state.dismissExternalMissingFile)
   const addRecent = useRecentFilesStore((state) => state.addRecent)
   const { saveTabAsById } = useFileOps()
   const [busyAction, setBusyAction] = useState<'saveAs' | 'relink' | 'draft' | 'close' | null>(null)
   const saveButtonRef = useRef<HTMLButtonElement>(null)
+
+  useDialogFocusRestore(saveButtonRef)
 
   const missing = missingFiles[0] ?? null
   const tab = useMemo(
@@ -40,7 +45,7 @@ export default function ExternalMissingFileDialog() {
   useEffect(() => {
     if (!missing) return
     if (tab) setActiveTab(tab.id)
-    saveButtonRef.current?.focus()
+    focusElementWithoutScroll(saveButtonRef.current)
   }, [missing?.tabId, setActiveTab, tab])
 
   useEffect(() => {
@@ -97,6 +102,7 @@ export default function ExternalMissingFileDialog() {
       const nextName = selectedPath.split(/[\\/]/).pop() ?? tab.name
 
       relinkTabToPath(tab.id, selectedPath, nextName, diskContent)
+      rekeyDocumentHistory(tab.id, tab.path, selectedPath)
       addRecent(selectedPath, nextName)
       dismissExternalMissingFile(tab.id)
 
@@ -125,6 +131,7 @@ export default function ExternalMissingFileDialog() {
     setBusyAction('draft')
     setActiveTab(tab.id)
     convertTabToDraft(tab.id)
+    rekeyDocumentHistory(tab.id, tab.path, null)
     dismissExternalMissingFile(tab.id)
     pushInfoNotice('notices.externalFileDetachedTitle', 'notices.externalFileDetachedMessage', {
       values: { name: tab.name },

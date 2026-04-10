@@ -66,6 +66,23 @@ export const lightTheme = EditorView.theme(
     '.cm-tooltip-autocomplete': {
       '& > ul > li[aria-selected]': { backgroundColor: 'var(--accent)', color: 'white' },
     },
+    '.cm-ai-ghost-text': {
+      color: 'color-mix(in srgb, var(--text-muted) 84%, transparent)',
+      fontStyle: 'italic',
+      opacity: '0.82',
+      pointerEvents: 'none',
+      whiteSpace: 'pre-wrap',
+    },
+    '.cm-ai-ghost-text[data-ai-ghost-text="loading"]': {
+      opacity: '0.6',
+    },
+    '.cm-ai-provenance-range': {
+      background: 'color-mix(in srgb, var(--accent) 10%, transparent)',
+      borderRadius: '6px',
+      borderBottom: '1px dashed color-mix(in srgb, var(--accent) 34%, var(--border))',
+      boxDecorationBreak: 'clone',
+      WebkitBoxDecorationBreak: 'clone',
+    },
   },
   { dark: false }
 )
@@ -84,6 +101,7 @@ export const markdownHighlight = [
 export function buildCoreExtensions(options: {
   onChange: (content: string) => void
   onCursorChange: (line: number, col: number) => void
+  onSelectionChange?: (view: EditorView) => void
 }): Extension[] {
   return [
     history(),
@@ -110,6 +128,9 @@ export function buildCoreExtensions(options: {
         const selection = update.state.selection.main.head
         const line = update.state.doc.lineAt(selection)
         options.onCursorChange(line.number, selection - line.from + 1)
+      }
+      if (update.selectionSet || update.docChanged) {
+        options.onSelectionChange?.(update.view)
       }
     }),
     lightTheme,

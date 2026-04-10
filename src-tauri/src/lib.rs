@@ -1,3 +1,5 @@
+mod ai;
+
 use base64::Engine as _;
 use reqwest::header::{CONTENT_TYPE, USER_AGENT};
 use std::ffi::{OsStr, OsString};
@@ -59,7 +61,9 @@ fn allow_fs_scope_path<R: tauri::Runtime>(
             .allow_directory(candidate, recursive)
             .map_err(|error| error.to_string())
     } else {
-        scope.allow_file(candidate).map_err(|error| error.to_string())
+        scope
+            .allow_file(candidate)
+            .map_err(|error| error.to_string())
     }
 }
 
@@ -76,7 +80,8 @@ fn take_pending_open_paths(
 
 #[tauri::command]
 async fn fetch_remote_image_data_url(url: String) -> Result<String, String> {
-    let parsed_url = reqwest::Url::parse(&url).map_err(|_| "Invalid remote image URL".to_string())?;
+    let parsed_url =
+        reqwest::Url::parse(&url).map_err(|_| "Invalid remote image URL".to_string())?;
     match parsed_url.scheme() {
         "http" | "https" => {}
         _ => return Err("Only HTTP and HTTPS image URLs are supported".to_string()),
@@ -129,7 +134,10 @@ async fn fetch_remote_image_data_url(url: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn fetch_local_image_data_url(source: String, document_path: Option<String>) -> Result<String, String> {
+fn fetch_local_image_data_url(
+    source: String,
+    document_path: Option<String>,
+) -> Result<String, String> {
     let resolved_path = resolve_local_image_path(&source, document_path.as_deref())?;
     let bytes = std::fs::read(&resolved_path)
         .map_err(|error| format!("Failed to read local image: {error}"))?;
@@ -178,7 +186,10 @@ fn infer_image_content_type(path: &str) -> Option<&'static str> {
     }
 }
 
-fn resolve_local_image_path(source: &str, document_path: Option<&str>) -> Result<std::path::PathBuf, String> {
+fn resolve_local_image_path(
+    source: &str,
+    document_path: Option<&str>,
+) -> Result<std::path::PathBuf, String> {
     let trimmed_source = source.trim();
     if trimmed_source.is_empty() {
         return Err("Missing local image source".to_string());
@@ -335,6 +346,8 @@ fn register_single_instance_plugin(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let pending_open_paths = PendingOpenPaths(Mutex::new(collect_launch_paths()));
+    let ai_in_flight_requests =
+        ai::AiInFlightRequests(Mutex::new(std::collections::HashMap::new()));
     let builder = tauri::Builder::default();
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
@@ -342,6 +355,7 @@ pub fn run() {
 
     builder
         .manage(pending_open_paths)
+        .manage(ai_in_flight_requests)
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("editor-navigation-guard")
                 .on_navigation(|_, url| is_allowed_editor_navigation(url))
@@ -351,6 +365,12 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            ai::ai_load_provider_state,
+            ai::ai_save_provider_config,
+            ai::ai_store_provider_api_key,
+            ai::ai_clear_provider_api_key,
+            ai::ai_run_completion,
+            ai::ai_cancel_completion,
             read_file,
             write_file,
             write_binary_file,
@@ -374,8 +394,8 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::is_allowed_editor_navigation;
     use super::collect_launch_paths_from_args;
+    use super::is_allowed_editor_navigation;
     use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
@@ -406,7 +426,10 @@ mod tests {
 
         let launch_paths = collect_launch_paths_from_args(args, None);
 
-        assert_eq!(launch_paths, vec![existing_path.to_string_lossy().into_owned()]);
+        assert_eq!(
+            launch_paths,
+            vec![existing_path.to_string_lossy().into_owned()]
+        );
 
         let _ = fs::remove_file(existing_path);
     }
@@ -427,7 +450,10 @@ mod tests {
 
         let launch_paths = collect_launch_paths_from_args(args, None);
 
-        assert_eq!(launch_paths, vec![existing_path.to_string_lossy().into_owned()]);
+        assert_eq!(
+            launch_paths,
+            vec![existing_path.to_string_lossy().into_owned()]
+        );
 
         let _ = fs::remove_file(existing_path);
     }
@@ -450,7 +476,10 @@ mod tests {
         let args = vec![OsString::from("relative-launch.md")];
         let launch_paths = collect_launch_paths_from_args(args, Some(temp_dir.as_path()));
 
-        assert_eq!(launch_paths, vec![existing_path.to_string_lossy().into_owned()]);
+        assert_eq!(
+            launch_paths,
+            vec![existing_path.to_string_lossy().into_owned()]
+        );
 
         let _ = fs::remove_file(existing_path);
         let _ = fs::remove_dir(temp_dir);
@@ -465,7 +494,10 @@ mod tests {
             "https://tauri.localhost/index.html",
         ] {
             let parsed = reqwest::Url::parse(url).expect("parse allowed url");
-            assert!(is_allowed_editor_navigation(&parsed), "expected to allow {url}");
+            assert!(
+                is_allowed_editor_navigation(&parsed),
+                "expected to allow {url}"
+            );
         }
     }
 
@@ -478,7 +510,10 @@ mod tests {
             "file:///tmp/demo.md",
         ] {
             let parsed = reqwest::Url::parse(url).expect("parse blocked url");
-            assert!(!is_allowed_editor_navigation(&parsed), "expected to block {url}");
+            assert!(
+                !is_allowed_editor_navigation(&parsed),
+                "expected to block {url}"
+            );
         }
     }
 }

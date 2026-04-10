@@ -1,6 +1,13 @@
-import { keymap } from '@codemirror/view'
-import type { Extension } from '@codemirror/state'
-import type { EditorView } from '@codemirror/view'
+import { EditorView, keymap } from '@codemirror/view'
+import { Prec, type Extension } from '@codemirror/state'
+import i18n from '../../i18n/index.ts'
+import { dispatchEditorAIOpen } from '../../lib/ai/events.ts'
+import {
+  createAISlashCommandEntries,
+  matchAISlashCommandQuery,
+  resolveAISlashCommandTrigger,
+  type AISlashCommandEntry,
+} from '../../lib/ai/slashCommands.ts'
 
 export interface SearchOptions {
   search: string
@@ -36,6 +43,14 @@ let searchSupportPromise: Promise<SearchSupport> | null = null
 let autocompleteExtensionsPromise: Promise<Extension[]> | null = null
 let markdownLanguageExtensionsPromise: Promise<Extension[]> | null = null
 
+function applyAISlashCommand(view: EditorView, entry: AISlashCommandEntry, from: number, to: number) {
+  view.dispatch({
+    changes: { from, to, insert: '' },
+    selection: { anchor: from },
+  })
+  dispatchEditorAIOpen(entry.openDetail)
+}
+
 function createMarkdownSnippetSource(autocomplete: typeof import('@codemirror/autocomplete')) {
   const snippets = [
     autocomplete.snippetCompletion('# ${title}', { label: 'h1', detail: 'Heading 1', type: 'keyword' }),
@@ -53,11 +68,21 @@ function createMarkdownSnippetSource(autocomplete: typeof import('@codemirror/au
       type: 'keyword',
     }),
   ]
+  const slashCommands = createAISlashCommandEntries(i18n.t.bind(i18n)).map((entry) => ({
+    label: entry.label,
+    detail: entry.detail,
+    type: 'keyword' as const,
+    boost: 100,
+    section: i18n.t('ai.slash.group'),
+    apply(view: EditorView, _completion: unknown, from: number, to: number) {
+      applyAISlashCommand(view, entry, from, to)
+    },
+  }))
 
   return (context: import('@codemirror/autocomplete').CompletionContext) => {
     const line = context.state.doc.lineAt(context.pos)
     const before = line.text.slice(0, context.pos - line.from)
-    const slashMatch = before.match(/(?:^|\s)\/([a-z0-9-]*)$/i)
+    const slashMatch = matchAISlashCommandQuery(before)
 
     if (!slashMatch) {
       if (!context.explicit) return null
@@ -68,14 +93,15 @@ function createMarkdownSnippetSource(autocomplete: typeof import('@codemirror/au
       }
     }
 
-    const typed = slashMatch[1].toLowerCase()
-    const from = context.pos - typed.length - 1
-    const options = snippets.filter((item) => item.label.toLowerCase().includes(typed))
+    const typed = slashMatch.query
+    const from = line.from + slashMatch.from
+    const options = slashCommands.filter((item) => item.label.toLowerCase().includes(typed))
     if (options.length === 0) return null
 
     return {
       from,
       options,
+      filter: false,
       validFor: /^[a-z0-9-]*$/i,
     }
   }
@@ -239,15 +265,63 @@ export async function loadSearchSupport(): Promise<SearchSupport> {
 export async function loadAutocompleteExtensions(): Promise<Extension[]> {
   autocompleteExtensionsPromise ??= (async () => {
     const autocomplete = await import('@codemirror/autocomplete')
+    const slashCommandEntries = createAISlashCommandEntries(i18n.t.bind(i18n))
+
+    const runExactAISlashCommand = (view: EditorView): boolean => {
+      if (autocomplete.completionStatus(view.state) === 'active') return false
+
+      const selection = view.state.selection.main
+      if (!selection.empty) return false
+
+      const line = view.state.doc.lineAt(selection.head)
+      const before = line.text.slice(0, selection.head - line.from)
+      const match = resolveAISlashCommandTrigger(before, slashCommandEntries)
+      if (!match) return false
+      if (before.slice(0, match.from).trim().length > 0) return false
+
+      applyAISlashCommand(view, match.entry, line.from + match.from, line.from + match.to)
+      return true
+    }
 
     return [
       autocomplete.closeBrackets(),
       autocomplete.autocompletion({
         override: [createMarkdownSnippetSource(autocomplete)],
         activateOnTyping: true,
-        defaultKeymap: false,
+        defaultKeymap: true,
+        interactionDelay: 0,
       }),
-      keymap.of([...autocomplete.closeBracketsKeymap, ...autocomplete.completionKeymap]),
+      EditorView.inputHandler.of((view, from, _to, text, _insert) => {
+        if (text !== '/') return false
+
+        const line = view.state.doc.lineAt(from)
+        const before = line.text.slice(0, from - line.from)
+        const nextBefore = `${before}${text}`
+        if (!matchAISlashCommandQuery(nextBefore)) return false
+
+        view.dispatch({
+          changes: { from, to: from, insert: text },
+          selection: { anchor: from + text.length },
+          userEvent: 'input.type',
+        })
+        queueMicrotask(() => {
+          autocomplete.startCompletion(view)
+        })
+        return true
+      }),
+      Prec.highest(
+        keymap.of([
+          {
+            key: 'Enter',
+            run: runExactAISlashCommand,
+          },
+          {
+            key: 'Space',
+            run: runExactAISlashCommand,
+          },
+        ])
+      ),
+      keymap.of([...autocomplete.closeBracketsKeymap]),
     ]
   })()
 

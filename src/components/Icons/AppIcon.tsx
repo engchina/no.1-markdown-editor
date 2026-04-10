@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 
 export type IconName =
+  | 'bookmark'
   | 'bold'
   | 'clock'
   | 'code'
@@ -50,6 +51,7 @@ export type IconName =
   | 'checkCircle'
 
 const PATHS: Record<IconName, string> = {
+  bookmark: 'M7 4h10a1 1 0 0 1 1 1v16l-6-3-6 3V5a1 1 0 0 1 1-1z',
   bold: 'M7 5h6a3 3 0 1 1 0 6H7z M7 11h7a3 3 0 1 1 0 6H7z',
   clock: 'M12 7v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
   code: 'M8 8l-4 4 4 4 M16 8l4 4-4 4',

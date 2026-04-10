@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Compartment, EditorState, type Extension } from '@codemirror/state'
+import { Compartment, EditorState, EditorSelection, type Extension, type StateEffect } from '@codemirror/state'
+import { isolateHistory } from '@codemirror/commands'
 import { EditorView } from '@codemirror/view'
 import {
   buildCoreExtensions,
@@ -14,13 +15,53 @@ import {
   loadSearchSupport,
   type SearchSupport,
 } from './optionalFeatures'
+import AISelectionBubble from '../AI/AISelectionBubble'
 import { applyFormat } from './formatCommands'
 import { getFormatActionFromShortcut } from './formatShortcuts'
+import {
+  cancelAICompletion,
+  isAIRuntimeAvailable,
+  loadAIProviderState,
+  runAICompletion,
+} from '../../lib/ai/client.ts'
+import {
+  clearAIGhostText,
+  createAIGhostTextExtensions,
+  createAIGhostTextSnapshot,
+  showAIGhostText,
+  shouldKeepAIGhostText,
+} from '../../lib/ai/ghostText.ts'
+import {
+  createAIProvenanceAddEffect,
+  createAIProvenanceExtensions,
+  createAIProvenanceMark,
+  readAIProvenanceMarks,
+  setAIProvenanceMarks,
+} from '../../lib/ai/provenance.ts'
+import { buildAIContextPacket, resolveCurrentBlockRange, resolveCurrentHeadingRange } from '../../lib/ai/context.ts'
+import { isAIApplySnapshotStale, resolveAIApplyChange } from '../../lib/ai/apply.ts'
+import {
+  EDITOR_AI_APPLY_EVENT,
+  EDITOR_AI_GHOST_TEXT_EVENT,
+  EDITOR_AI_OPEN_EVENT,
+  type EditorAIApplyDetail,
+  type EditorAIGhostTextDetail,
+  type EditorAIOpenDetail,
+} from '../../lib/ai/events.ts'
+import { resolveAIOpenOutputTarget, resolveAISelectedTextRole } from '../../lib/ai/opening.ts'
+import {
+  DEFAULT_AI_SELECTION_BUBBLE_SIZE,
+  computeAISelectionBubblePosition,
+  type SelectionBubbleSize,
+} from '../../lib/ai/selectionBubble.ts'
+import { buildAIRequestMessages, normalizeAIDraftText } from '../../lib/ai/prompt.ts'
 import { clipboardHasType, readClipboardString } from '../../lib/clipboard'
 import { buildPlainTextClipboardHtml, renderClipboardHtmlFromMarkdown } from '../../lib/clipboardHtml'
 import { getImageAltText } from '../../lib/fileTypes'
 import { getTauriFilePersistence, persistImageFilesAsMarkdown } from '../../lib/documentPersistence'
 import { convertClipboardHtmlToMarkdown } from '../../lib/pasteHtml'
+import { pushErrorNotice, pushInfoNotice } from '../../lib/notices'
+import { useAIStore } from '../../store/ai'
 import { useActiveTab, useEditorStore } from '../../store/editor'
 import SearchBar from '../Search/SearchBar'
 
@@ -30,13 +71,27 @@ interface Props {
 }
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+const AI_GHOST_TEXT_PROMPT_KEY = 'ai.templates.ghostTextPrompt'
+interface AIComposerRestoreSnapshot {
+  selection: EditorSelection
+  scrollTop: number
+  scrollLeft: number
+}
 
 export default function CodeMirrorEditor({ content, onChange }: Props) {
   const { t } = useTranslation()
+  const aiComposerOpen = useAIStore((state) => state.composer.open)
+  const shellRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const previousAIComposerOpenRef = useRef(aiComposerOpen)
+  const aiComposerRestoreSnapshotRef = useRef<AIComposerRestoreSnapshot | null>(null)
   const isUpdatingRef = useRef(false)
   const onChangeRef = useRef(onChange)
+  const ghostTextRequestIdRef = useRef<string | null>(null)
+  const ghostTextRunIdRef = useRef(0)
+  const ghostTextSnapshotRef = useRef<{ docText: string; anchor: number } | null>(null)
+  const selectionBubbleSizeRef = useRef<SelectionBubbleSize>(DEFAULT_AI_SELECTION_BUBBLE_SIZE)
   const searchPromiseRef = useRef<Promise<SearchSupport> | null>(null)
   const autocompletePromiseRef = useRef<Promise<Extension[]> | null>(null)
   const markdownLanguagePromiseRef = useRef<Promise<Extension[]> | null>(null)
@@ -56,7 +111,10 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const pendingNavigation = useEditorStore((state) => state.pendingNavigation)
   const setPendingNavigation = useEditorStore((state) => state.setPendingNavigation)
   const setCursorPos = useEditorStore((state) => state.setCursorPos)
+  const aiDefaultWriteTarget = useEditorStore((state) => state.aiDefaultWriteTarget)
+  const aiDefaultSelectedTextRole = useEditorStore((state) => state.aiDefaultSelectedTextRole)
   const activeTab = useActiveTab()
+  const setProvenanceMarks = useAIStore((state) => state.setProvenanceMarks)
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchReplace, setSearchReplace] = useState(false)
@@ -65,6 +123,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const [markdownLanguageExtensions, setMarkdownLanguageExtensions] = useState<Extension[]>([])
   const [autocompleteExtensions, setAutocompleteExtensions] = useState<Extension[]>([])
   const [wysiwygExtensions, setWysiwygExtensions] = useState<Extension[]>([])
+  const [selectionBubble, setSelectionBubble] = useState<{ top: number; left: number } | null>(null)
 
   const handleCursorChange = useCallback(
     (line: number, col: number) => {
@@ -73,9 +132,134 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     [setCursorPos]
   )
 
+  const hideSelectionBubble = useCallback(() => {
+    setSelectionBubble(null)
+  }, [])
+
+  const updateSelectionBubble = useCallback(
+    (viewOverride?: EditorView | null) => {
+      const view = viewOverride ?? viewRef.current
+      const shell = shellRef.current
+      if (!view || !shell || aiComposerOpen) {
+        clearGhostTextState(view)
+        setSelectionBubble(null)
+        return
+      }
+
+      const selection = view.state.selection.main
+      if (view.state.selection.ranges.length !== 1 || selection.empty) {
+        setSelectionBubble(null)
+        return
+      }
+
+      const anchorCoords = view.coordsAtPos(selection.to)
+      if (!anchorCoords) {
+        setSelectionBubble(null)
+        return
+      }
+
+      const wrapperRect = shell.getBoundingClientRect()
+      const position = computeAISelectionBubblePosition(anchorCoords, {
+        top: wrapperRect.top,
+        bottom: wrapperRect.bottom,
+        left: wrapperRect.left,
+        right: wrapperRect.right,
+      }, selectionBubbleSizeRef.current)
+
+      setSelectionBubble(position)
+    },
+    [aiComposerOpen]
+  )
+
+  const handleSelectionBubbleSizeChange = useCallback(
+    (nextSize: SelectionBubbleSize) => {
+      const previousSize = selectionBubbleSizeRef.current
+      const widthChanged = Math.abs(previousSize.width - nextSize.width) > 0.5
+      const heightChanged = Math.abs(previousSize.height - nextSize.height) > 0.5
+
+      if (!widthChanged && !heightChanged) return
+
+      selectionBubbleSizeRef.current = nextSize
+      updateSelectionBubble()
+    },
+    [updateSelectionBubble]
+  )
+
+  const restoreAIComposerEditorContext = useCallback(
+    (view: EditorView, snapshot: AIComposerRestoreSnapshot | null) => {
+      const applyRestore = () => {
+        if (viewRef.current !== view) return
+
+        view.focus()
+        if (snapshot) {
+          view.dispatch({ selection: snapshot.selection })
+          restoreNativeSelection(view, snapshot.selection)
+          view.scrollDOM.scrollTop = snapshot.scrollTop
+          view.scrollDOM.scrollLeft = snapshot.scrollLeft
+        }
+        updateSelectionBubble(view)
+      }
+
+      applyRestore()
+      requestAnimationFrame(() => requestAnimationFrame(applyRestore))
+    },
+    [updateSelectionBubble]
+  )
+
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
+
+  const clearGhostTextState = useCallback((viewOverride?: EditorView | null) => {
+    const view = viewOverride ?? viewRef.current
+    if (!view) return
+    clearAIGhostText(view)
+    ghostTextSnapshotRef.current = null
+  }, [])
+
+  const cancelGhostTextRequest = useCallback(
+    async (options: { clear?: boolean } = {}) => {
+      const requestId = ghostTextRequestIdRef.current
+      ghostTextRunIdRef.current += 1
+      ghostTextRequestIdRef.current = null
+
+      if (options.clear !== false) {
+        clearGhostTextState()
+      }
+
+      if (!requestId) return
+      try {
+        await cancelAICompletion(requestId)
+      } catch {
+        // Ignore transport-level cancellation failures.
+      }
+    },
+    [clearGhostTextState]
+  )
+
+  const syncGhostTextState = useCallback(
+    (viewOverride?: EditorView | null) => {
+      const view = viewOverride ?? viewRef.current
+      const snapshot = ghostTextSnapshotRef.current
+      if (!view || !snapshot) return
+
+      if (shouldKeepAIGhostText(view, snapshot.docText, snapshot.anchor)) return
+
+      void cancelGhostTextRequest()
+    },
+    [cancelGhostTextRequest]
+  )
+
+  const syncProvenanceState = useCallback(
+    (viewOverride?: EditorView | null, tabIdOverride?: string | null) => {
+      const view = viewOverride ?? viewRef.current
+      const tabId = tabIdOverride ?? activeTab?.id ?? null
+      if (!view || !tabId) return
+
+      setProvenanceMarks(tabId, readAIProvenanceMarks(view))
+    },
+    [activeTab?.id, setProvenanceMarks]
+  )
 
   const reconfigure = useCallback((compartment: Compartment, extension: Extension) => {
     const view = viewRef.current
@@ -154,6 +338,11 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
             if (!isUpdatingRef.current) onChangeRef.current(nextContent)
           },
           onCursorChange: handleCursorChange,
+          onSelectionChange: (view) => {
+            syncGhostTextState(view)
+            syncProvenanceState(view)
+            updateSelectionBubble(view)
+          },
         }),
         lineNumbersCompartmentRef.current.of(lineNumbers ? buildLineNumberExtensions() : []),
         wordWrapCompartmentRef.current.of(buildWordWrapExtensions(wordWrap)),
@@ -161,6 +350,8 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         languageCompartmentRef.current.of([]),
         searchCompartmentRef.current.of([]),
         autocompleteCompartmentRef.current.of([]),
+        ...createAIGhostTextExtensions(),
+        ...createAIProvenanceExtensions(),
         wysiwygCompartmentRef.current.of([]),
       ],
     })
@@ -169,37 +360,30 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     viewRef.current = view
     view.focus()
     handleCursorChange(1, 1)
+    updateSelectionBubble(view)
 
     return () => {
       view.destroy()
       viewRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [updateSelectionBubble])
 
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    let idleId: number | undefined
+    void ensureAutocompleteExtensions()
+  }, [ensureAutocompleteExtensions])
 
-    const scheduleLoad = () => {
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+
+    const handleFocus = () => {
       void ensureAutocompleteExtensions()
     }
 
-    if (typeof (window as Window & { requestIdleCallback?: unknown }).requestIdleCallback === 'function') {
-      const api = window as Window & {
-        requestIdleCallback: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
-        cancelIdleCallback: (handle: number) => void
-      }
-      idleId = api.requestIdleCallback(() => scheduleLoad(), { timeout: 1500 })
-    } else {
-      timeoutId = setTimeout(scheduleLoad, 400)
-    }
-
+    view.dom.addEventListener('focusin', handleFocus)
     return () => {
-      if (idleId !== undefined && 'cancelIdleCallback' in window) {
-        ;(window as Window & { cancelIdleCallback: (handle: number) => void }).cancelIdleCallback(idleId)
-      }
-      if (timeoutId !== undefined) clearTimeout(timeoutId)
+      view.dom.removeEventListener('focusin', handleFocus)
     }
   }, [ensureAutocompleteExtensions])
 
@@ -245,7 +429,10 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     isUpdatingRef.current = true
     view.dispatch({ changes: { from: 0, to: current.length, insert: content } })
     isUpdatingRef.current = false
-  }, [content])
+    syncGhostTextState(view)
+    syncProvenanceState(view)
+    updateSelectionBubble(view)
+  }, [content, syncGhostTextState, syncProvenanceState, updateSelectionBubble])
 
   useEffect(() => {
     if (!typewriterMode) return
@@ -270,6 +457,35 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       view.dom.removeEventListener('click', onSelectionChange)
     }
   }, [typewriterMode])
+
+  useEffect(() => {
+    updateSelectionBubble()
+    clearGhostTextState()
+  }, [activeTab?.id, aiComposerOpen, clearGhostTextState, updateSelectionBubble])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || !activeTab) return
+
+    const marks = useAIStore.getState().getProvenanceMarks(activeTab.id)
+    setAIProvenanceMarks(view, marks)
+  }, [activeTab?.id])
+
+  useEffect(() => {
+    const view = viewRef.current
+    const wasComposerOpen = previousAIComposerOpenRef.current
+    previousAIComposerOpenRef.current = aiComposerOpen
+
+    if (!view) return
+
+    if (!wasComposerOpen || aiComposerOpen) return
+
+    const restoreSnapshot = aiComposerRestoreSnapshotRef.current
+    aiComposerRestoreSnapshotRef.current = null
+
+    syncGhostTextState(view)
+    restoreAIComposerEditorContext(view, restoreSnapshot)
+  }, [aiComposerOpen, restoreAIComposerEditorContext, syncGhostTextState])
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -490,6 +706,333 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   }, [activeTab?.path])
 
   useEffect(() => {
+    const handleAIOpen = (event: Event) => {
+      const view = viewRef.current
+      if (!view || !activeTab) return
+
+      event.preventDefault()
+      const detail = (event as CustomEvent<EditorAIOpenDetail>).detail
+      const selection = view.state.selection.main
+      const hasSelection = !selection.empty
+      const intent = detail.intent ?? (hasSelection ? 'edit' : 'generate')
+      const requestedScope = detail.scope
+      const requestedOutputTarget = detail.outputTarget
+      const outputTarget = resolveAIOpenOutputTarget(
+        intent,
+        requestedOutputTarget,
+        hasSelection,
+        aiDefaultWriteTarget
+      )
+      const snapshot = createAIApplySnapshot(view, activeTab.id)
+      let context = buildAIContextPacket({
+        tabId: activeTab.id,
+        tabPath: activeTab.path,
+        fileName: activeTab.name,
+        content: snapshot.docText,
+        intent,
+        scope: requestedScope,
+        outputTarget,
+        anchorOffset: snapshot.anchorOffset,
+        selection: hasSelection
+          ? {
+              from: snapshot.selectionFrom,
+              to: snapshot.selectionTo,
+              role: resolveAISelectedTextRole(detail.selectedTextRole, aiDefaultSelectedTextRole),
+            }
+          : undefined,
+      })
+      const hasHeadingContext = !!context.headingPath?.length
+      const finalOutputTarget =
+        outputTarget === 'insert-under-heading' && !hasHeadingContext
+          ? 'insert-below'
+          : outputTarget
+      const finalScope =
+        requestedScope === 'current-heading' && !hasHeadingContext
+          ? 'current-block'
+          : context.scope
+
+      if (finalOutputTarget !== outputTarget || finalScope !== context.scope) {
+        context = {
+          ...context,
+          outputTarget: finalOutputTarget,
+          scope: finalScope,
+        }
+      }
+      const threadId = useAIStore.getState().getThreadId(activeTab.id, activeTab.path)
+      aiComposerRestoreSnapshotRef.current = {
+        selection: view.state.selection,
+        scrollTop: view.scrollDOM.scrollTop,
+        scrollLeft: view.scrollDOM.scrollLeft,
+      }
+
+      useAIStore.getState().openComposer({
+        source: detail.source,
+        intent,
+        scope: context.scope,
+        outputTarget: context.outputTarget,
+        prompt: detail.prompt ?? '',
+        context,
+        draftText: '',
+        explanationText: '',
+        diffBaseText: context.outputTarget === 'replace-selection' ? context.selectedText ?? null : null,
+        threadId,
+        errorMessage: null,
+        requestState: 'idle',
+        startedAt: null,
+        sourceSnapshot: snapshot,
+      })
+      setSelectionBubble(null)
+    }
+
+    const handleAIApply = (event: Event) => {
+      const view = viewRef.current
+      if (!view || !activeTab) return
+
+      const detail = (event as CustomEvent<EditorAIApplyDetail>).detail
+      if (detail.tabId !== activeTab.id) return
+
+      if (detail.outputTarget === 'new-note') {
+        const tabId = useEditorStore.getState().addTab({
+          name: t('app.untitled'),
+          content: detail.text,
+          savedContent: '',
+          isDirty: true,
+        })
+        const provenanceRange = detail.provenance
+          ? resolveInsertedProvenanceRange(0, detail.text)
+          : null
+        if (detail.provenance && provenanceRange) {
+          useAIStore.getState().setProvenanceMarks(tabId, [
+            createAIProvenanceMark({
+              from: provenanceRange.from,
+              to: provenanceRange.to,
+              badge: detail.provenance.badge,
+              detail: detail.provenance.detail,
+              kind: detail.provenance.kind,
+              createdAt: detail.provenance.createdAt,
+            }),
+          ])
+        }
+        aiComposerRestoreSnapshotRef.current = null
+        useAIStore.getState().closeComposer()
+        setSelectionBubble(null)
+        return
+      }
+
+      const currentDoc = view.state.doc.toString()
+      if (isAIApplySnapshotStale(detail.snapshot, currentDoc)) {
+        pushErrorNotice('notices.aiApplyConflictTitle', 'notices.aiApplyConflictMessage')
+        return
+      }
+
+      const { range, text } = resolveAIApplyChange(
+        detail.outputTarget,
+        detail.snapshot,
+        currentDoc,
+        detail.text
+      )
+      view.focus()
+      const provenanceRange = detail.provenance
+        ? resolveInsertedProvenanceRange(range.from, text)
+        : null
+      const effects = detail.provenance && provenanceRange
+        ? [
+            createAIProvenanceAddEffect(
+              createAIProvenanceMark({
+                from: provenanceRange.from,
+                to: provenanceRange.to,
+                badge: detail.provenance.badge,
+                detail: detail.provenance.detail,
+                kind: detail.provenance.kind,
+                createdAt: detail.provenance.createdAt,
+              })
+            ),
+          ]
+        : undefined
+      insertMarkdown(view, text, range, {
+        isolateHistoryBoundary: true,
+        userEvent: 'input.ai',
+        effects,
+      })
+      syncProvenanceState(view, activeTab.id)
+      aiComposerRestoreSnapshotRef.current = null
+      useAIStore.getState().closeComposer()
+      updateSelectionBubble(view)
+    }
+
+    const handleAIGhostText = (event: Event) => {
+      const view = viewRef.current
+      if (!view || !activeTab) return
+
+      const detail = (event as CustomEvent<EditorAIGhostTextDetail>).detail
+      void detail
+      if (view.state.selection.ranges.length !== 1 || !view.state.selection.main.empty) {
+        pushInfoNotice('notices.aiGhostTextCursorOnlyTitle', 'notices.aiGhostTextCursorOnlyMessage')
+        return
+      }
+
+      if (!isAIRuntimeAvailable()) {
+        pushInfoNotice('notices.aiDesktopOnlyTitle', 'notices.aiDesktopOnlyMessage')
+        return
+      }
+
+      const snapshot = createAIApplySnapshot(view, activeTab.id)
+      const context = buildAIContextPacket({
+        tabId: activeTab.id,
+        tabPath: activeTab.path,
+        fileName: activeTab.name,
+        content: snapshot.docText,
+        intent: 'generate',
+        outputTarget: 'at-cursor',
+        anchorOffset: snapshot.anchorOffset,
+      })
+      const prompt = t(AI_GHOST_TEXT_PROMPT_KEY)
+
+      const runGhostText = async () => {
+        const providerState = await loadAIProviderState()
+        const hasConnection =
+          !!providerState.config?.baseUrl &&
+          !!providerState.config?.model &&
+          providerState.hasApiKey === true
+
+        if (!hasConnection) {
+          pushInfoNotice('notices.aiProviderMissingTitle', 'notices.aiProviderMissingMessage')
+          return
+        }
+
+        await cancelGhostTextRequest()
+
+        const runId = ghostTextRunIdRef.current + 1
+        ghostTextRunIdRef.current = runId
+        const requestId = `${activeTab.id}-ghost-${runId}-${Date.now()}`
+        ghostTextRequestIdRef.current = requestId
+        const createdAt = Date.now()
+        ghostTextSnapshotRef.current = createAIGhostTextSnapshot(view)
+
+        view.focus()
+        showAIGhostText(view, {
+          anchor: snapshot.anchorOffset,
+          status: 'loading',
+          text: '',
+          badge: t('ai.provenance.badge'),
+          detail: t('ai.provenance.ghostDetail'),
+          createdAt,
+        })
+
+        let streamedText = ''
+
+        try {
+          const response = await runAICompletion(
+            {
+              requestId,
+              intent: 'generate',
+              scope: context.scope,
+              outputTarget: 'at-cursor',
+              prompt,
+              context,
+              messages: buildAIRequestMessages({
+                prompt,
+                context,
+              }),
+            },
+            {
+              onChunk: (chunk) => {
+                const activeView = viewRef.current
+                if (
+                  !activeView ||
+                  runId !== ghostTextRunIdRef.current ||
+                  ghostTextRequestIdRef.current !== requestId
+                ) {
+                  return
+                }
+
+                if (!shouldKeepAIGhostText(activeView, snapshot.docText, snapshot.anchorOffset)) {
+                  void cancelGhostTextRequest()
+                  return
+                }
+
+                streamedText += chunk
+                showAIGhostText(activeView, {
+                  anchor: snapshot.anchorOffset,
+                  status: 'loading',
+                  text: streamedText,
+                  badge: t('ai.provenance.badge'),
+                  detail: t('ai.provenance.ghostDetail'),
+                  createdAt,
+                })
+              },
+            }
+          )
+
+          const activeView = viewRef.current
+          if (
+            !activeView ||
+            runId !== ghostTextRunIdRef.current ||
+            ghostTextRequestIdRef.current !== requestId
+          ) {
+            return
+          }
+
+          ghostTextRequestIdRef.current = null
+
+          if (!shouldKeepAIGhostText(activeView, snapshot.docText, snapshot.anchorOffset)) {
+            clearGhostTextState(activeView)
+            return
+          }
+
+          const ghostText = normalizeAIDraftText(response.text, 'at-cursor')
+          if (!ghostText) {
+            clearGhostTextState(activeView)
+            return
+          }
+
+          activeView.focus()
+          showAIGhostText(activeView, {
+            anchor: snapshot.anchorOffset,
+            status: 'ready',
+            text: ghostText,
+            badge: t('ai.provenance.badge'),
+            detail: t('ai.provenance.ghostDetail'),
+            createdAt,
+          })
+        } catch (error) {
+          if (runId !== ghostTextRunIdRef.current) return
+          ghostTextRequestIdRef.current = null
+          clearGhostTextState()
+
+          const message = error instanceof Error ? error.message : String(error)
+          if (/canceled/u.test(message)) return
+
+          pushErrorNotice('notices.aiRequestErrorTitle', 'notices.aiRequestErrorMessage', {
+            values: { reason: message },
+          })
+        }
+      }
+
+      void runGhostText()
+    }
+
+    document.addEventListener(EDITOR_AI_OPEN_EVENT, handleAIOpen)
+    document.addEventListener(EDITOR_AI_APPLY_EVENT, handleAIApply)
+    document.addEventListener(EDITOR_AI_GHOST_TEXT_EVENT, handleAIGhostText)
+    return () => {
+      document.removeEventListener(EDITOR_AI_OPEN_EVENT, handleAIOpen)
+      document.removeEventListener(EDITOR_AI_APPLY_EVENT, handleAIApply)
+      document.removeEventListener(EDITOR_AI_GHOST_TEXT_EVENT, handleAIGhostText)
+    }
+  }, [
+    activeTab,
+    aiDefaultSelectedTextRole,
+    aiDefaultWriteTarget,
+    cancelGhostTextRequest,
+    clearGhostTextState,
+    setProvenanceMarks,
+    syncProvenanceState,
+    t,
+    updateSelectionBubble,
+  ])
+
+  useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
@@ -522,8 +1065,41 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     }
   }, [activeTab?.path])
 
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+
+    const handleScroll = () => updateSelectionBubble(view)
+    const handleBlur = () => hideSelectionBubble()
+    const handleResize = () => updateSelectionBubble(view)
+
+    view.scrollDOM.addEventListener('scroll', handleScroll, { passive: true })
+    view.dom.addEventListener('focusout', handleBlur)
+    window.addEventListener('resize', handleResize)
+    return () => {
+      view.scrollDOM.removeEventListener('scroll', handleScroll)
+      view.dom.removeEventListener('focusout', handleBlur)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [hideSelectionBubble, updateSelectionBubble])
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell || typeof ResizeObserver !== 'function') return
+
+    const observer = new ResizeObserver(() => updateSelectionBubble())
+    observer.observe(shell)
+    return () => observer.disconnect()
+  }, [updateSelectionBubble])
+
+  useEffect(() => {
+    return () => {
+      void cancelGhostTextRequest()
+    }
+  }, [cancelGhostTextRequest])
+
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div ref={shellRef} className="relative h-full flex flex-col overflow-hidden">
       {searchOpen && (
         <SearchBar
           editorView={viewRef.current}
@@ -531,6 +1107,13 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
           loading={searchLoading}
           showReplace={searchReplace}
           onClose={() => setSearchOpen(false)}
+        />
+      )}
+      {selectionBubble && (
+        <AISelectionBubble
+          top={selectionBubble.top}
+          left={selectionBubble.left}
+          onSizeChange={handleSelectionBubbleSizeChange}
         />
       )}
       <div
@@ -551,11 +1134,64 @@ function replaceSelectionWithMarkdown(view: EditorView, markdownText: string): v
   })
 }
 
-function insertMarkdown(view: EditorView, markdownText: string, range: { from: number; to: number }): void {
+function insertMarkdown(
+  view: EditorView,
+  markdownText: string,
+  range: { from: number; to: number },
+  options: {
+    isolateHistoryBoundary?: boolean
+    userEvent?: string
+    effects?: StateEffect<unknown>[]
+  } = {}
+): void {
   view.dispatch({
     changes: { from: range.from, to: range.to, insert: markdownText },
     selection: { anchor: range.from + markdownText.length },
+    annotations: options.isolateHistoryBoundary ? isolateHistory.of('full') : undefined,
+    effects: options.effects,
+    userEvent: options.userEvent,
   })
+}
+
+function restoreNativeSelection(view: EditorView, selection: EditorSelection): void {
+  const root = view.root
+  const rootSelection =
+    'getSelection' in root && typeof root.getSelection === 'function'
+      ? root.getSelection()
+      : null
+  if (!rootSelection) return
+
+  const main = selection.main
+  const start = view.domAtPos(Math.min(main.from, main.to))
+  const end = view.domAtPos(Math.max(main.from, main.to))
+  const range = view.dom.ownerDocument.createRange()
+
+  range.setStart(start.node, start.offset)
+  range.setEnd(end.node, end.offset)
+  rootSelection.removeAllRanges()
+  rootSelection.addRange(range)
+}
+
+function createAIApplySnapshot(view: EditorView, tabId: string) {
+  const docText = view.state.doc.toString()
+  const selection = view.state.selection.main
+  const blockRange = resolveCurrentBlockRange(docText, selection.head) ?? {
+    from: selection.head,
+    to: selection.head,
+  }
+  const headingRange = resolveCurrentHeadingRange(docText, selection.head)
+
+  return {
+    tabId,
+    selectionFrom: selection.from,
+    selectionTo: selection.to,
+    anchorOffset: selection.head,
+    blockFrom: blockRange.from,
+    blockTo: blockRange.to,
+    headingFrom: headingRange?.from,
+    headingTo: headingRange?.to,
+    docText,
+  }
 }
 
 async function buildImageMarkdown(files: File[], activeTabPath: string | null): Promise<string> {
@@ -588,4 +1224,20 @@ function writeClipboardEventFallback(event: ClipboardEvent, markdownText: string
   clipboardData.setData('text/plain', markdownText)
   clipboardData.setData('text/html', buildPlainTextClipboardHtml(markdownText))
   return true
+}
+
+function resolveInsertedProvenanceRange(
+  from: number,
+  insertedText: string
+): { from: number; to: number } | null {
+  const leadingTrimmedLength = insertedText.match(/^[\s\r\n]*/u)?.[0]?.length ?? 0
+  const trailingTrimmedLength = insertedText.match(/[\s\r\n]*$/u)?.[0]?.length ?? 0
+  const contentLength = insertedText.length - leadingTrimmedLength - trailingTrimmedLength
+
+  if (contentLength <= 0) return null
+
+  return {
+    from: from + leadingTrimmedLength,
+    to: from + leadingTrimmedLength + contentLength,
+  }
 }

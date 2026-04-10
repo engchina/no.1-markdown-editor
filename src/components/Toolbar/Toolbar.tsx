@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, type ReactNode, type Ref, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useEditorStore, type ViewMode } from '../../store/editor'
 import { LANGUAGES, type Language } from '../../i18n'
 import { useFileOps } from '../../hooks/useFileOps'
+import { useAnchoredOverlayStyle } from '../../hooks/useAnchoredOverlayStyle'
 import { useExport } from '../../hooks/useExport'
 import { formatPrimaryShortcut } from '../../lib/platform'
 import type { FormatAction } from '../Editor/formatCommands'
@@ -130,6 +132,7 @@ function ToolbarMenu({
   width?: number
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
+  const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align, width })
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -145,16 +148,16 @@ function ToolbarMenu({
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose, triggerRef])
 
-  return (
+  if (typeof document === 'undefined' || overlayStyle === null) return null
+
+  return createPortal(
     <div
       ref={ref}
-      className="absolute top-12 z-50 overflow-hidden rounded-xl shadow-xl animate-in glass-panel"
+      className="fixed z-[80] overflow-x-hidden overflow-y-auto rounded-xl shadow-xl animate-in glass-panel"
       style={{
-        width,
+        ...overlayStyle,
         background: 'var(--glass-bg)',
         borderColor: 'var(--glass-border)',
-        left: align === 'left' ? 0 : 'auto',
-        right: align === 'right' ? 0 : 'auto',
       }}
     >
       {items.map(({ id, label, icon, textIcon, action }) => (
@@ -174,7 +177,8 @@ function ToolbarMenu({
           <span>{label}</span>
         </button>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -205,7 +209,7 @@ function ExportMenu({
     },
   ]
 
-  return <ToolbarMenu items={items} onClose={onClose} triggerRef={triggerRef} align="right" width={200} />
+  return <ToolbarMenu items={items} onClose={onClose} triggerRef={triggerRef} width={200} />
 }
 
 export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () => void; saving?: boolean }) {
@@ -217,8 +221,6 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
     setSidebarOpen,
     focusMode,
     setFocusMode,
-    wysiwygMode,
-    setWysiwygMode,
     language,
     setLanguage,
     tabs,
@@ -288,9 +290,9 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
 
   return (
     <div
-      className="relative flex flex-shrink-0 items-center gap-2 rounded-[1.25rem] px-4 transition-all duration-300 glass-panel"
+      className="relative flex min-w-max flex-shrink-0 items-center gap-1.5 rounded-[1.25rem] px-3.5 transition-all duration-300 glass-panel"
       style={{
-        height: '48px',
+        height: '46px',
         boxShadow: 'var(--shadow-elegant)',
       }}
     >
@@ -312,6 +314,17 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
         <ToolbarBtn title={`${t('toolbar.save')} (${saveShortcut})`} onClick={() => void saveFile()}>
           <AppIcon name="save" size={16} />
         </ToolbarBtn>
+        <div className="relative">
+          <ToolbarBtn
+            title={t('toolbar.export')}
+            buttonRef={exportButtonRef}
+            onClick={() => setShowExport((open) => !open)}
+            active={showExport}
+          >
+            <AppIcon name="download" size={16} />
+          </ToolbarBtn>
+          {showExport && <ExportMenu onClose={() => setShowExport(false)} triggerRef={exportButtonRef} />}
+        </div>
       </ToolbarGroup>
 
       <ToolbarGroup label={t('toolbar.structure')}>
@@ -396,27 +409,9 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
       <div className="flex-1" />
 
       <ToolbarBtn title={`${t('toolbar.commandPalette')} (${commandPaletteShortcut})`} onClick={() => onOpenPalette?.()}>
+        <span data-toolbar-action="command-palette" className="contents">
         <AppIcon name="keyboard" size={16} />
-      </ToolbarBtn>
-
-      <div className="relative">
-        <ToolbarBtn
-          title={t('toolbar.export')}
-          buttonRef={exportButtonRef}
-          onClick={() => setShowExport((open) => !open)}
-          active={showExport}
-        >
-          <AppIcon name="download" size={16} />
-        </ToolbarBtn>
-        {showExport && <ExportMenu onClose={() => setShowExport(false)} triggerRef={exportButtonRef} />}
-      </div>
-
-      <ToolbarBtn
-        title={`${t('themePanel.wysiwyg')}${wysiwygMode ? ' (ON)' : ''}`}
-        onClick={() => setWysiwygMode(!wysiwygMode)}
-        active={wysiwygMode}
-      >
-        <AppIcon name="sparkles" size={16} />
+        </span>
       </ToolbarBtn>
 
       <div className="relative">
@@ -426,24 +421,31 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
           onClick={() => setShowTheme((open) => !open)}
           active={showTheme}
         >
+          <span data-toolbar-action="appearance" className="contents">
           <AppIcon name="palette" size={16} />
+          </span>
         </ToolbarBtn>
         {showTheme && <ThemePanel onClose={() => setShowTheme(false)} triggerRef={themeButtonRef} />}
       </div>
 
       <ToolbarBtn title={t('toolbar.focusMode')} onClick={() => setFocusMode(!focusMode)} active={focusMode}>
+        <span data-toolbar-action="focus-mode" className="contents">
         <AppIcon name="focus" size={16} />
+        </span>
       </ToolbarBtn>
 
       <ToolbarGroup label={t('toolbar.viewMode')}>
         {VIEW_MODES.map(({ mode, icon }) => (
           <ToolbarBtn key={mode} title={t(`viewMode.${mode}`)} onClick={() => setViewMode(mode)} active={viewMode === mode}>
+            <span data-view-mode={mode} className="contents">
             <AppIcon name={icon} size={15} />
+            </span>
           </ToolbarBtn>
         ))}
       </ToolbarGroup>
 
       <select
+        data-language-select="true"
         value={language}
         onChange={(event) => setLanguage(event.target.value as Language)}
         className="flex-shrink-0 cursor-pointer rounded-[10px] px-2 py-0.5 text-xs outline-none"

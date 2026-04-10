@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEditorStore, useActiveTab, type SidebarTab } from '../../store/editor'
 import { useRecentFiles } from '../../hooks/useRecentFiles'
@@ -6,13 +6,17 @@ import { useWorkspaceSearch } from '../../hooks/useWorkspaceSearch'
 import { openDesktopDocumentPath } from '../../lib/desktopFileOpen'
 import { extractHeadings, type OutlineHeading as Heading } from '../../lib/outline'
 import AppIcon, { type IconName } from '../Icons/AppIcon'
+import AISidebarPanel from './AISidebarPanel'
+import type { AISidebarPeekView } from './aiSidebarShared'
 import FileTree from './FileTree'
 
 interface Props {
   width: number
+  aiPeekView: AISidebarPeekView | null
+  onAiPeekViewChange: (view: AISidebarPeekView | null) => void
 }
 
-export default function Sidebar({ width }: Props) {
+export default function Sidebar({ width, aiPeekView, onAiPeekViewChange }: Props) {
   const { t } = useTranslation()
   const { sidebarTab, setSidebarTab } = useEditorStore()
   const activeTab = useActiveTab()
@@ -21,6 +25,7 @@ export default function Sidebar({ width }: Props) {
     [activeTab?.content]
   )
   const tabs: { id: SidebarTab; icon: IconName; title: string }[] = [
+    { id: 'ai', icon: 'sparkles', title: t('sidebar.ai') },
     { id: 'outline', icon: 'outline', title: t('sidebar.outline') },
     { id: 'files', icon: 'folder', title: t('sidebar.files') },
     { id: 'recent', icon: 'clock', title: t('menu.recentFiles') },
@@ -29,53 +34,87 @@ export default function Sidebar({ width }: Props) {
 
   return (
     <div
-      className="flex flex-col flex-shrink-0 h-full"
+      className="sidebar-surface flex h-full min-h-0 flex-shrink-0 flex-col"
       style={{
         width,
-        background: 'transparent',
       }}
     >
       {/* Tab Pill Navigation */}
       <div
-        className="flex items-center mx-1 mb-3 p-1 rounded-[14px]"
-        style={{ background: 'color-mix(in srgb, var(--border) 30%, transparent)', border: '1px solid color-mix(in srgb, var(--border) 50%, transparent)' }}
+        className="flex flex-shrink-0 items-center px-3 pb-2 pt-3"
       >
-        {tabs.map(({ id, icon, title }) => (
-          <button
-            key={id}
-            title={title}
-            aria-label={title}
-            onClick={() => setSidebarTab(id)}
-            className="flex-1 h-8 rounded-[10px] flex items-center justify-center text-sm transition-all duration-300 ease-out"
-            style={{
-              color: sidebarTab === id ? 'var(--text-primary)' : 'var(--text-muted)',
-              background: sidebarTab === id ? 'var(--bg-primary)' : 'transparent',
-              boxShadow: sidebarTab === id ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-              fontWeight: sidebarTab === id ? 500 : 400
-            }}
-          >
-            <AppIcon name={icon} size={15} />
-          </button>
-        ))}
+        <div
+          className="flex w-full items-center p-1 rounded-[14px]"
+          style={{ background: 'color-mix(in srgb, var(--bg-secondary) 92%, transparent)', border: '1px solid color-mix(in srgb, var(--border) 72%, transparent)' }}
+        >
+          {tabs.map(({ id, icon, title }) => (
+            <button
+              key={id}
+              title={title}
+              aria-label={title}
+              data-sidebar-tab={id}
+              onClick={() => setSidebarTab(id)}
+              className="flex-1 h-8 rounded-[10px] flex items-center justify-center text-sm transition-all duration-300 ease-out"
+              style={{
+                color: sidebarTab === id ? 'var(--text-primary)' : 'var(--text-muted)',
+                background: sidebarTab === id ? 'var(--bg-primary)' : 'transparent',
+                boxShadow: sidebarTab === id ? '0 8px 20px -16px rgba(15, 23, 42, 0.32)' : 'none',
+                fontWeight: sidebarTab === id ? 500 : 400,
+              }}
+            >
+              <AppIcon name={icon} size={15} />
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-2 pt-0">
+      <div className="sidebar-surface__scroll flex-1 min-h-0 overflow-y-auto px-3 pb-3">
+        {sidebarTab === 'ai' && (
+          <AISidebarPanel activePeekView={aiPeekView} onPeekChange={onAiPeekViewChange} />
+        )}
         {sidebarTab === 'outline' && (
-          <OutlinePanel headings={headings} />
+          <SidebarSectionSurface>
+            <OutlinePanel headings={headings} />
+          </SidebarSectionSurface>
         )}
         {sidebarTab === 'files' && (
-          <div className="bg-[var(--bg-sidebar)] rounded-xl border-[color:var(--border)] border overflow-hidden p-2">
+          <SidebarSectionSurface className="p-2">
             <FileTree />
-          </div>
+          </SidebarSectionSurface>
         )}
         {sidebarTab === 'recent' && (
-          <RecentPanel />
+          <SidebarSectionSurface>
+            <RecentPanel />
+          </SidebarSectionSurface>
         )}
         {sidebarTab === 'search' && (
-          <SearchPanel />
+          <SidebarSectionSurface>
+            <SearchPanel />
+          </SidebarSectionSurface>
         )}
       </div>
+    </div>
+  )
+}
+
+function SidebarSectionSurface({
+  children,
+  className = 'px-3 py-3',
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={className}
+      style={{
+        background: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--border) 78%, transparent)',
+        borderRadius: '20px',
+      }}
+    >
+      {children}
     </div>
   )
 }
@@ -111,7 +150,7 @@ function OutlinePanel({ headings }: { headings: Heading[] }) {
           <li key={i}>
             <button
               type="button"
-              className="flex w-full items-center rounded-lg px-2 py-1 text-left text-xs transition-all hover-scale"
+              className="flex w-full items-center rounded-lg px-2 py-1 text-left text-xs transition-colors"
               style={{
                 paddingLeft: `${(h.level - 1) * 12 + 8}px`,
                 color: isActive ? 'var(--accent)' : h.level === 1 ? 'var(--text-primary)' : h.level === 2 ? 'var(--text-secondary)' : 'var(--text-muted)',

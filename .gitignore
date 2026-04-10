@@ -49,5 +49,14 @@ pnpm-debug.log*
 *.temp
 *.bak
 
+# Local agent memory files
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+MEMERY.md
+MEMORY.md
+
 # References
 references/
