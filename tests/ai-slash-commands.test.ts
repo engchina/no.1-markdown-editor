@@ -37,9 +37,10 @@ test('createAISlashCommandEntries maps slash labels to the expected AI open deta
   assert.equal(byId.continue.label, 'continue')
   assert.equal(byId.continue.openDetail.source, 'slash-command')
   assert.equal(byId.continue.openDetail.prompt, 'ai.templates.continueWritingPrompt')
-  assert.equal(byId.translate.openDetail.outputTarget, 'replace-selection')
-  assert.equal(byId.rewrite.openDetail.prompt, 'ai.templates.rewritePrompt')
-  assert.equal(byId.summarize.openDetail.prompt, 'ai.templates.summarizePrompt')
+  assert.equal(entries.length, 2)
+  assert.equal('translate' in byId, false)
+  assert.equal('rewrite' in byId, false)
+  assert.equal('summarize' in byId, false)
 })
 
 test('matchAISlashCommandQuery identifies slash command prefixes at the end of a line', () => {
@@ -63,11 +64,12 @@ test('resolveAISlashCommandTrigger only returns exact AI slash commands', () => 
 
   assert.equal(resolveAISlashCommandTrigger('/rew', entries), null)
   assert.equal(resolveAISlashCommandTrigger('notes /table', entries), null)
-  assert.deepEqual(resolveAISlashCommandTrigger('notes /rewrite', entries), {
-    entry: entries.find((entry) => entry.id === 'rewrite'),
-    query: 'rewrite',
+  assert.equal(resolveAISlashCommandTrigger('notes /rewrite', entries), null)
+  assert.deepEqual(resolveAISlashCommandTrigger('notes /continue', entries), {
+    entry: entries.find((entry) => entry.id === 'continue'),
+    query: 'continue',
     from: 6,
-    to: 14,
+    to: 15,
   })
 })
 
@@ -78,6 +80,7 @@ test('editor autocomplete includes slash-triggered AI command entries that dispa
   assert.match(optionalFeatures, /createAISlashCommandEntries\(i18n\.t\.bind\(i18n\)\)/)
   assert.match(optionalFeatures, /dispatchEditorAIOpen\(entry\.openDetail\)/)
   assert.match(optionalFeatures, /changes: \{ from, to, insert: '' \ }|changes: \{ from, to, insert: '' \}/)
+  assert.match(optionalFeatures, /closeCompletion\?\.\(view\)/)
   assert.match(optionalFeatures, /section: i18n\.t\('ai\.slash\.group'\)/)
   assert.match(optionalFeatures, /options: snippets,/)
   assert.match(optionalFeatures, /defaultKeymap: true/)

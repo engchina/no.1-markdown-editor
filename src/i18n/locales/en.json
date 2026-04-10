@@ -514,6 +514,8 @@
     "templateLibrary": {
       "title": "Prompt Library",
       "subtitle": "Reusable starters",
+      "focusedFilter": "Current + related",
+      "allFilter": "All templates",
       "askLabel": "Ask Anything",
       "askDetail": "Open a blank AI prompt for free-form questions and planning.",
       "continueLabel": "Continue Writing",

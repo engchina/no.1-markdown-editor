@@ -509,6 +509,8 @@
     "templateLibrary": {
       "title": "テンプレート",
       "subtitle": "再利用できる開始プロンプト",
+      "focusedFilter": "現在＋関連",
+      "allFilter": "すべてのテンプレート",
       "askLabel": "自由に質問",
       "askDetail": "自由入力の質問や相談向けに空の AI プロンプトを開きます。",
       "continueLabel": "続きを書く",

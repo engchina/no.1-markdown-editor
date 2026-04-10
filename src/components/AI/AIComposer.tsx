@@ -40,7 +40,7 @@ import {
 import { getAITemplateModels, type AITemplateId, type AITemplateModel } from '../../lib/ai/templateLibrary.ts'
 import { resolveAIOpenOutputTarget } from '../../lib/ai/opening.ts'
 import { formatPrimaryShortcut, matchesPrimaryShortcut } from '../../lib/platform.ts'
-import type { AIProviderState, AIPromptMentionResolution } from '../../lib/ai/types.ts'
+import type { AIIntent, AIProviderState, AIPromptMentionResolution } from '../../lib/ai/types.ts'
 import { findWorkspaceDocumentReferences, type WorkspaceDocumentReference } from '../../lib/workspaceSearch.ts'
 import {
   buildAIWorkspaceExecutionAgentResumeState,
@@ -60,6 +60,13 @@ import { openDesktopDocumentPath } from '../../lib/desktopFileOpen.ts'
 import { focusElementWithoutScroll } from '../../hooks/useDialogFocusRestore'
 
 const INTENT_ORDER = ['ask', 'edit', 'generate', 'review'] as const
+const RELATED_INTENT_ORDER: Record<AIIntent, readonly AIIntent[]> = {
+  ask: ['review', 'generate', 'edit'],
+  edit: ['review', 'generate', 'ask'],
+  generate: ['edit', 'review', 'ask'],
+  review: ['edit', 'ask', 'generate'],
+}
+const MIN_FOCUSED_TEMPLATE_COUNT = 3
 const OUTPUT_TARGET_ORDER = [
   'chat-only',
   'replace-selection',
@@ -2303,7 +2310,7 @@ function AITemplateLibrary({
   onSelectTemplate,
 }: {
   templates: AITemplateModel[]
-  composerIntent: string
+  composerIntent: AIIntent
   composerOutputTarget: string
   composerPrompt: string
   hasSelection: boolean
@@ -2311,20 +2318,85 @@ function AITemplateLibrary({
   onSelectTemplate: (template: AITemplateModel) => void
 }) {
   const { t } = useTranslation()
+  const [showAllTemplates, setShowAllTemplates] = useState(false)
+
+  const focusedTemplates = useMemo(() => templates.filter((template) => template.intent === composerIntent), [templates, composerIntent])
+  const supplementalTemplates = useMemo(() => {
+    const supplementalLimit = Math.max(MIN_FOCUSED_TEMPLATE_COUNT - focusedTemplates.length, 0)
+    if (supplementalLimit === 0) return []
+
+    const seenTemplateIds = new Set(focusedTemplates.map((template) => template.id))
+    const suggestions: AITemplateModel[] = []
+
+    for (const relatedIntent of RELATED_INTENT_ORDER[composerIntent]) {
+      for (const template of templates) {
+        if (template.intent !== relatedIntent || seenTemplateIds.has(template.id)) continue
+        suggestions.push(template)
+        seenTemplateIds.add(template.id)
+        if (suggestions.length >= supplementalLimit) return suggestions
+      }
+    }
+
+    return suggestions
+  }, [composerIntent, focusedTemplates, templates])
+  const visibleTemplates = useMemo(
+    () => (showAllTemplates ? templates : [...focusedTemplates, ...supplementalTemplates]),
+    [focusedTemplates, showAllTemplates, supplementalTemplates, templates]
+  )
+
+  useEffect(() => {
+    setShowAllTemplates(false)
+  }, [composerIntent])
 
   return (
     <div className="grid gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>
-          {t('ai.templateLibrary.title')}
-        </span>
-        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          {t('ai.templateLibrary.subtitle')}
-        </span>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>
+            {t('ai.templateLibrary.title')}
+          </span>
+          <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            {t('ai.templateLibrary.subtitle')}
+          </p>
+        </div>
+        <div
+          className="inline-flex items-center gap-1 rounded-full border p-1"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--border) 84%, transparent)',
+            background: 'color-mix(in srgb, var(--bg-secondary) 76%, transparent)',
+          }}
+        >
+          <button
+            type="button"
+            data-ai-template-filter="focused"
+            aria-pressed={!showAllTemplates}
+            onClick={() => setShowAllTemplates(false)}
+            className="rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
+            style={{
+              background: !showAllTemplates ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-primary))' : 'transparent',
+              color: !showAllTemplates ? 'var(--text-primary)' : 'var(--text-secondary)',
+            }}
+          >
+            {t('ai.templateLibrary.focusedFilter')}
+          </button>
+          <button
+            type="button"
+            data-ai-template-filter="all"
+            aria-pressed={showAllTemplates}
+            onClick={() => setShowAllTemplates(true)}
+            className="rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
+            style={{
+              background: showAllTemplates ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-primary))' : 'transparent',
+              color: showAllTemplates ? 'var(--text-primary)' : 'var(--text-secondary)',
+            }}
+          >
+            {t('ai.templateLibrary.allFilter')}
+          </button>
+        </div>
       </div>
-      <div className="-mx-1 overflow-x-auto pb-1">
+      <div className="-mx-1 overflow-x-auto pb-1 snap-x snap-proximity scroll-px-1">
         <div className="flex min-w-max gap-2 px-1">
-          {templates.map((template) => {
+          {visibleTemplates.map((template) => {
             const resolvedTarget = resolveAIOpenOutputTarget(
               template.intent,
               template.outputTarget,
@@ -2342,7 +2414,7 @@ function AITemplateLibrary({
                 type="button"
                 data-ai-template={template.id}
                 onClick={() => onSelectTemplate(template)}
-                className="flex w-[196px] cursor-pointer snap-start flex-col items-start rounded-2xl border px-3 py-3 text-left transition-colors"
+                className="flex w-[180px] shrink-0 cursor-pointer snap-start flex-col items-start rounded-2xl border px-3 py-3 text-left transition-colors"
                 style={{
                   borderColor: active
                     ? 'color-mix(in srgb, var(--accent) 38%, var(--border))'

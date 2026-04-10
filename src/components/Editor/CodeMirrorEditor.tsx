@@ -48,6 +48,7 @@ import {
   type EditorAIGhostTextDetail,
   type EditorAIOpenDetail,
 } from '../../lib/ai/events.ts'
+import { matchAISlashCommandQuery } from '../../lib/ai/slashCommands.ts'
 import { resolveAIOpenOutputTarget, resolveAISelectedTextRole } from '../../lib/ai/opening.ts'
 import {
   DEFAULT_AI_SELECTION_BUBBLE_SIZE,
@@ -91,6 +92,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const ghostTextRequestIdRef = useRef<string | null>(null)
   const ghostTextRunIdRef = useRef(0)
   const ghostTextSnapshotRef = useRef<{ docText: string; anchor: number } | null>(null)
+  const autocompleteModulePromiseRef = useRef<Promise<typeof import('@codemirror/autocomplete')> | null>(null)
   const selectionBubbleSizeRef = useRef<SelectionBubbleSize>(DEFAULT_AI_SELECTION_BUBBLE_SIZE)
   const searchPromiseRef = useRef<Promise<SearchSupport> | null>(null)
   const autocompletePromiseRef = useRef<Promise<Extension[]> | null>(null)
@@ -190,13 +192,12 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       const applyRestore = () => {
         if (viewRef.current !== view) return
 
-        view.focus()
         if (snapshot) {
           view.dispatch({ selection: snapshot.selection })
-          restoreNativeSelection(view, snapshot.selection)
           view.scrollDOM.scrollTop = snapshot.scrollTop
           view.scrollDOM.scrollLeft = snapshot.scrollLeft
         }
+        view.focus()
         updateSelectionBubble(view)
       }
 
@@ -289,6 +290,11 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     return autocompletePromiseRef.current
   }, [autocompleteExtensions])
 
+  const ensureAutocompleteModule = useCallback(async () => {
+    autocompleteModulePromiseRef.current ??= import('@codemirror/autocomplete')
+    return autocompleteModulePromiseRef.current
+  }, [])
+
   const ensureMarkdownLanguageExtensions = useCallback(async () => {
     if (markdownLanguageExtensions.length > 0) return markdownLanguageExtensions
 
@@ -343,6 +349,35 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
             syncProvenanceState(view)
             updateSelectionBubble(view)
           },
+        }),
+        EditorView.updateListener.of((update) => {
+          if (!update.docChanged) return
+          if (useAIStore.getState().composer.open) return
+
+          const selection = update.state.selection.main
+          if (update.state.selection.ranges.length !== 1 || !selection.empty) return
+
+          const line = update.state.doc.lineAt(selection.head)
+          const before = line.text.slice(0, selection.head - line.from)
+          if (!matchAISlashCommandQuery(before)) return
+
+          const view = update.view
+          queueMicrotask(() => {
+            void ensureAutocompleteExtensions()
+              .then((extensions) => {
+                if (viewRef.current !== view) return null
+                reconfigure(autocompleteCompartmentRef.current, extensions)
+                return ensureAutocompleteModule()
+              })
+              .then((autocomplete) => {
+                if (!autocomplete) return
+                if (viewRef.current !== view) return
+                if (useAIStore.getState().composer.open) return
+                view.focus()
+                autocomplete.closeCompletion(view)
+                autocomplete.startCompletion(view)
+              })
+          })
         }),
         lineNumbersCompartmentRef.current.of(lineNumbers ? buildLineNumberExtensions() : []),
         wordWrapCompartmentRef.current.of(buildWordWrapExtensions(wordWrap)),
@@ -416,6 +451,11 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   }, [autocompleteExtensions, reconfigure])
 
   useEffect(() => {
+    if (!aiComposerOpen) return
+    reconfigure(autocompleteCompartmentRef.current, [])
+  }, [aiComposerOpen, reconfigure])
+
+  useEffect(() => {
     reconfigure(wysiwygCompartmentRef.current, wysiwygExtensions)
   }, [reconfigure, wysiwygExtensions])
 
@@ -483,9 +523,10 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     const restoreSnapshot = aiComposerRestoreSnapshotRef.current
     aiComposerRestoreSnapshotRef.current = null
 
+    reconfigure(autocompleteCompartmentRef.current, autocompleteExtensions)
     syncGhostTextState(view)
     restoreAIComposerEditorContext(view, restoreSnapshot)
-  }, [aiComposerOpen, restoreAIComposerEditorContext, syncGhostTextState])
+  }, [aiComposerOpen, autocompleteExtensions, reconfigure, restoreAIComposerEditorContext, syncGhostTextState])
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -1151,25 +1192,6 @@ function insertMarkdown(
     effects: options.effects,
     userEvent: options.userEvent,
   })
-}
-
-function restoreNativeSelection(view: EditorView, selection: EditorSelection): void {
-  const root = view.root
-  const rootSelection =
-    'getSelection' in root && typeof root.getSelection === 'function'
-      ? root.getSelection()
-      : null
-  if (!rootSelection) return
-
-  const main = selection.main
-  const start = view.domAtPos(Math.min(main.from, main.to))
-  const end = view.domAtPos(Math.max(main.from, main.to))
-  const range = view.dom.ownerDocument.createRange()
-
-  range.setStart(start.node, start.offset)
-  range.setEnd(end.node, end.offset)
-  rootSelection.removeAllRanges()
-  rootSelection.addRange(range)
 }
 
 function createAIApplySnapshot(view: EditorView, tabId: string) {

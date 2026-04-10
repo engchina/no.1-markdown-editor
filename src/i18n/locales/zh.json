@@ -509,6 +509,8 @@
     "templateLibrary": {
       "title": "模板库",
       "subtitle": "可复用起手式",
+      "focusedFilter": "当前 + 相关",
+      "allFilter": "全部模板",
       "askLabel": "自由提问",
       "askDetail": "打开一个空白 AI 提示，用于自由提问和思路整理。",
       "continueLabel": "继续写作",

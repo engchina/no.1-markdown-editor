@@ -2,7 +2,7 @@ import type { AIComposerSource } from './types.ts'
 import { createAITemplateOpenDetail } from './templateLibrary.ts'
 import type { EditorAIOpenDetail } from './events.ts'
 
-export type AISlashCommandId = 'ai' | 'continue' | 'translate' | 'rewrite' | 'summarize'
+export type AISlashCommandId = 'ai' | 'continue'
 
 interface Translate {
   (key: string): string
@@ -41,24 +41,6 @@ export function createAISlashCommandEntries(t: Translate): AISlashCommandEntry[]
       label: 'continue',
       detail: t('ai.slash.continueDetail'),
       openDetail: createAITemplateOpenDetail('continueWriting', t, SLASH_COMMAND_SOURCE),
-    },
-    {
-      id: 'translate',
-      label: 'translate',
-      detail: t('ai.slash.translateDetail'),
-      openDetail: createAITemplateOpenDetail('translate', t, SLASH_COMMAND_SOURCE),
-    },
-    {
-      id: 'rewrite',
-      label: 'rewrite',
-      detail: t('ai.slash.rewriteDetail'),
-      openDetail: createAITemplateOpenDetail('rewrite', t, SLASH_COMMAND_SOURCE),
-    },
-    {
-      id: 'summarize',
-      label: 'summarize',
-      detail: t('ai.slash.summarizeDetail'),
-      openDetail: createAITemplateOpenDetail('summarize', t, SLASH_COMMAND_SOURCE),
     },
   ]
 }

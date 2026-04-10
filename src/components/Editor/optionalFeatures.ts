@@ -43,11 +43,18 @@ let searchSupportPromise: Promise<SearchSupport> | null = null
 let autocompleteExtensionsPromise: Promise<Extension[]> | null = null
 let markdownLanguageExtensionsPromise: Promise<Extension[]> | null = null
 
-function applyAISlashCommand(view: EditorView, entry: AISlashCommandEntry, from: number, to: number) {
+function applyAISlashCommand(
+  view: EditorView,
+  entry: AISlashCommandEntry,
+  from: number,
+  to: number,
+  closeCompletion?: (view: EditorView) => boolean
+) {
   view.dispatch({
     changes: { from, to, insert: '' },
     selection: { anchor: from },
   })
+  closeCompletion?.(view)
   dispatchEditorAIOpen(entry.openDetail)
 }
 
@@ -75,7 +82,7 @@ function createMarkdownSnippetSource(autocomplete: typeof import('@codemirror/au
     boost: 100,
     section: i18n.t('ai.slash.group'),
     apply(view: EditorView, _completion: unknown, from: number, to: number) {
-      applyAISlashCommand(view, entry, from, to)
+      applyAISlashCommand(view, entry, from, to, autocomplete.closeCompletion)
     },
   }))
 
@@ -305,6 +312,8 @@ export async function loadAutocompleteExtensions(): Promise<Extension[]> {
           userEvent: 'input.type',
         })
         queueMicrotask(() => {
+          view.focus()
+          autocomplete.closeCompletion(view)
           autocomplete.startCompletion(view)
         })
         return true

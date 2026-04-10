@@ -71,6 +71,8 @@ test('AI Composer and AI sidebar both expose the prompt library UI surfaces', as
 
   assert.match(composer, /getAITemplateModels\(t\)/)
   assert.match(composer, /data-ai-template=\{template\.id\}/)
+  assert.match(composer, /data-ai-template-filter="focused"/)
+  assert.match(composer, /data-ai-template-filter="all"/)
   assert.match(composer, /t\('ai\.templateLibrary\.title'\)/)
   assert.match(rail, /data-ai-sidebar-template=\{template\.id\}/)
   assert.match(rail, /createAITemplateOpenDetail\(template\.id, t, SIDEBAR_TAB_SOURCE\)/)
