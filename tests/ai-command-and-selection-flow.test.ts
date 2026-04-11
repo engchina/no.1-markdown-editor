@@ -12,7 +12,7 @@ test('AI command palette entries route through shared quick-action presets where
   assert.match(commands, /id: 'ai\.ghostTextContinuation'/)
   assert.match(commands, /dispatchEditorAIGhostText\(\{ source: 'command-palette' \}\)/)
   assert.match(commands, /id: 'ai\.newNote'/)
-  assert.match(commands, /createAITemplateOpenDetail\('newNote', t, 'command-palette'\)/)
+  assert.match(commands, /dispatchEditorAIOpen\(\{\s*source: 'command-palette',\s*intent: 'generate',\s*outputTarget: 'new-note',\s*prompt: t\('ai\.templates\.newNotePrompt'\),?\s*\}\)/)
   assert.match(commands, /id: 'ai\.summarizeSelection'/)
   assert.match(commands, /createAIQuickActionOpenDetail\('summarize', t\)/)
   assert.match(commands, /id: 'ai\.translateSelection'/)
@@ -48,14 +48,12 @@ test('AIComposer cancel path both increments the local run id and attempts backe
   assert.match(composer, /pushInfoNotice\('notices\.aiRequestCanceledTitle', 'notices\.aiRequestCanceledMessage'\)/)
 })
 
-test('AIComposer routes chat-only outputs through explicit insert targets and non-chat outputs through apply', async () => {
+test('AIComposer routes chat-only outputs through a single insert action and non-chat outputs through apply', async () => {
   const composer = await readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8')
 
-  assert.match(composer, /composer\.outputTarget === 'chat-only' && canApplyToEditor/)
-  assert.match(composer, /insertTargets\.map\(\(target\) => \(/)
-  assert.match(composer, /'new-note'/)
-  assert.match(composer, /handleApplyToTarget\(target\)/)
-  assert.match(composer, /composer\.outputTarget !== 'chat-only' && canApplyToEditor/)
+  assert.match(composer, /data-ai-action="insert"/)
+  assert.match(composer, /handleApplyToTarget\(aiDefaultWriteTarget !== 'replace-selection' \? aiDefaultWriteTarget : 'insert-below'\)/)
+  assert.match(composer, /data-ai-action="apply"/)
   assert.match(composer, /onClick=\{handleApply\}/)
 })
 

@@ -307,7 +307,7 @@ a:focus-visible {
 }
 
 .cm-content {
-  padding: 24px 0 !important;
+  padding: 24px 0 5.4em !important;
   color: var(--editor-text) !important;
   caret-color: var(--editor-cursor) !important;
 }
@@ -939,7 +939,7 @@ a:focus-visible {
 }
 
 .focus-mode-container .cm-content {
-  padding: 24px 0 !important;
+  padding: 24px 0 5.4em !important;
 }
 
 .focus-mode-container .cm-line {

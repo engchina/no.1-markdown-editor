@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 
-test('AIComposer exposes draft and diff result views plus chat-only insert actions', async () => {
+test('AIComposer exposes draft and diff result views plus chat-mode insert and apply actions', async () => {
   const composer = await readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8')
 
   assert.match(composer, /data-ai-result-view=\{view\}/)
@@ -11,17 +11,17 @@ test('AIComposer exposes draft and diff result views plus chat-only insert actio
   assert.doesNotMatch(composer, /view: 'explain', label: t\('ai\.result\.explain'\)/)
   assert.match(composer, /onClick=\{\(\) => !disabled && setResultView\(view\)\}/)
   assert.doesNotMatch(composer, /AIExplainView/)
-  assert.match(composer, /composer\.outputTarget === 'chat-only' && canApplyToEditor/)
-  assert.match(composer, /insertTargets\.map\(\(target\) => \(/)
-  assert.match(composer, /handleApplyToTarget\(target\)/)
+  assert.match(composer, /data-ai-action="insert"/)
+  assert.match(composer, /handleApplyToTarget\(aiDefaultWriteTarget !== 'replace-selection' \? aiDefaultWriteTarget : 'insert-below'\)/)
+  assert.match(composer, /data-ai-action="apply"/)
 })
 
-test('AIComposer exposes retry, discard, cancel-request, and copy actions in the result toolbar', async () => {
+test('AIComposer exposes retry, discard, stop, and copy actions in the toolbar', async () => {
   const composer = await readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8')
 
   assert.match(composer, /t\('ai\.retry'\)/)
   assert.match(composer, /t\('ai\.discard'\)/)
-  assert.match(composer, /t\('ai\.cancelRequest'\)/)
+  assert.match(composer, /t\('ai\.stop'\)/)
   assert.match(composer, /t\('ai\.copy'\)/)
 })
 

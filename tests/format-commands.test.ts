@@ -4,7 +4,7 @@ import { EditorState, EditorSelection } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 import { applyFormat } from '../src/components/Editor/formatCommands.ts'
 
-type DispatchSpec = Parameters<EditorState['update']>[0] & { scrollIntoView?: boolean }
+type DispatchSpec = Parameters<EditorState['update']>[0] & { effects?: unknown }
 
 function createTestView(doc: string, from: number, to = from): EditorView & {
   state: EditorState
@@ -71,5 +71,6 @@ test('applyFormat scrolls the updated selection into view after inserting block 
 
   applyFormat(view, 'table')
 
-  assert.equal(view.lastDispatch?.scrollIntoView, true)
+  assert.ok(Array.isArray(view.lastDispatch?.effects))
+  assert.ok((view.lastDispatch?.effects as unknown[] | undefined)?.length)
 })

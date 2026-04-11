@@ -1,6 +1,6 @@
 {
   "name": "no1-markdown-editor",
-  "version": "0.11.9",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,6 +17,7 @@
     "test:ai:keyboard:smoke": "npm run build && node scripts/run-ai-keyboard-smoke.mjs",
     "test:ai:manual:qa:capture": "npm run build && node scripts/run-ai-manual-qa-capture.mjs",
     "test:paste:smoke": "npm run build && node scripts/run-paste-smoke.mjs",
+    "test:source:smoke": "npm run build && node scripts/run-source-interaction-smoke.mjs",
     "tauri": "node scripts/run-tauri.mjs",
     "package:win": ".\\scripts\\package-win.cmd",
     "package:mac": "bash ./scripts/package-mac.sh"

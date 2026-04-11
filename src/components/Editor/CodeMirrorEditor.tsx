@@ -62,6 +62,7 @@ import { getImageAltText } from '../../lib/fileTypes'
 import { getTauriFilePersistence, persistImageFilesAsMarkdown } from '../../lib/documentPersistence'
 import { prepareImageMarkdownInsertion } from '../../lib/imageMarkdownInsertion'
 import { prepareMarkdownInsertion } from '../../lib/markdownInsertion'
+import { appendEditorSelectionScrollEffect, keepEditorCursorBottomGap } from '../../lib/editorScroll.ts'
 import { convertClipboardHtmlToMarkdown } from '../../lib/pasteHtml'
 import { pushErrorNotice, pushInfoNotice } from '../../lib/notices'
 import {
@@ -97,6 +98,7 @@ interface AIComposerRestoreSnapshot {
 export default function CodeMirrorEditor({ content, onChange }: Props) {
   const { t } = useTranslation()
   const aiComposerOpen = useAIStore((state) => state.composer.open)
+  const typewriterMode = useEditorStore((state) => state.typewriterMode)
   const shellRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -104,6 +106,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const aiComposerRestoreSnapshotRef = useRef<AIComposerRestoreSnapshot | null>(null)
   const isUpdatingRef = useRef(false)
   const onChangeRef = useRef(onChange)
+  const typewriterModeRef = useRef(typewriterMode)
   const ghostTextRequestIdRef = useRef<string | null>(null)
   const ghostTextRunIdRef = useRef(0)
   const ghostTextSnapshotRef = useRef<{ docText: string; anchor: number } | null>(null)
@@ -123,7 +126,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const lineNumbers = useEditorStore((state) => state.lineNumbers)
   const wordWrap = useEditorStore((state) => state.wordWrap)
   const fontSize = useEditorStore((state) => state.fontSize)
-  const typewriterMode = useEditorStore((state) => state.typewriterMode)
   const wysiwygMode = useEditorStore((state) => state.wysiwygMode)
   const pendingNavigation = useEditorStore((state) => state.pendingNavigation)
   const setPendingNavigation = useEditorStore((state) => state.setPendingNavigation)
@@ -226,6 +228,10 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     onChangeRef.current = onChange
   }, [onChange])
 
+  useEffect(() => {
+    typewriterModeRef.current = typewriterMode
+  }, [typewriterMode])
+
   const clearGhostTextState = useCallback((viewOverride?: EditorView | null) => {
     const view = viewOverride ?? viewRef.current
     if (!view) return
@@ -275,6 +281,15 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       setProvenanceMarks(tabId, readAIProvenanceMarks(view))
     },
     [activeTab?.id, setProvenanceMarks]
+  )
+
+  const syncCursorBottomGap = useCallback(
+    (viewOverride?: EditorView | null) => {
+      const view = viewOverride ?? viewRef.current
+      if (!view || !view.hasFocus || typewriterModeRef.current) return
+      keepEditorCursorBottomGap(view)
+    },
+    []
   )
 
   const reconfigure = useCallback((compartment: Compartment, extension: Extension) => {
@@ -383,6 +398,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         onSelectionChange: (view) => {
           syncGhostTextState(view)
           syncProvenanceState(view)
+          syncCursorBottomGap(view)
           updateSelectionBubble(view)
         },
       }),
@@ -454,7 +470,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       viewRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab?.id, content, handleCursorChange, t, updateSelectionBubble])
+  }, [activeTab?.id, handleCursorChange, t])
 
   useEffect(() => {
     void ensureAutocompleteExtensions()
@@ -736,15 +752,19 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       const view = viewRef.current
       if (!view) return
 
+      const queuePasteCursorBottomGapSync = () => {
+        setTimeout(() => {
+          if (viewRef.current !== view) return
+          keepEditorCursorBottomGap(view, { force: true })
+        }, 0)
+      }
+
       const clipboardData = event.clipboardData
       const items = clipboardData?.items
       const hasHtml = clipboardHasType(clipboardData, 'text/html')
-      const hasPlainText = clipboardHasType(clipboardData, 'text/plain')
-      const hasImageFiles = Array.from(items ?? []).some((item) => item.type.startsWith('image/'))
-
-      if (!hasHtml && !hasImageFiles && !hasPlainText) return
 
       event.preventDefault()
+      event.stopPropagation()
 
       if (hasHtml) {
         const [html, plainText] = await Promise.all([
@@ -754,11 +774,13 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         const markdownText = convertClipboardHtmlToMarkdown(html, plainText)
         if (markdownText) {
           replaceSelectionWithMarkdown(view, markdownText)
+          queuePasteCursorBottomGapSync()
           return
         }
 
         if (plainText) {
           replaceSelectionWithMarkdown(view, plainText)
+          queuePasteCursorBottomGapSync()
           return
         }
       }
@@ -772,15 +794,20 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         if (imageFiles.length > 0) {
           const markdownText = await buildImageMarkdown(imageFiles, activeTab?.path ?? null)
           replaceSelectionWithImageMarkdown(view, markdownText)
+          queuePasteCursorBottomGapSync()
           return
         }
       }
 
-      if (!hasPlainText) return
+      const plainText = clipboardData
+        ? await readClipboardString(clipboardData, 'text/plain')
+        : typeof navigator.clipboard?.readText === 'function'
+          ? await navigator.clipboard.readText().catch(() => '')
+          : ''
 
-      const plainText = await readClipboardString(clipboardData, 'text/plain')
       if (plainText) {
         replaceSelectionWithMarkdown(view, plainText)
+        queuePasteCursorBottomGapSync()
       }
     }
 
@@ -921,6 +948,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
       const detail = (event as CustomEvent<EditorAIApplyDetail>).detail
       if (detail.tabId !== activeTab.id) return
+      const wasComposerOpen = useAIStore.getState().composer.open
 
       if (detail.outputTarget === 'new-note') {
         const tabId = useEditorStore.getState().addTab({
@@ -967,7 +995,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         currentDoc,
         detail.text
       )
-      view.focus()
       const provenanceRange = detail.provenance
         ? resolveInsertedProvenanceRange(range.from, text)
         : null
@@ -994,6 +1021,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       syncProvenanceState(view, activeTab.id)
       aiComposerRestoreSnapshotRef.current = null
       useAIStore.getState().closeComposer()
+      if (wasComposerOpen) view.focus()
       updateSelectionBubble(view)
     }
 
@@ -1302,14 +1330,32 @@ function insertMarkdown(
     scrollIntoView?: boolean
   } = {}
 ): void {
+  const selectionAnchor = options.selectionAnchor ?? range.from + markdownText.length
+  const effects =
+    options.scrollIntoView === false
+      ? options.effects
+      : appendEditorSelectionScrollEffect(view, options.effects, selectionAnchor)
+
   view.dispatch({
     changes: { from: range.from, to: range.to, insert: markdownText },
-    selection: { anchor: options.selectionAnchor ?? range.from + markdownText.length },
-    scrollIntoView: options.scrollIntoView ?? true,
+    selection: { anchor: selectionAnchor },
     annotations: options.isolateHistoryBoundary ? isolateHistory.of('full') : undefined,
-    effects: options.effects,
+    effects,
     userEvent: options.userEvent,
   })
+
+  if (options.scrollIntoView !== false) {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        // Re-dispatch scroll after CodeMirror has rendered the new content.
+        // lineBlockAt() may return estimated coords for off-screen content on
+        // the first dispatch, so a second pass with fresh measurements is needed
+        // (important for large insertions such as base64 image markdown).
+        view.dispatch({ effects: appendEditorSelectionScrollEffect(view, undefined, selectionAnchor) })
+        keepEditorCursorBottomGap(view, { force: true })
+      })
+    )
+  }
 }
 
 function createAIApplySnapshot(view: EditorView, tabId: string) {

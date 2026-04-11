@@ -4,7 +4,8 @@
  */
 
 import { EditorView } from '@codemirror/view'
-import { EditorSelection } from '@codemirror/state'
+import { EditorSelection, type TransactionSpec } from '@codemirror/state'
+import { appendEditorSelectionScrollEffect } from '../../lib/editorScroll.ts'
 
 export type FormatAction =
   | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'highlight'
@@ -44,11 +45,16 @@ export function applyFormat(view: EditorView, action: FormatAction): void {
 
 function dispatchFormatChange(
   view: EditorView,
-  spec: Parameters<EditorView['dispatch']>[0]
+  spec: TransactionSpec
 ): void {
+  const previewTransaction = view.state.update(spec)
   view.dispatch({
     ...spec,
-    scrollIntoView: true,
+    effects: appendEditorSelectionScrollEffect(
+      view,
+      previewTransaction.effects,
+      previewTransaction.state.selection.main.head
+    ),
   })
   view.focus()
 }

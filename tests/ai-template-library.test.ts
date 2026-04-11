@@ -14,7 +14,7 @@ test('AI template library definitions cover the current reusable prompt starters
 
   assert.deepEqual(
     definitions.map((definition) => definition.id),
-    ['ask', 'continueWriting', 'newNote', 'translate', 'rewrite', 'summarize', 'review', 'generateBelow']
+    ['ask', 'continueWriting', 'translate', 'summarize', 'explain', 'rewrite']
   )
 })
 
@@ -24,9 +24,10 @@ test('AI template library resolves localized models and open details', () => {
 
   assert.equal(byId.ask.prompt, '')
   assert.equal(byId.continueWriting.prompt, 'ai.templates.continueWritingPrompt')
-  assert.equal(byId.newNote.prompt, 'ai.templates.newNotePrompt')
-  assert.equal(byId.review.prompt, 'ai.templates.reviewPrompt')
-  assert.equal(byId.generateBelow.prompt, 'ai.templates.generateBelowPrompt')
+  assert.equal(byId.translate.prompt, 'ai.templates.translatePrompt')
+  assert.equal(byId.summarize.prompt, 'ai.templates.summarizePrompt')
+  assert.equal(byId.explain.prompt, 'ai.templates.explainPrompt')
+  assert.equal(byId.rewrite.prompt, 'ai.templates.rewritePrompt')
 
   assert.deepEqual(createAITemplateOpenDetail('translate', t, 'command-palette'), {
     source: 'command-palette',
@@ -34,21 +35,21 @@ test('AI template library resolves localized models and open details', () => {
     outputTarget: 'replace-selection',
     prompt: 'ai.templates.translatePrompt',
   })
-  assert.deepEqual(createAITemplateOpenDetail('review', t, 'sidebar-tab'), {
+  assert.deepEqual(createAITemplateOpenDetail('explain', t, 'sidebar-tab'), {
     source: 'sidebar-tab',
-    intent: 'review',
+    intent: 'ask',
     outputTarget: 'chat-only',
-    prompt: 'ai.templates.reviewPrompt',
+    prompt: 'ai.templates.explainPrompt',
   })
-  assert.deepEqual(createAITemplateOpenDetail('newNote', t, 'command-palette'), {
+  assert.deepEqual(createAITemplateOpenDetail('rewrite', t, 'command-palette'), {
     source: 'command-palette',
-    intent: 'generate',
-    outputTarget: 'new-note',
-    prompt: 'ai.templates.newNotePrompt',
+    intent: 'edit',
+    outputTarget: 'replace-selection',
+    prompt: 'ai.templates.rewritePrompt',
   })
 })
 
-test('AI Composer and AI sidebar both expose the prompt library UI surfaces', async () => {
+test('AI Composer suggestion chips and AI sidebar prompt library both expose template entry points', async () => {
   const [composer, rail] = await Promise.all([
     readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/Sidebar/AISidebarPeekRail.tsx', import.meta.url), 'utf8'),
@@ -57,14 +58,11 @@ test('AI Composer and AI sidebar both expose the prompt library UI surfaces', as
   assert.match(composer, /getAITemplateModels\(t\)/)
   assert.match(composer, /<AIQuickChips/)
   assert.match(composer, /function AIQuickChips\(/)
+  assert.match(composer, /AI_COMPOSER_SUGGESTION_TEMPLATE_ORDER/)
   assert.match(composer, /data-ai-template=\{template\.id\}/)
   assert.match(composer, /t\('ai\.mode\.suggestions'\)/)
-  assert.match(composer, /const \[showAll, setShowAll\] = useState\(false\)/)
-  assert.match(composer, /onClick=\{\(\) => setShowAll\(true\)\}/)
-  assert.match(composer, /t\('ai\.templateLibrary\.allFilter'\)/)
-  assert.doesNotMatch(composer, /data-ai-template-filter="focused"/)
-  assert.doesNotMatch(composer, /data-ai-template-filter="all"/)
   assert.doesNotMatch(composer, /t\('ai\.templateLibrary\.title'\)/)
+  assert.match(rail, /getAITemplateModels\(t\)\.filter\(\(tmpl\) => tmpl\.id !== 'ask'\)/)
   assert.match(rail, /data-ai-sidebar-template=\{template\.id\}/)
   assert.match(rail, /createAITemplateOpenDetail\(template\.id, t, SIDEBAR_TAB_SOURCE\)/)
 })

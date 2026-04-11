@@ -27,13 +27,14 @@ Install latest package from [releases](https://github.com/engchina/no.1-markdown
 - Run `npm run test:ai:i18n:smoke` to verify the AI-related UI labels and layout in English, Japanese, and Chinese against a built local preview.
 - Run `npm run test:ai:keyboard:smoke` to verify the keyboard-only `Ctrl/Cmd+J -> Run -> Apply` path, streamed draft preview isolation before apply, and editor focus return against a built local preview.
 - Run `npm run test:ai:manual:qa:capture` to regenerate the locale/mode QA artifact set under `output/playwright/ai-manual-qa/`.
+- Run `npm run test:source:smoke` to verify source-editor ordinary typing, plain-text paste, and AI Apply keep the viewport near the active cursor instead of snapping back to the top.
 
 ## Release
 
 GitHub release automation is defined in `.github/workflows/release.yml`.
 
 - Keep the version aligned in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`.
-- Create and push a version tag such as `v0.11.5`. The workflow fails early if the tag does not match the app version.
+- Create and push a version tag such as `v0.12.0`. The workflow fails early if the tag does not match the app version.
 - Pushing the tag builds Windows x64, a single universal macOS release bundle for both Apple Silicon and Intel Macs, and Linux x64 release bundles on GitHub-hosted runners and uploads them to GitHub Releases automatically.
 
 For macOS builds:

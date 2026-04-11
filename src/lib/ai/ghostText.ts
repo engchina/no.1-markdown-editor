@@ -14,6 +14,7 @@ import {
   type Extension,
 } from '@codemirror/state'
 import { createAIProvenanceAddEffect, createAIProvenanceMark } from './provenance.ts'
+import { appendEditorSelectionScrollEffect } from '../editorScroll.ts'
 
 export interface AIGhostTextState {
   anchor: number
@@ -115,6 +116,7 @@ export function acceptAIGhostText(view: EditorView): boolean {
 
   const provenanceFrom = ghostText.anchor
   const provenanceTo = ghostText.anchor + ghostText.text.length
+  const selectionAnchor = ghostText.anchor + ghostText.text.length
   view.dispatch({
     changes: {
       from: ghostText.anchor,
@@ -122,11 +124,10 @@ export function acceptAIGhostText(view: EditorView): boolean {
       insert: ghostText.text,
     },
     selection: {
-      anchor: ghostText.anchor + ghostText.text.length,
+      anchor: selectionAnchor,
     },
-    scrollIntoView: true,
     annotations: isolateHistory.of('full'),
-    effects: [
+    effects: appendEditorSelectionScrollEffect(view, [
       clearAIGhostTextEffect.of(),
       createAIProvenanceAddEffect(
         createAIProvenanceMark({
@@ -138,7 +139,7 @@ export function acceptAIGhostText(view: EditorView): boolean {
           createdAt: ghostText.createdAt,
         })
       ),
-    ],
+    ], selectionAnchor),
     userEvent: 'input.ai',
   })
 

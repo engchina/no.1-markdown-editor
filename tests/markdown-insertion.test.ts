@@ -2,30 +2,30 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { prepareMarkdownInsertion } from '../src/lib/markdownInsertion.ts'
 
-test('prepareMarkdownInsertion appends a newline when the inserted text does not end with one', () => {
+test('prepareMarkdownInsertion leaves plain pasted text unchanged', () => {
   assert.deepEqual(prepareMarkdownInsertion('Pasted block'), {
-    text: 'Pasted block\n',
-    selectionOffset: 'Pasted block\n'.length,
+    text: 'Pasted block',
+    selectionOffset: 'Pasted block'.length,
   })
 })
 
-test('prepareMarkdownInsertion reuses an existing following newline and moves the cursor below the inserted block', () => {
+test('prepareMarkdownInsertion does not hop across an existing following newline', () => {
   assert.deepEqual(prepareMarkdownInsertion('Pasted block', '\nNext paragraph'), {
     text: 'Pasted block',
-    selectionOffset: 'Pasted block'.length + 1,
+    selectionOffset: 'Pasted block'.length,
   })
 })
 
-test('prepareMarkdownInsertion preserves an existing trailing newline from the inserted content', () => {
+test('prepareMarkdownInsertion preserves inserted trailing newlines exactly as provided', () => {
   assert.deepEqual(prepareMarkdownInsertion('Pasted block\n'), {
     text: 'Pasted block\n',
     selectionOffset: 'Pasted block\n'.length,
   })
 })
 
-test('prepareMarkdownInsertion reuses CRLF line breaks without duplicating them', () => {
+test('prepareMarkdownInsertion ignores following CRLF because it no longer appends or skips line breaks', () => {
   assert.deepEqual(prepareMarkdownInsertion('Pasted block', '\r\nNext paragraph'), {
     text: 'Pasted block',
-    selectionOffset: 'Pasted block'.length + 2,
+    selectionOffset: 'Pasted block'.length,
   })
 })
