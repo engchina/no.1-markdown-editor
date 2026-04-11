@@ -27,13 +27,6 @@ jobs:
           - label: Linux x64
             platform: ubuntu-22.04
             args: ""
-    env:
-      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
@@ -89,43 +82,97 @@ jobs:
           }
           EOF
 
-      - name: Enable ad-hoc signing for unsigned macOS builds
-        if: runner.os == 'macOS' && (env.APPLE_CERTIFICATE == '' || env.APPLE_CERTIFICATE_PASSWORD == '' || env.KEYCHAIN_PASSWORD == '')
+      - name: Configure macOS signing
+        if: runner.os == 'macOS'
         shell: bash
-        run: echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
-
-      - name: Import Apple certificate
-        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE != '' && env.APPLE_CERTIFICATE_PASSWORD != '' && env.KEYCHAIN_PASSWORD != ''
-        shell: bash
+        env:
+          INPUT_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          INPUT_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          INPUT_APPLE_ID: ${{ secrets.APPLE_ID }}
+          INPUT_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          INPUT_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          INPUT_KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          rm -f certificate.p12
-          if echo "$APPLE_CERTIFICATE" | base64 -d > certificate.p12 2>/dev/null; then
-            true
+          write_env() {
+            {
+              echo "$1<<__EOF__"
+              echo "$2"
+              echo "__EOF__"
+            } >> "$GITHUB_ENV"
+          }
+
+          decode_certificate() {
+            if printf '%s' "$INPUT_APPLE_CERTIFICATE" | base64 -d > "$1" 2>/dev/null; then
+              return 0
+            fi
+
+            if printf '%s' "$INPUT_APPLE_CERTIFICATE" | base64 -D > "$1" 2>/dev/null; then
+              return 0
+            fi
+
+            return 1
+          }
+
+          if [[ -z "$INPUT_APPLE_CERTIFICATE" || -z "$INPUT_APPLE_CERTIFICATE_PASSWORD" ]]; then
+            echo "Apple signing certificate secrets are not configured. Falling back to ad-hoc signing."
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/apple-signing-certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/apple-signing-validation.keychain-db"
+          KEYCHAIN_PASSWORD_TO_USE="${INPUT_KEYCHAIN_PASSWORD:-temporary-signing-password}"
+
+          rm -f "$CERTIFICATE_PATH"
+          if ! decode_certificate "$CERTIFICATE_PATH"; then
+            echo "::warning::APPLE_CERTIFICATE is not valid base64-encoded p12 data. Falling back to ad-hoc signing."
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD_TO_USE" "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD_TO_USE" "$KEYCHAIN_PATH"
+
+          if ! security import "$CERTIFICATE_PATH" -k "$KEYCHAIN_PATH" -P "$INPUT_APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign >/dev/null 2>&1; then
+            echo "::warning::Apple certificate import failed. Check APPLE_CERTIFICATE and APPLE_CERTIFICATE_PASSWORD. Falling back to ad-hoc signing."
+            security delete-keychain "$KEYCHAIN_PATH" || true
+            rm -f "$CERTIFICATE_PATH"
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          APPLE_SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F '"' '/"/ { print $2; exit }')"
+          security delete-keychain "$KEYCHAIN_PATH" || true
+          rm -f "$CERTIFICATE_PATH"
+
+          if [[ -z "$APPLE_SIGNING_IDENTITY" ]]; then
+            echo "::warning::No signing identity was found in APPLE_CERTIFICATE. Falling back to ad-hoc signing."
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          write_env APPLE_CERTIFICATE "$INPUT_APPLE_CERTIFICATE"
+          write_env APPLE_CERTIFICATE_PASSWORD "$INPUT_APPLE_CERTIFICATE_PASSWORD"
+          write_env APPLE_SIGNING_IDENTITY "$APPLE_SIGNING_IDENTITY"
+
+          if [[ -n "$INPUT_APPLE_ID" && -n "$INPUT_APPLE_PASSWORD" && -n "$INPUT_APPLE_TEAM_ID" ]]; then
+            write_env APPLE_ID "$INPUT_APPLE_ID"
+            write_env APPLE_PASSWORD "$INPUT_APPLE_PASSWORD"
+            write_env APPLE_TEAM_ID "$INPUT_APPLE_TEAM_ID"
           else
-            echo "$APPLE_CERTIFICATE" | base64 -D > certificate.p12
+            echo "Apple notarization secrets are incomplete. The macOS build will be signed but not notarized."
           fi
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
-          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-
-          APPLE_SIGNING_IDENTITY="$(security find-identity -v -p codesigning build.keychain | awk -F '"' '/"/ { print $2; exit }')"
-          if [ -z "$APPLE_SIGNING_IDENTITY" ]; then
-            echo "No Apple code signing identity found in imported certificate." >&2
-            exit 1
-          fi
-
-          echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
-          rm -f certificate.p12
 
       - name: Build app and upload release assets
         uses: tauri-apps/tauri-action@action-v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ env.APPLE_ID }}
+          APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "No.1 Markdown Editor ${{ github.ref_name }}"

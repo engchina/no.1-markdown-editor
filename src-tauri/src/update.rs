@@ -22,6 +22,7 @@ struct GitHubLatestReleaseResponse {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 enum UpdatePlatform {
     Windows,
     Macos,
