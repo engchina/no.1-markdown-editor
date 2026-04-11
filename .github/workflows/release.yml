@@ -18,12 +18,9 @@ jobs:
           - label: Windows x64
             platform: windows-latest
             args: ""
-          - label: macOS arm64
+          - label: macOS universal
             platform: macos-latest
-            args: "--target aarch64-apple-darwin"
-          - label: macOS x64
-            platform: macos-15-intel
-            args: "--target x86_64-apple-darwin"
+            args: "--target universal-apple-darwin --no-sign"
           - label: Linux x64
             platform: ubuntu-22.04
             args: ""
@@ -46,6 +43,10 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install macOS universal Rust targets
+        if: matrix.label == 'macOS universal'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -82,97 +83,10 @@ jobs:
           }
           EOF
 
-      - name: Configure macOS signing
-        if: runner.os == 'macOS'
-        shell: bash
-        env:
-          INPUT_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          INPUT_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          INPUT_APPLE_ID: ${{ secrets.APPLE_ID }}
-          INPUT_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          INPUT_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          INPUT_KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          write_env() {
-            {
-              echo "$1<<__EOF__"
-              echo "$2"
-              echo "__EOF__"
-            } >> "$GITHUB_ENV"
-          }
-
-          decode_certificate() {
-            if printf '%s' "$INPUT_APPLE_CERTIFICATE" | base64 -d > "$1" 2>/dev/null; then
-              return 0
-            fi
-
-            if printf '%s' "$INPUT_APPLE_CERTIFICATE" | base64 -D > "$1" 2>/dev/null; then
-              return 0
-            fi
-
-            return 1
-          }
-
-          if [[ -z "$INPUT_APPLE_CERTIFICATE" || -z "$INPUT_APPLE_CERTIFICATE_PASSWORD" ]]; then
-            echo "Apple signing certificate secrets are not configured. Falling back to ad-hoc signing."
-            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          CERTIFICATE_PATH="$RUNNER_TEMP/apple-signing-certificate.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/apple-signing-validation.keychain-db"
-          KEYCHAIN_PASSWORD_TO_USE="${INPUT_KEYCHAIN_PASSWORD:-temporary-signing-password}"
-
-          rm -f "$CERTIFICATE_PATH"
-          if ! decode_certificate "$CERTIFICATE_PATH"; then
-            echo "::warning::APPLE_CERTIFICATE is not valid base64-encoded p12 data. Falling back to ad-hoc signing."
-            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD_TO_USE" "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD_TO_USE" "$KEYCHAIN_PATH"
-
-          if ! security import "$CERTIFICATE_PATH" -k "$KEYCHAIN_PATH" -P "$INPUT_APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign >/dev/null 2>&1; then
-            echo "::warning::Apple certificate import failed. Check APPLE_CERTIFICATE and APPLE_CERTIFICATE_PASSWORD. Falling back to ad-hoc signing."
-            security delete-keychain "$KEYCHAIN_PATH" || true
-            rm -f "$CERTIFICATE_PATH"
-            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          APPLE_SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F '"' '/"/ { print $2; exit }')"
-          security delete-keychain "$KEYCHAIN_PATH" || true
-          rm -f "$CERTIFICATE_PATH"
-
-          if [[ -z "$APPLE_SIGNING_IDENTITY" ]]; then
-            echo "::warning::No signing identity was found in APPLE_CERTIFICATE. Falling back to ad-hoc signing."
-            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          write_env APPLE_CERTIFICATE "$INPUT_APPLE_CERTIFICATE"
-          write_env APPLE_CERTIFICATE_PASSWORD "$INPUT_APPLE_CERTIFICATE_PASSWORD"
-          write_env APPLE_SIGNING_IDENTITY "$APPLE_SIGNING_IDENTITY"
-
-          if [[ -n "$INPUT_APPLE_ID" && -n "$INPUT_APPLE_PASSWORD" && -n "$INPUT_APPLE_TEAM_ID" ]]; then
-            write_env APPLE_ID "$INPUT_APPLE_ID"
-            write_env APPLE_PASSWORD "$INPUT_APPLE_PASSWORD"
-            write_env APPLE_TEAM_ID "$INPUT_APPLE_TEAM_ID"
-          else
-            echo "Apple notarization secrets are incomplete. The macOS build will be signed but not notarized."
-          fi
-
       - name: Build app and upload release assets
         uses: tauri-apps/tauri-action@action-v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
-          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ env.APPLE_ID }}
-          APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "No.1 Markdown Editor ${{ github.ref_name }}"
