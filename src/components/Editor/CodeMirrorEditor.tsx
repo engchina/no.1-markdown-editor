@@ -369,6 +369,10 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     const tabId = activeTab?.id
     if (!container || viewRef.current || !tabId) return
 
+    const scheduleAutocompleteStart = (callback: () => void) => {
+      setTimeout(callback, 0)
+    }
+
     const extensions = [
       ...buildCoreExtensions({
         onChange: (nextContent: string) => {
@@ -392,33 +396,36 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         const before = line.text.slice(0, selection.head - line.from)
         if (!matchAISlashCommandQuery(before)) return
 
-        const view = update.view
-        queueMicrotask(() => {
+        scheduleAutocompleteStart(() => {
+          const activeView = viewRef.current
+          if (!activeView || !activeView.dom.isConnected) return
           void ensureAutocompleteExtensions()
             .then((extensions) => {
-              if (viewRef.current !== view) return null
+              const currentView = viewRef.current
+              if (!currentView || !currentView.dom.isConnected) return null
               reconfigure(autocompleteCompartmentRef.current, extensions)
               return ensureAutocompleteModule()
             })
             .then((autocomplete) => {
+              const currentView = viewRef.current
               if (!autocomplete) return
-              if (viewRef.current !== view) return
+              if (!currentView || !currentView.dom.isConnected) return
               if (useAIStore.getState().composer.open) return
-              view.focus()
-              autocomplete.closeCompletion(view)
-              autocomplete.startCompletion(view)
+              currentView.focus()
+              autocomplete.closeCompletion(currentView)
+              autocomplete.startCompletion(currentView)
             })
         })
       }),
       lineNumbersCompartmentRef.current.of(lineNumbers ? buildLineNumberExtensions() : []),
       wordWrapCompartmentRef.current.of(buildWordWrapExtensions(wordWrap)),
       placeholderCompartmentRef.current.of(buildPlaceholderExtensions(t('placeholder'))),
-      languageCompartmentRef.current.of([]),
-      searchCompartmentRef.current.of([]),
-      autocompleteCompartmentRef.current.of([]),
+      languageCompartmentRef.current.of(markdownLanguageExtensions),
+      searchCompartmentRef.current.of(searchSupport?.extensions ?? []),
+      autocompleteCompartmentRef.current.of(autocompleteExtensions),
       ...createAIGhostTextExtensions(),
       ...createAIProvenanceExtensions(),
-      wysiwygCompartmentRef.current.of([]),
+      wysiwygCompartmentRef.current.of(wysiwygExtensions),
     ]
 
     const state =

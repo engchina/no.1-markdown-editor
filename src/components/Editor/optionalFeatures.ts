@@ -311,11 +311,6 @@ export async function loadAutocompleteExtensions(): Promise<Extension[]> {
           selection: { anchor: from + text.length },
           userEvent: 'input.type',
         })
-        queueMicrotask(() => {
-          view.focus()
-          autocomplete.closeCompletion(view)
-          autocomplete.startCompletion(view)
-        })
         return true
       }),
       Prec.highest(
