@@ -42,8 +42,20 @@ export function applyFormat(view: EditorView, action: FormatAction): void {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+function dispatchFormatChange(
+  view: EditorView,
+  spec: Parameters<EditorView['dispatch']>[0]
+): void {
+  view.dispatch({
+    ...spec,
+    scrollIntoView: true,
+  })
+  view.focus()
+}
+
 function wrapInline(view: EditorView, before: string, after: string, placeholder: string): void {
-  view.dispatch(
+  dispatchFormatChange(
+    view,
     view.state.changeByRange((range) => {
       if (range.empty) {
         const insert = before + placeholder + after
@@ -68,12 +80,12 @@ function wrapInline(view: EditorView, before: string, after: string, placeholder
       }
     })
   )
-  view.focus()
 }
 
 function insertHeading(view: EditorView, level: number): void {
   const prefix = '#'.repeat(level) + ' '
-  view.dispatch(
+  dispatchFormatChange(
+    view,
     view.state.changeByRange((range) => {
       const line = view.state.doc.lineAt(range.from)
       const text = view.state.sliceDoc(line.from, line.to)
@@ -86,11 +98,11 @@ function insertHeading(view: EditorView, level: number): void {
       }
     })
   )
-  view.focus()
 }
 
 function insertLinePrefix(view: EditorView, prefix: string): void {
-  view.dispatch(
+  dispatchFormatChange(
+    view,
     view.state.changeByRange((range) => {
       const line = view.state.doc.lineAt(range.from)
       const text = view.state.sliceDoc(line.from, line.to)
@@ -107,7 +119,6 @@ function insertLinePrefix(view: EditorView, prefix: string): void {
       }
     })
   )
-  view.focus()
 }
 
 function insertOrderedList(view: EditorView): void {
@@ -116,16 +127,15 @@ function insertOrderedList(view: EditorView): void {
   const text = state.sliceDoc(line.from, line.to)
   if (/^\d+\.\s/.test(text)) {
     // Toggle off
-    view.dispatch({
+    dispatchFormatChange(view, {
       changes: { from: line.from, to: line.to, insert: text.replace(/^\d+\.\s/, '') },
     })
   } else {
-    view.dispatch({
+    dispatchFormatChange(view, {
       changes: { from: line.from, insert: '1. ' },
       selection: { anchor: line.from + 3 + (state.selection.main.from - line.from) },
     })
   }
-  view.focus()
 }
 
 function insertLink(view: EditorView): void {
@@ -134,11 +144,10 @@ function insertLink(view: EditorView): void {
   const selected = state.sliceDoc(range.from, range.to)
   const linkText = selected || 'link text'
   const insert = `[${linkText}](url)`
-  view.dispatch({
+  dispatchFormatChange(view, {
     changes: { from: range.from, to: range.to, insert },
     selection: { anchor: range.from + linkText.length + 3, head: range.from + linkText.length + 6 },
   })
-  view.focus()
 }
 
 function insertImage(view: EditorView): void {
@@ -147,21 +156,19 @@ function insertImage(view: EditorView): void {
   const selected = state.sliceDoc(range.from, range.to)
   const altText = selected || 'alt text'
   const insert = `![${altText}](url)`
-  view.dispatch({
+  dispatchFormatChange(view, {
     changes: { from: range.from, to: range.to, insert },
     selection: { anchor: range.from + altText.length + 4, head: range.from + altText.length + 7 },
   })
-  view.focus()
 }
 
 function insertBlock(view: EditorView, text: string): void {
   const { state } = view
   const pos = state.selection.main.to
-  view.dispatch({
+  dispatchFormatChange(view, {
     changes: { from: pos, insert: text },
     selection: { anchor: pos + text.length },
   })
-  view.focus()
 }
 
 function insertCodeBlock(view: EditorView): void {
@@ -169,11 +176,10 @@ function insertCodeBlock(view: EditorView): void {
   const range = state.selection.main
   const selected = state.sliceDoc(range.from, range.to)
   const insert = `\`\`\`\n${selected || 'code here'}\n\`\`\``
-  view.dispatch({
+  dispatchFormatChange(view, {
     changes: { from: range.from, to: range.to, insert },
     selection: { anchor: range.from + 4, head: range.from + 4 + (selected || 'code here').length },
   })
-  view.focus()
 }
 
 function insertTable(view: EditorView): void {
@@ -185,9 +191,8 @@ function insertTable(view: EditorView): void {
   const pos = state.selection.main.to
   const line = state.doc.lineAt(pos)
   const prefix = line.text.trim() ? '\n\n' : ''
-  view.dispatch({
+  dispatchFormatChange(view, {
     changes: { from: pos, insert: prefix + table + '\n' },
     selection: { anchor: pos + prefix.length + 2, head: pos + prefix.length + 10 },
   })
-  view.focus()
 }

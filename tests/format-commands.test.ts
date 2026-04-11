@@ -4,19 +4,26 @@ import { EditorState, EditorSelection } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 import { applyFormat } from '../src/components/Editor/formatCommands.ts'
 
-function createTestView(doc: string, from: number, to = from): EditorView & { state: EditorState } {
+type DispatchSpec = Parameters<EditorState['update']>[0] & { scrollIntoView?: boolean }
+
+function createTestView(doc: string, from: number, to = from): EditorView & {
+  state: EditorState
+  lastDispatch: DispatchSpec | null
+} {
   const view = {
     state: EditorState.create({
       doc,
       selection: EditorSelection.create([EditorSelection.range(from, to)]),
     }),
-    dispatch(spec: Parameters<EditorState['update']>[0]) {
+    lastDispatch: null as DispatchSpec | null,
+    dispatch(spec: DispatchSpec) {
+      view.lastDispatch = spec
       view.state = view.state.update(spec).state
     },
     focus() {},
   }
 
-  return view as unknown as EditorView & { state: EditorState }
+  return view as unknown as EditorView & { state: EditorState; lastDispatch: DispatchSpec | null }
 }
 
 test('applyFormat wraps selected text with underline tags', () => {
@@ -57,4 +64,12 @@ test('applyFormat removes highlight markers when the full wrapped selection is s
   assert.equal(view.state.doc.toString(), 'hello')
   assert.equal(view.state.selection.main.from, 0)
   assert.equal(view.state.selection.main.to, 5)
+})
+
+test('applyFormat scrolls the updated selection into view after inserting block content', () => {
+  const view = createTestView('Paragraph', 9)
+
+  applyFormat(view, 'table')
+
+  assert.equal(view.lastDispatch?.scrollIntoView, true)
 })

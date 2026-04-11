@@ -124,6 +124,7 @@ export function acceptAIGhostText(view: EditorView): boolean {
     selection: {
       anchor: ghostText.anchor + ghostText.text.length,
     },
+    scrollIntoView: true,
     annotations: isolateHistory.of('full'),
     effects: [
       clearAIGhostTextEffect.of(),

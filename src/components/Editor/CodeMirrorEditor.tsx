@@ -1299,11 +1299,13 @@ function insertMarkdown(
     userEvent?: string
     effects?: StateEffect<unknown>[]
     selectionAnchor?: number
+    scrollIntoView?: boolean
   } = {}
 ): void {
   view.dispatch({
     changes: { from: range.from, to: range.to, insert: markdownText },
     selection: { anchor: options.selectionAnchor ?? range.from + markdownText.length },
+    scrollIntoView: options.scrollIntoView ?? true,
     annotations: options.isolateHistoryBoundary ? isolateHistory.of('full') : undefined,
     effects: options.effects,
     userEvent: options.userEvent,
