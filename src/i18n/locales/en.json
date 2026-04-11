@@ -337,6 +337,13 @@
       "rewrite": "Rewrite",
       "summarize": "Summarize"
     },
+    "mode": {
+      "chat": "Chat",
+      "edit": "Edit",
+      "insert": "Insert",
+      "newNote": "New Note",
+      "suggestions": "Suggestions"
+    },
     "preferences": {
       "defaultWriteTarget": "Default Write Target",
       "selectedTextRole": "Selected Text Role",

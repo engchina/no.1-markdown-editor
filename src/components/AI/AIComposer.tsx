@@ -29,7 +29,7 @@ import {
   type AIInsertTarget,
   type AIResultView,
 } from '../../lib/ai/resultViews.ts'
-import { getAITemplateModels, type AITemplateId, type AITemplateModel } from '../../lib/ai/templateLibrary.ts'
+import { getAITemplateModels, type AITemplateModel } from '../../lib/ai/templateLibrary.ts'
 import { resolveAIOpenOutputTarget } from '../../lib/ai/opening.ts'
 import { formatPrimaryShortcut, matchesPrimaryShortcut } from '../../lib/platform.ts'
 import type { AIIntent, AIProviderState } from '../../lib/ai/types.ts'
@@ -55,21 +55,7 @@ import { openDesktopDocumentPath } from '../../lib/desktopFileOpen.ts'
 import { primeAIUndoHistorySnapshot } from '../../lib/editorStateCache.ts'
 import { focusElementWithoutScroll } from '../../hooks/useDialogFocusRestore'
 
-const INTENT_ORDER = ['ask', 'edit', 'generate', 'review'] as const
-const RELATED_INTENT_ORDER: Record<AIIntent, readonly AIIntent[]> = {
-  ask: ['review', 'generate', 'edit'],
-  edit: ['review', 'generate', 'ask'],
-  generate: ['edit', 'review', 'ask'],
-  review: ['edit', 'ask', 'generate'],
-}
 const MIN_FOCUSED_TEMPLATE_COUNT = 3
-const OUTPUT_TARGET_ORDER = [
-  'chat-only',
-  'replace-selection',
-  'at-cursor',
-  'insert-below',
-  'new-note',
-] as const
 
 function formatAIDocumentLanguage(
   language: string | undefined,
@@ -1744,8 +1730,9 @@ export default function AIComposer() {
   )
 }
 
-function AITemplateLibrary({
+function AIQuickChips({
   templates,
+  currentMode,
   composerIntent,
   composerOutputTarget,
   composerPrompt,
@@ -1754,6 +1741,7 @@ function AITemplateLibrary({
   onSelectTemplate,
 }: {
   templates: AITemplateModel[]
+  currentMode: 'chat' | 'edit' | 'insert' | 'new-note'
   composerIntent: AIIntent
   composerOutputTarget: string
   composerPrompt: string
@@ -1762,164 +1750,77 @@ function AITemplateLibrary({
   onSelectTemplate: (template: AITemplateModel) => void
 }) {
   const { t } = useTranslation()
-  const [showAllTemplates, setShowAllTemplates] = useState(false)
+  const [showAll, setShowAll] = useState(false)
 
-  const focusedTemplates = useMemo(() => templates.filter((template) => template.intent === composerIntent), [templates, composerIntent])
-  const supplementalTemplates = useMemo(() => {
-    const supplementalLimit = Math.max(MIN_FOCUSED_TEMPLATE_COUNT - focusedTemplates.length, 0)
-    if (supplementalLimit === 0) return []
+  // Map each mode to the intents whose templates are most relevant
+  const modeIntentMap: Record<typeof currentMode, readonly AIIntent[]> = {
+    chat: ['ask', 'review'],
+    edit: ['edit', 'ask'],
+    insert: ['generate', 'ask'],
+    'new-note': ['generate'],
+  }
 
-    const seenTemplateIds = new Set(focusedTemplates.map((template) => template.id))
-    const suggestions: AITemplateModel[] = []
-
-    for (const relatedIntent of RELATED_INTENT_ORDER[composerIntent]) {
-      for (const template of templates) {
-        if (template.intent !== relatedIntent || seenTemplateIds.has(template.id)) continue
-        suggestions.push(template)
-        seenTemplateIds.add(template.id)
-        if (suggestions.length >= supplementalLimit) return suggestions
-      }
-    }
-
-    return suggestions
-  }, [composerIntent, focusedTemplates, templates])
-  const visibleTemplates = useMemo(
-    () => (showAllTemplates ? templates : [...focusedTemplates, ...supplementalTemplates]),
-    [focusedTemplates, showAllTemplates, supplementalTemplates, templates]
-  )
+  const visibleTemplates = useMemo(() => {
+    if (showAll) return templates
+    const intents = modeIntentMap[currentMode]
+    const focused = templates.filter((tmpl) => intents.includes(tmpl.intent))
+    return focused.length > 0 ? focused : templates.slice(0, MIN_FOCUSED_TEMPLATE_COUNT)
+  }, [templates, currentMode, showAll])
 
   useEffect(() => {
-    setShowAllTemplates(false)
-  }, [composerIntent])
+    setShowAll(false)
+  }, [currentMode])
 
   return (
-    <div className="grid gap-2">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>
-            {t('ai.templateLibrary.title')}
-          </span>
-          <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            {t('ai.templateLibrary.subtitle')}
-          </p>
-        </div>
-        <div
-          className="inline-flex items-center gap-1 rounded-full border p-1"
-          style={{
-            borderColor: 'color-mix(in srgb, var(--border) 84%, transparent)',
-            background: 'color-mix(in srgb, var(--bg-secondary) 76%, transparent)',
-          }}
-        >
-          <button
-            type="button"
-            data-ai-template-filter="focused"
-            aria-pressed={!showAllTemplates}
-            onClick={() => setShowAllTemplates(false)}
-            className="rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
-            style={{
-              background: !showAllTemplates ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-primary))' : 'transparent',
-              color: !showAllTemplates ? 'var(--text-primary)' : 'var(--text-secondary)',
-            }}
-          >
-            {t('ai.templateLibrary.focusedFilter')}
-          </button>
-          <button
-            type="button"
-            data-ai-template-filter="all"
-            aria-pressed={showAllTemplates}
-            onClick={() => setShowAllTemplates(true)}
-            className="rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
-            style={{
-              background: showAllTemplates ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-primary))' : 'transparent',
-              color: showAllTemplates ? 'var(--text-primary)' : 'var(--text-secondary)',
-            }}
-          >
-            {t('ai.templateLibrary.allFilter')}
-          </button>
-        </div>
-      </div>
-      <div className="-mx-1 overflow-x-auto pb-1 snap-x snap-proximity scroll-px-1">
-        <div className="flex min-w-max gap-2 px-1">
-          {visibleTemplates.map((template) => {
-            const resolvedTarget = resolveAIOpenOutputTarget(
-              template.intent,
-              template.outputTarget,
-              hasSelection,
-              aiDefaultWriteTarget
-            )
-            const active =
-              composerIntent === template.intent &&
-              composerOutputTarget === resolvedTarget &&
-              composerPrompt === template.prompt
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+        {t('ai.mode.suggestions')}
+      </span>
+      {visibleTemplates.map((template) => {
+        const resolvedTarget = resolveAIOpenOutputTarget(
+          template.intent,
+          template.outputTarget,
+          hasSelection,
+          aiDefaultWriteTarget
+        )
+        const active =
+          composerIntent === template.intent &&
+          composerOutputTarget === resolvedTarget &&
+          composerPrompt === template.prompt
 
-            return (
-              <button
-                key={template.id}
-                type="button"
-                data-ai-template={template.id}
-                onClick={() => onSelectTemplate(template)}
-                className="flex w-[180px] shrink-0 cursor-pointer snap-start flex-col items-start rounded-2xl border px-3 py-3 text-left transition-colors"
-                style={{
-                  borderColor: active
-                    ? 'color-mix(in srgb, var(--accent) 38%, var(--border))'
-                    : 'color-mix(in srgb, var(--border) 82%, transparent)',
-                  background: active
-                    ? 'color-mix(in srgb, var(--accent) 10%, var(--bg-primary))'
-                    : 'color-mix(in srgb, var(--bg-primary) 92%, transparent)',
-                  boxShadow: active ? '0 8px 24px rgba(37, 99, 235, 0.12)' : 'none',
-                }}
-              >
-                <span
-                  className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]"
-                  style={{
-                    background: active
-                      ? 'color-mix(in srgb, var(--accent) 16%, transparent)'
-                      : 'color-mix(in srgb, var(--bg-secondary) 88%, transparent)',
-                    color: active ? 'var(--accent)' : 'var(--text-muted)',
-                  }}
-                >
-                  <AppIcon name={getAITemplateIcon(template.id)} size={12} />
-                  {t(`ai.intent.${template.intent}`)}
-                </span>
-                <span className="mt-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  {template.label}
-                </span>
-                <span className="mt-1 text-[11px] leading-4" style={{ color: 'var(--text-muted)' }}>
-                  {template.detail}
-                </span>
-                <span className="mt-3 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>
-                  {t(`ai.outputTarget.${resolvedTarget}`)}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
+        return (
+          <button
+            key={template.id}
+            type="button"
+            data-ai-template={template.id}
+            onClick={() => onSelectTemplate(template)}
+            className="rounded-full border px-2.5 py-1 text-xs transition-colors"
+            style={{
+              borderColor: active
+                ? 'color-mix(in srgb, var(--accent) 32%, var(--border))'
+                : 'color-mix(in srgb, var(--border) 82%, transparent)',
+              background: active
+                ? 'color-mix(in srgb, var(--accent) 12%, var(--bg-primary))'
+                : 'color-mix(in srgb, var(--bg-secondary) 64%, transparent)',
+              color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+            }}
+          >
+            {template.label}
+          </button>
+        )
+      })}
+      {!showAll && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="rounded-full px-2 py-1 text-xs transition-colors"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          {t('ai.templateLibrary.allFilter')} ›
+        </button>
+      )}
     </div>
   )
-}
-
-function getAITemplateIcon(templateId: AITemplateId): Parameters<typeof AppIcon>[0]['name'] {
-  switch (templateId) {
-    case 'ask':
-      return 'sparkles'
-    case 'continueWriting':
-      return 'edit'
-    case 'newNote':
-      return 'filePlus'
-    case 'translate':
-      return 'globe'
-    case 'rewrite':
-      return 'edit'
-    case 'summarize':
-      return 'outline'
-    case 'review':
-      return 'infoCircle'
-    case 'generateBelow':
-      return 'filePlus'
-    default:
-      return 'sparkles'
-  }
 }
 
 function AIWorkspaceExecutionView({

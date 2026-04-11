@@ -332,6 +332,13 @@
       "rewrite": "改稿",
       "summarize": "要約"
     },
+    "mode": {
+      "chat": "チャット",
+      "edit": "編集",
+      "insert": "挿入",
+      "newNote": "新規ノート",
+      "suggestions": "候補"
+    },
     "preferences": {
       "defaultWriteTarget": "既定の書き込み先",
       "selectedTextRole": "選択テキストの役割",

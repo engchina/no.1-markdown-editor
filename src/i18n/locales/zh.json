@@ -332,6 +332,13 @@
       "rewrite": "改写",
       "summarize": "总结"
     },
+    "mode": {
+      "chat": "对话",
+      "edit": "编辑",
+      "insert": "插入",
+      "newNote": "新建笔记",
+      "suggestions": "建议"
+    },
     "preferences": {
       "defaultWriteTarget": "默认写入目标",
       "selectedTextRole": "选中文本角色",

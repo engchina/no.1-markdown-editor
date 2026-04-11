@@ -5,7 +5,9 @@ import { readFile } from 'node:fs/promises'
 test('AIComposer exposes explain view and chat-only insert actions', async () => {
   const composer = await readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8')
 
-  assert.match(composer, /setResultView\('explain'\)/)
+  assert.match(composer, /data-ai-result-view=\{view\}/)
+  assert.match(composer, /view: 'explain', label: t\('ai\.result\.explain'\)/)
+  assert.match(composer, /onClick=\{\(\) => !disabled && setResultView\(view\)\}/)
   assert.match(composer, /AIExplainView details=\{explainDetails\}/)
   assert.match(composer, /composer\.outputTarget === 'chat-only' && canApplyToEditor/)
   assert.match(composer, /insertTargets\.map\(\(target\) => \(/)
