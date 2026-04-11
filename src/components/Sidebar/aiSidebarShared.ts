@@ -5,7 +5,7 @@ import type { IconName } from '../Icons/AppIcon'
 
 type Translate = (key: string) => string
 
-export type AISidebarPeekView = 'library' | 'session' | 'commands'
+export type AISidebarPeekView = 'library' | 'commands'
 
 export interface SidebarAIAction {
   id: string
@@ -20,12 +20,6 @@ export interface AISidebarStatus {
   accent: string
   label: string
   detail: string
-}
-
-export interface AISessionHistoryStatusMeta {
-  icon: IconName
-  accent: string
-  label: string
 }
 
 export const SIDEBAR_TAB_SOURCE = 'sidebar-tab' as AIComposerSource
@@ -61,52 +55,6 @@ export function getAISidebarActions(t: Translate): SidebarAIAction[] {
       openDetail: createAITemplateOpenDetail('generateBelow', t, SIDEBAR_TAB_SOURCE),
     },
   ]
-}
-
-export function getAISidebarSourceLabel(source: AIComposerSource, t: Translate): string {
-  switch (source) {
-    case 'selection-bubble':
-      return t('ai.sidebar.source.selectionBubble')
-    case 'command-palette':
-      return t('ai.sidebar.source.commandPalette')
-    case 'slash-command':
-      return t('ai.sidebar.source.slashCommand')
-    case 'sidebar-tab':
-      return t('ai.sidebar.source.sidebarTab')
-    case 'shortcut':
-    default:
-      return t('ai.sidebar.source.shortcut')
-  }
-}
-
-export function getAISessionHistoryStatusMeta(status: 'streaming' | 'done' | 'error' | 'canceled', t: Translate): AISessionHistoryStatusMeta {
-  switch (status) {
-    case 'streaming':
-      return {
-        icon: 'sparkles',
-        accent: 'var(--accent)',
-        label: t('ai.requestState.streaming'),
-      }
-    case 'done':
-      return {
-        icon: 'checkCircle',
-        accent: '#16a34a',
-        label: t('ai.requestState.done'),
-      }
-    case 'error':
-      return {
-        icon: 'alertCircle',
-        accent: '#dc2626',
-        label: t('ai.requestState.error'),
-      }
-    case 'canceled':
-    default:
-      return {
-        icon: 'panel',
-        accent: '#b45309',
-        label: t('ai.sidebar.historyCanceled'),
-      }
-  }
 }
 
 export function getAISidebarStatus({

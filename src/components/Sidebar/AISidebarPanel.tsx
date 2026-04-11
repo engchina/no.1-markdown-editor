@@ -3,19 +3,15 @@ import { useTranslation } from 'react-i18next'
 import { dispatchEditorAIOpen } from '../../lib/ai/events.ts'
 import { normalizeAIDraftText } from '../../lib/ai/prompt.ts'
 import { getAITemplateModels } from '../../lib/ai/templateLibrary.ts'
-import { getAIDocumentThreadKey } from '../../lib/ai/thread.ts'
 import { formatPrimaryShortcut } from '../../lib/platform.ts'
 import { useAIStore } from '../../store/ai'
 import { useActiveTab, useEditorStore } from '../../store/editor'
 import AppIcon, { type IconName } from '../Icons/AppIcon'
 import {
   getAISidebarActions,
-  getAISidebarSourceLabel,
-  getAISessionHistoryStatusMeta,
   getAISidebarStatus,
   type AISidebarPeekView,
   SIDEBAR_TAB_SOURCE,
-  truncateSidebarCopy,
 } from './aiSidebarShared'
 
 interface Props {
@@ -27,21 +23,11 @@ export default function AISidebarPanel({ activePeekView, onPeekChange }: Props) 
   const { t } = useTranslation()
   const activeTab = useActiveTab()
   const composer = useAIStore((state) => state.composer)
-  const sessionHistoryByDocument = useAIStore((state) => state.sessionHistoryByDocument)
   const sidebarWidth = useEditorStore((state) => state.sidebarWidth)
   const compactLayout = sidebarWidth < 320
   const normalizedDraft = normalizeAIDraftText(composer.draftText, composer.outputTarget)
   const actions = useMemo(() => getAISidebarActions(t), [t])
   const templates = useMemo(() => getAITemplateModels(t), [t])
-  const sessionHistory = useMemo(
-    () =>
-      activeTab
-        ? sessionHistoryByDocument[getAIDocumentThreadKey(activeTab.id, activeTab.path)] ?? []
-        : [],
-    [activeTab, sessionHistoryByDocument]
-  )
-  const latestSession = sessionHistory[0] ?? null
-  const latestSessionStatus = latestSession ? getAISessionHistoryStatusMeta(latestSession.status, t) : null
   const status = getAISidebarStatus({
     composerOpen: composer.open,
     draftText: normalizedDraft,
@@ -169,106 +155,6 @@ export default function AISidebarPanel({ activePeekView, onPeekChange }: Props) 
           </p>
         </div>
 
-        <section
-          className="mt-3 rounded-[18px] border px-3 py-3"
-          style={{
-            borderColor: 'color-mix(in srgb, var(--accent) 20%, var(--border))',
-            background: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
-          }}
-        >
-          <div
-            className="text-[11px] font-semibold uppercase tracking-[0.16em]"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            {t('ai.sidebar.lastRun')}
-          </div>
-
-          {latestSession && latestSessionStatus ? (
-            <>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <SidebarMiniPill label={getAISidebarSourceLabel(latestSession.source, t)} />
-                <SidebarMiniPill label={latestSessionStatus.label} accent={latestSessionStatus.accent} />
-              </div>
-              <div className="mt-2 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {t(`ai.intent.${latestSession.intent}`)} · {t(`ai.outputTarget.${latestSession.outputTarget}`)}
-              </div>
-              <p
-                className="mt-1 text-[11px] leading-5"
-                style={{
-                  color: 'var(--text-secondary)',
-                  display: '-webkit-box',
-                  WebkitLineClamp: compactLayout ? 2 : 3,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                }}
-              >
-                {truncateSidebarCopy(latestSession.prompt, compactLayout ? 88 : 136)}
-              </p>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  data-ai-sidebar-last-run-reuse="true"
-                  onClick={() => {
-                    dispatchEditorAIOpen({
-                      source: SIDEBAR_TAB_SOURCE,
-                      intent: latestSession.intent,
-                      scope: latestSession.scope,
-                      outputTarget: latestSession.outputTarget,
-                      prompt: latestSession.prompt,
-                    })
-                    onPeekChange(null)
-                  }}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-                  style={{
-                    borderColor: 'color-mix(in srgb, var(--accent) 24%, var(--border))',
-                    background: 'color-mix(in srgb, var(--accent) 10%, var(--bg-primary))',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <AppIcon name="sparkles" size={12} />
-                  <span>{t('ai.sidebar.historyReuseHere')}</span>
-                </button>
-                <button
-                  type="button"
-                  data-ai-sidebar-recent-session="true"
-                  onClick={() => onPeekChange('session')}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-                  style={{
-                    borderColor: 'color-mix(in srgb, var(--border) 72%, transparent)',
-                    background: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <AppIcon name="clock" size={12} />
-                  <span>{t('ai.sidebar.peekSession')}</span>
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="mt-2 text-[11px] leading-5" style={{ color: 'var(--text-secondary)' }}>
-                {t('ai.sidebar.lastRunEmptyDetail')}
-              </p>
-              <div className="mt-3">
-                <button
-                  type="button"
-                  data-ai-sidebar-recent-session="true"
-                  onClick={() => onPeekChange('session')}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-                  style={{
-                    borderColor: 'color-mix(in srgb, var(--border) 72%, transparent)',
-                    background: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <AppIcon name="clock" size={12} />
-                  <span>{t('ai.sidebar.peekSession')}</span>
-                </button>
-              </div>
-            </>
-          )}
-        </section>
       </section>
 
       <AISectionShell>
@@ -328,19 +214,6 @@ export default function AISidebarPanel({ activePeekView, onPeekChange }: Props) 
 
         <div className="grid gap-2">
           <AIPeekTrigger
-            view="session"
-            icon="clock"
-            title={t('ai.sidebar.peekSession')}
-            detail={
-              latestSession
-                ? t('ai.sidebar.peekSessionRecentDetail')
-                : t('ai.sidebar.peekSessionDetail')
-            }
-            badge={sessionHistory.length > 0 ? String(sessionHistory.length) : t(`ai.requestState.${composer.requestState}`)}
-            active={activePeekView === 'session'}
-            onToggle={onPeekChange}
-          />
-          <AIPeekTrigger
             view="library"
             icon="copy"
             title={t('ai.sidebar.peekLibrary')}
@@ -361,21 +234,6 @@ export default function AISidebarPanel({ activePeekView, onPeekChange }: Props) 
         </div>
       </AISectionShell>
     </div>
-  )
-}
-
-function SidebarMiniPill({ label, accent }: { label: string; accent?: string }) {
-  return (
-    <span
-      className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
-      style={{
-        borderColor: 'color-mix(in srgb, var(--border) 72%, transparent)',
-        background: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)',
-        color: accent ?? 'var(--text-muted)',
-      }}
-    >
-      {label}
-    </span>
   )
 }
 
