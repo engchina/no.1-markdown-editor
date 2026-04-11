@@ -1,5 +1,6 @@
 import { extractHeadings } from '../outline.ts'
 import type {
+  AIApplySnapshot,
   AIContextPacket,
   AIDocumentLanguage,
   AIIntent,
@@ -64,6 +65,61 @@ export function buildAIContextPacket(options: AIBuildContextOptions): AIContextP
     currentBlock: currentBlock || undefined,
     headingPath: headingPath.length > 0 ? headingPath : undefined,
     frontMatter,
+  }
+}
+
+export function buildAIComposerContextPacket(options: {
+  baseContext: AIContextPacket | null
+  sourceSnapshot: AIApplySnapshot | null
+  intent: AIIntent
+  scope: AIScope
+  outputTarget: AIOutputTarget
+}): AIContextPacket | null {
+  const { baseContext, sourceSnapshot, intent, outputTarget } = options
+  if (!baseContext) return null
+
+  if (!sourceSnapshot) {
+    return {
+      ...baseContext,
+      intent,
+      scope: options.scope,
+      outputTarget,
+    }
+  }
+
+  const hasSelection = sourceSnapshot.selectionFrom !== sourceSnapshot.selectionTo
+  const scope = options.scope === 'selection' && !hasSelection ? 'current-block' : options.scope
+  const selection =
+    scope === 'selection' && hasSelection
+      ? {
+          from: sourceSnapshot.selectionFrom,
+          to: sourceSnapshot.selectionTo,
+          role: baseContext.selectedTextRole,
+        }
+      : undefined
+  const context = buildAIContextPacket({
+    tabId: baseContext.tabId,
+    tabPath: baseContext.tabPath,
+    fileName: baseContext.fileName,
+    content: sourceSnapshot.docText,
+    intent,
+    scope,
+    outputTarget,
+    anchorOffset: sourceSnapshot.anchorOffset,
+    selection,
+  })
+
+  if (!baseContext.explicitContextAttachments?.length) {
+    return {
+      ...context,
+      ...(baseContext.slashCommandContext ? { slashCommandContext: baseContext.slashCommandContext } : {}),
+    }
+  }
+
+  return {
+    ...context,
+    ...(baseContext.slashCommandContext ? { slashCommandContext: baseContext.slashCommandContext } : {}),
+    explicitContextAttachments: baseContext.explicitContextAttachments,
   }
 }
 

@@ -36,12 +36,11 @@ const baseContext: AIContextPacket = {
   ],
 }
 
-test('buildAIContextChipModels mirrors the visible context that should be shown to the user', () => {
+test('buildAIContextChipModels mirrors the visible context that should be shown to the user without document-language chrome', () => {
   assert.deepEqual(buildAIContextChipModels(baseContext), [
     { kind: 'selection' },
     { kind: 'block' },
     { kind: 'heading', value: 'Details' },
-    { kind: 'language', value: 'ja' },
     { kind: 'frontMatter' },
     { kind: 'note', value: 'project-plan.md' },
     { kind: 'search', value: 'roadmap' },
@@ -57,5 +56,5 @@ test('buildAIContextChipModels omits chips for absent context parts', () => {
     frontMatter: null,
     explicitContextAttachments: undefined,
   }
-  assert.deepEqual(buildAIContextChipModels(minimal), [{ kind: 'language', value: 'ja' }])
+  assert.deepEqual(buildAIContextChipModels(minimal), [])
 })

@@ -6,17 +6,13 @@ import { useWorkspaceSearch } from '../../hooks/useWorkspaceSearch'
 import { openDesktopDocumentPath } from '../../lib/desktopFileOpen'
 import { extractHeadings, type OutlineHeading as Heading } from '../../lib/outline'
 import AppIcon, { type IconName } from '../Icons/AppIcon'
-import AISidebarPanel from './AISidebarPanel'
-import type { AISidebarPeekView } from './aiSidebarShared'
 import FileTree from './FileTree'
 
 interface Props {
   width: number
-  aiPeekView: AISidebarPeekView | null
-  onAiPeekViewChange: (view: AISidebarPeekView | null) => void
 }
 
-export default function Sidebar({ width, aiPeekView, onAiPeekViewChange }: Props) {
+export default function Sidebar({ width }: Props) {
   const { t } = useTranslation()
   const { sidebarTab, setSidebarTab } = useEditorStore()
   const activeTab = useActiveTab()
@@ -25,7 +21,6 @@ export default function Sidebar({ width, aiPeekView, onAiPeekViewChange }: Props
     [activeTab?.content]
   )
   const tabs: { id: SidebarTab; icon: IconName; title: string }[] = [
-    { id: 'ai', icon: 'sparkles', title: t('sidebar.ai') },
     { id: 'outline', icon: 'outline', title: t('sidebar.outline') },
     { id: 'files', icon: 'folder', title: t('sidebar.files') },
     { id: 'recent', icon: 'clock', title: t('menu.recentFiles') },
@@ -70,9 +65,6 @@ export default function Sidebar({ width, aiPeekView, onAiPeekViewChange }: Props
 
       {/* Content */}
       <div className="sidebar-surface__scroll flex-1 min-h-0 overflow-y-auto px-3 pb-3">
-        {sidebarTab === 'ai' && (
-          <AISidebarPanel activePeekView={aiPeekView} onPeekChange={onAiPeekViewChange} />
-        )}
         {sidebarTab === 'outline' && (
           <SidebarSectionSurface>
             <OutlinePanel headings={headings} />

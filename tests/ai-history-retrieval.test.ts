@@ -238,7 +238,7 @@ test('sortHistoryCandidates keeps pinned entries ahead of newer unpinned entries
       documentKey: 'path:notes/pinned.md',
       threadId: 'thread-pinned',
       pinned: true,
-      source: 'sidebar-tab',
+      source: 'command-palette',
       intent: 'generate',
       scope: 'document',
       outputTarget: 'new-note',

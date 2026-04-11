@@ -4,15 +4,18 @@ import { getAIInsertTargets, hasAIDiffPreview, hasAIInsertPreview } from '../src
 
 test('result view helpers distinguish diff previews from insertion previews', () => {
   assert.equal(hasAIDiffPreview('replace-selection', 'before', 'after'), true)
+  assert.equal(hasAIDiffPreview('replace-current-block', 'before', 'after'), true)
   assert.equal(hasAIDiffPreview('replace-selection', null, 'after'), false)
   assert.equal(hasAIInsertPreview('at-cursor', 'insert this'), true)
   assert.equal(hasAIInsertPreview('insert-below', 'insert this'), true)
   assert.equal(hasAIInsertPreview('new-note', '# New note'), true)
   assert.equal(hasAIInsertPreview('chat-only', 'chat reply'), true)
   assert.equal(hasAIInsertPreview('replace-selection', 'insert this'), false)
+  assert.equal(hasAIInsertPreview('replace-current-block', 'insert this'), false)
 })
 
-test('getAIInsertTargets exposes replace only when a selection exists', () => {
+test('getAIInsertTargets exposes the appropriate replace target for selection or current block context', () => {
   assert.deepEqual(getAIInsertTargets(true), ['replace-selection', 'at-cursor', 'insert-below', 'new-note'])
+  assert.deepEqual(getAIInsertTargets(false, true), ['replace-current-block', 'at-cursor', 'insert-below', 'new-note'])
   assert.deepEqual(getAIInsertTargets(false), ['at-cursor', 'insert-below', 'new-note'])
 })

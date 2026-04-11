@@ -413,6 +413,59 @@ test('AI store can export and import history archives', () => {
   assert.equal(useAIStore.getState().historyProviderRerankAudit[0]?.retrievalPinnedOnly, true)
 })
 
+test('AI store migrates legacy sidebar-tab history sources to command-palette', () => {
+  useAIStore.setState({
+    composer: createInitialAIComposerState(),
+    historyRetentionPreset: 'standard',
+    threadIdsByDocument: {},
+    sessionHistoryByDocument: {},
+    historyCollections: [],
+    historySavedViews: [],
+    historyProviderRerankAudit: [],
+    provenanceMarksByTab: {},
+  })
+
+  const imported = useAIStore.getState().importHistoryArchive({
+    version: 1,
+    exportedAt: 1,
+    historyRetentionPreset: 'standard',
+    threadIdsByDocument: {
+      'path:notes/legacy.md': 'thread-legacy',
+    },
+    sessionHistoryByDocument: {
+      'path:notes/legacy.md': [
+        {
+          id: 'legacy-entry',
+          threadId: 'thread-legacy',
+          pinned: false,
+          source: 'sidebar-tab',
+          intent: 'ask',
+          scope: 'document',
+          outputTarget: 'chat-only',
+          prompt: 'Legacy sidebar request',
+          resultPreview: 'Legacy result',
+          errorMessage: null,
+          status: 'done',
+          documentName: 'legacy.md',
+          attachmentCount: 0,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    },
+    historyCollections: [],
+    historySavedViews: [],
+    historyProviderRerankAudit: [],
+  })
+
+  assert.equal(imported.entryCount, 1)
+  assert.equal(useAIStore.getState().getSessionHistory('legacy-tab', 'notes/legacy.md')[0]?.source, 'command-palette')
+  assert.equal(
+    useAIStore.getState().exportHistoryArchive().sessionHistoryByDocument['path:notes/legacy.md']?.[0]?.source,
+    'command-palette'
+  )
+})
+
 test('AI store can create collections and saved views from persistent history', () => {
   useAIStore.setState({
     composer: createInitialAIComposerState(),

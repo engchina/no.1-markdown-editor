@@ -390,11 +390,13 @@ function sanitizeSessionHistoryEntry(entry: unknown): AIDocumentSessionHistoryEn
     return null
   }
 
+  const source = sanitizeAIComposerSource(candidate.source)
+
   return {
     id: candidate.id,
     threadId: candidate.threadId,
     pinned: candidate.pinned === true,
-    source: candidate.source as AIDocumentSessionHistoryEntry['source'],
+    source,
     intent: candidate.intent as AIDocumentSessionHistoryEntry['intent'],
     scope: candidate.scope as AIDocumentSessionHistoryEntry['scope'],
     outputTarget: candidate.outputTarget as AIDocumentSessionHistoryEntry['outputTarget'],
@@ -407,6 +409,20 @@ function sanitizeSessionHistoryEntry(entry: unknown): AIDocumentSessionHistoryEn
     workspaceExecution: sanitizeWorkspaceExecutionHistoryRecord(candidate.workspaceExecution),
     createdAt: candidate.createdAt,
     updatedAt: candidate.updatedAt,
+  }
+}
+
+function sanitizeAIComposerSource(value: unknown): AIComposerSource {
+  switch (value) {
+    case 'selection-bubble':
+    case 'command-palette':
+    case 'slash-command':
+    case 'shortcut':
+      return value
+    case 'sidebar-tab':
+      return 'command-palette'
+    default:
+      return 'shortcut'
   }
 }
 

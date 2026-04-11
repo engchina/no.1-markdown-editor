@@ -20,7 +20,7 @@ import type { AIDefaultWriteTarget } from '../lib/ai/opening.ts'
 
 export type Theme = 'light' | 'dark'
 export type ViewMode = 'source' | 'split' | 'preview' | 'focus'
-export type SidebarTab = 'ai' | 'files' | 'outline' | 'search' | 'recent'
+export type SidebarTab = 'outline' | 'files' | 'recent' | 'search'
 
 export interface FileTab {
   id: string
@@ -171,6 +171,19 @@ function isReusableScratchTab(tab: FileTab): boolean {
 }
 
 const initialTab = createNewTab()
+
+function sanitizeSidebarTab(value: unknown): SidebarTab {
+  switch (value) {
+    case 'files':
+    case 'recent':
+    case 'search':
+    case 'outline':
+      return value
+    case 'ai':
+    default:
+      return 'outline'
+  }
+}
 
 export const useEditorStore = create<EditorState>()(
   persist(
@@ -564,6 +577,7 @@ export const useEditorStore = create<EditorState>()(
 
         return {
           ...mergedState,
+          sidebarTab: sanitizeSidebarTab(persistedState?.sidebarTab),
           sidebarWidth: clampSidebarWidth(
             typeof persistedState?.sidebarWidth === 'number'
               ? persistedState.sidebarWidth

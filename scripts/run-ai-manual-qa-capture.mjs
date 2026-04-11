@@ -289,31 +289,32 @@ async function captureLocaleMode(browser, origin, locale, mode) {
       }
     })
 
-    const applyVisible = (await composer.locator('[data-ai-action="apply"]').count()) > 0
-    const insertVisible = (await composer.locator('[data-ai-action="insert-at-cursor"]').count()) > 0
+    const replaceVisible = (await composer.locator('[data-ai-action="replace"]').count()) > 0
+    const insertVisible = (await composer.locator('[data-ai-action="insert"]').count()) > 0
+    const newNoteVisible = (await composer.locator('[data-ai-action="new-note"]').count()) > 0
+    const hasResultTargets = replaceVisible || insertVisible || newNoteVisible
     const languageLabel = await composer.locator('text=/Document Language:|文書言語:|文档语言:/').count().catch(() => 0)
     const promptText = await composer.locator('textarea').inputValue()
     const draftText = await readComposerDraftText(composer)
 
     if (mode.id === 'preview') {
-      assert.equal(applyVisible, false)
-      assert.equal(insertVisible, false)
+      assert.equal(hasResultTargets, false)
       assert.equal(summary.editorVisible, false)
       assert.equal(summary.previewVisible, true)
     } else if (mode.id === 'split') {
       assert.equal(summary.editorVisible, true)
       assert.equal(summary.previewVisible, true)
-      assert.equal(applyVisible, true)
+      assert.equal(hasResultTargets, true)
     } else {
       assert.equal(summary.editorVisible, true)
-      assert.equal(applyVisible, true)
+      assert.equal(hasResultTargets, true)
     }
 
     assert.equal(summary.composerOpen, true)
     assert.equal(summary.horizontalOverflow, false)
     assert.match(promptText, /Continue writing/u)
     assert.ok(draftText.length > 0)
-    assert.ok(languageLabel > 0)
+    assert.equal(languageLabel, 0)
 
     return {
       locale,

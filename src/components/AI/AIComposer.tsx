@@ -13,8 +13,7 @@ import {
 import { dispatchEditorAIApply } from '../../lib/ai/events.ts'
 import { diffTextByLine } from '../../lib/lineDiff.ts'
 import { pushErrorNotice, pushInfoNotice, pushSuccessNotice } from '../../lib/notices'
-import { buildAIContextChipModels } from '../../lib/ai/contextChips.ts'
-import { getAIDocumentLanguageLabelKey } from '../../lib/ai/documentLanguageLabels.ts'
+import { buildAIComposerContextPacket } from '../../lib/ai/context.ts'
 import {
   buildMarkdownPreviewLines,
   getMarkdownPreviewLineBadge,
@@ -31,9 +30,9 @@ import {
   AI_COMPOSER_SUGGESTION_TEMPLATE_ORDER,
   buildAIComposerPromptPlaceholder,
   getAITemplateModels,
+  resolveAIComposerTemplateResolution,
   type AITemplateModel,
 } from '../../lib/ai/templateLibrary.ts'
-import { resolveAIOpenOutputTarget } from '../../lib/ai/opening.ts'
 import { formatPrimaryShortcut, matchesPrimaryShortcut } from '../../lib/platform.ts'
 import type { AIIntent, AIProviderState } from '../../lib/ai/types.ts'
 import { findWorkspaceDocumentReferences } from '../../lib/workspaceSearch.ts'
@@ -57,16 +56,6 @@ import { createAIProvenanceMark } from '../../lib/ai/provenance.ts'
 import { openDesktopDocumentPath } from '../../lib/desktopFileOpen.ts'
 import { primeAIUndoHistorySnapshot } from '../../lib/editorStateCache.ts'
 import { focusElementWithoutScroll } from '../../hooks/useDialogFocusRestore'
-
-
-function formatAIDocumentLanguage(
-  language: string | undefined,
-  t: (key: string) => string
-): string | undefined {
-  const key = getAIDocumentLanguageLabelKey(language)
-  if (key) return t(key)
-  return language?.toUpperCase()
-}
 
 type WorkspaceExecutionTaskStatus = AIWorkspaceExecutionTaskRuntimeStatus
 
@@ -123,6 +112,7 @@ export default function AIComposer() {
     composer,
     closeComposer,
     setIntent,
+    setScope,
     setOutputTarget,
     setPrompt,
     setDraftText,
@@ -165,10 +155,26 @@ export default function AIComposer() {
   const workspacePreflightRequestIdRef = useRef(0)
   const workspaceProducedDraftsRef = useRef<Record<string, AIWorkspaceExecutionProducedDraft>>({})
 
-  const hasSelection = !!composer.context?.selectedText
-  const canReplaceSelection = hasSelection
   const effectivePrompt = composer.prompt.trim()
-  const effectiveContext = composer.context
+  const hasSelection = !!composer.context?.selectedText
+  const hasCurrentBlock = !!composer.context?.currentBlock
+  const effectiveContext = useMemo(
+    () =>
+      buildAIComposerContextPacket({
+        baseContext: composer.context,
+        sourceSnapshot: composer.sourceSnapshot,
+        intent: composer.intent,
+        scope: composer.scope,
+        outputTarget: composer.outputTarget,
+      }),
+    [composer.context, composer.intent, composer.outputTarget, composer.scope, composer.sourceSnapshot]
+  )
+  const replaceActionTarget: Extract<AIInsertTarget, 'replace-selection' | 'replace-current-block'> | null =
+    hasSelection ? 'replace-selection' : hasCurrentBlock ? 'replace-current-block' : null
+  const canReplaceCurrentTarget = replaceActionTarget !== null
+  const slashCommandContext = effectiveContext?.slashCommandContext ?? null
+  const hasSlashCommandContext = slashCommandContext !== null && !slashCommandContext.isEmpty
+  const showSlashCommandHint = composer.source === 'slash-command' && slashCommandContext !== null
   const hasConnection =
     !!providerState?.config?.baseUrl &&
     !!providerState?.config?.model &&
@@ -208,10 +214,33 @@ export default function AIComposer() {
     !!composer.sourceSnapshot &&
     !!activeTab &&
     canApplyToEditor
+  const canApplyToAnyTarget =
+    composer.requestState !== 'streaming' &&
+    !!normalizedDraft &&
+    !!composer.sourceSnapshot &&
+    !!activeTab &&
+    canApplyToEditor
   const showResultPanel =
     composer.requestState !== 'idle' || normalizedDraft.trim().length > 0 || composer.errorMessage !== null
   const hasDiffPreview = hasAIDiffPreview(composer.outputTarget, composer.diffBaseText, normalizedDraft)
   const hasInsertPreview = hasAIInsertPreview(composer.outputTarget, normalizedDraft)
+  const defaultInsertTarget: AIInsertTarget =
+    composer.outputTarget === 'at-cursor' || composer.outputTarget === 'insert-below'
+      ? composer.outputTarget
+      : aiDefaultWriteTarget !== 'replace-selection'
+        ? aiDefaultWriteTarget
+        : 'insert-below'
+  const preferredResultAction: 'replace' | 'insert' | 'new-note' =
+    composer.outputTarget === 'replace-selection' || composer.outputTarget === 'replace-current-block'
+      ? 'replace'
+      : composer.outputTarget === 'new-note'
+        ? 'new-note'
+        : 'insert'
+  const currentDocumentResultActionStyle = {
+    background: 'var(--accent)',
+    color: 'white',
+    border: '1px solid var(--accent)',
+  }
   const runShortcutLabel = formatPrimaryShortcut('Enter')
   const applyShortcutLabel = formatPrimaryShortcut('Enter', { shift: true })
   const diffBlocks =
@@ -385,31 +414,6 @@ export default function AIComposer() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [canApplyDraft, canSubmit, composer.outputTarget, composer.requestState, effectiveContext, effectivePrompt])
 
-  const contextChips = useMemo(
-    () =>
-      buildAIContextChipModels(effectiveContext).map((chip) => {
-        switch (chip.kind) {
-          case 'heading':
-            return `${t('ai.context.heading')}: ${chip.value ?? ''}`
-          case 'language': {
-            const language = formatAIDocumentLanguage(chip.value, t) ?? chip.value ?? ''
-            return `${t('ai.context.language')}: ${language}`
-          }
-          case 'selection':
-            return t('ai.context.selection')
-          case 'block':
-            return t('ai.context.block')
-          case 'frontMatter':
-            return t('ai.context.frontMatter')
-          case 'note':
-            return `${t('ai.context.note')}: ${chip.value ?? ''}`
-          case 'search':
-            return `${t('ai.context.search')}: ${chip.value ?? ''}`
-        }
-      }),
-    [effectiveContext, t]
-  )
-
   function updateActiveSessionHistory(
     patch: {
       status?: 'done' | 'error' | 'canceled'
@@ -453,9 +457,9 @@ export default function AIComposer() {
       tabPath: effectiveContext.tabPath,
       documentName: effectiveContext.fileName,
       source: composer.source,
-      intent: composer.intent,
-      scope: composer.scope,
-      outputTarget: composer.outputTarget,
+      intent: effectiveContext.intent,
+      scope: effectiveContext.scope,
+      outputTarget: effectiveContext.outputTarget,
       prompt: effectivePrompt,
       attachmentCount: effectiveContext.explicitContextAttachments?.length ?? 0,
       threadId: composer.threadId,
@@ -471,9 +475,9 @@ export default function AIComposer() {
     try {
       const response = await runAICompletion({
         requestId,
-        intent: composer.intent,
-        scope: composer.scope,
-        outputTarget: composer.outputTarget,
+        intent: effectiveContext.intent,
+        scope: effectiveContext.scope,
+        outputTarget: effectiveContext.outputTarget,
         prompt: effectivePrompt,
         context: effectiveContext,
         messages: buildAIRequestMessages({
@@ -489,10 +493,12 @@ export default function AIComposer() {
       if (disposedRef.current || runId !== requestRunIdRef.current) return
       activeRequestIdRef.current = null
 
-      const draft = normalizeAIDraftText(response.text, composer.outputTarget)
+      const draft = normalizeAIDraftText(response.text, effectiveContext.outputTarget)
       setDraftText(draft)
-      if (composer.outputTarget === 'replace-selection' && effectiveContext.selectedText) {
+      if (effectiveContext.outputTarget === 'replace-selection' && effectiveContext.selectedText) {
         setDiffBaseText(effectiveContext.selectedText)
+      } else if (effectiveContext.outputTarget === 'replace-current-block' && effectiveContext.currentBlock) {
+        setDiffBaseText(effectiveContext.currentBlock)
       } else {
         setDiffBaseText(null)
       }
@@ -567,15 +573,17 @@ export default function AIComposer() {
   }
 
   function applyTemplate(template: AITemplateModel) {
-    const nextOutputTarget = resolveAIOpenOutputTarget(
-      template.intent,
-      template.outputTarget,
+    const resolution = resolveAIComposerTemplateResolution(template, {
       hasSelection,
-      aiDefaultWriteTarget
-    )
+      hasCurrentBlock,
+      hasSlashCommandContext,
+      aiDefaultWriteTarget,
+    })
+    if (!resolution.enabled) return
 
-    setIntent(template.intent)
-    setOutputTarget(nextOutputTarget)
+    setIntent(resolution.intent)
+    setScope(resolution.scope)
+    setOutputTarget(resolution.outputTarget)
     setPrompt(template.prompt)
     setResultView('draft')
   }
@@ -1243,39 +1251,6 @@ export default function AIComposer() {
     })
   }
 
-  // Derive a single "mode" from the current intent + outputTarget combination
-  const currentMode: 'chat' | 'edit' | 'insert' | 'new-note' =
-    composer.outputTarget === 'chat-only'
-      ? 'chat'
-      : composer.outputTarget === 'replace-selection'
-        ? 'edit'
-        : composer.outputTarget === 'new-note'
-          ? 'new-note'
-          : 'insert'
-
-  function handleSetMode(mode: 'chat' | 'edit' | 'insert' | 'new-note') {
-    switch (mode) {
-      case 'chat':
-        setIntent('ask')
-        setOutputTarget('chat-only')
-        break
-      case 'edit':
-        setIntent('edit')
-        setOutputTarget('replace-selection')
-        break
-      case 'insert':
-        setIntent('generate')
-        if (composer.outputTarget !== 'at-cursor' && composer.outputTarget !== 'insert-below') {
-          setOutputTarget(aiDefaultWriteTarget !== 'replace-selection' ? aiDefaultWriteTarget : 'insert-below')
-        }
-        break
-      case 'new-note':
-        setIntent('generate')
-        setOutputTarget('new-note')
-        break
-    }
-  }
-
   return (
     <div
       className="fixed inset-0 z-[110] flex items-center justify-center px-4 py-6"
@@ -1313,9 +1288,6 @@ export default function AIComposer() {
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               {t('ai.title')}
-            </div>
-            <div className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>
-              {activeTab?.name ?? t('app.untitled')}
             </div>
           </div>
           <button
@@ -1363,22 +1335,29 @@ export default function AIComposer() {
             </div>
           )}
 
-          {/* Context chips */}
-          {contextChips.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {contextChips.map((chip) => (
-                <span
-                  key={chip}
-                  className="rounded-full border px-2.5 py-0.5 text-xs"
-                  style={{
-                    borderColor: 'color-mix(in srgb, var(--accent) 14%, var(--border))',
-                    background: 'color-mix(in srgb, var(--bg-secondary) 74%, transparent)',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
-                  {chip}
-                </span>
-              ))}
+          {showSlashCommandHint && (
+            <div
+              data-ai-slash-context={slashCommandContext.isEmpty ? 'empty' : 'attached'}
+              className="rounded-2xl border px-4 py-3 text-xs leading-5"
+              style={
+                slashCommandContext.isEmpty
+                  ? {
+                      borderColor: 'color-mix(in srgb, #f59e0b 28%, var(--border))',
+                      background: 'color-mix(in srgb, #f59e0b 10%, var(--bg-secondary))',
+                      color: 'var(--text-primary)',
+                    }
+                  : {
+                      borderColor: 'color-mix(in srgb, var(--accent) 16%, var(--border))',
+                      background: 'color-mix(in srgb, var(--bg-secondary) 74%, transparent)',
+                      color: 'var(--text-primary)',
+                    }
+              }
+            >
+              <p className="m-0 truncate whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+                {slashCommandContext.isEmpty
+                  ? t('ai.slashContext.emptyMessage')
+                  : t('ai.slashContext.attachedMessage')}
+              </p>
             </div>
           )}
 
@@ -1402,61 +1381,23 @@ export default function AIComposer() {
           <AIQuickChips
             templates={templateModels}
             composerIntent={composer.intent}
+            composerScope={composer.scope}
             composerOutputTarget={composer.outputTarget}
             composerPrompt={effectivePrompt}
             hasSelection={hasSelection}
+            hasCurrentBlock={hasCurrentBlock}
+            hasSlashCommandContext={hasSlashCommandContext}
             aiDefaultWriteTarget={aiDefaultWriteTarget}
             onSelectTemplate={applyTemplate}
           />
 
-          {/* Mode selector + run actions in one row */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* Mode pills */}
-            <div
-              className="inline-flex items-center gap-0.5 rounded-full border p-0.5"
-              style={{
-                borderColor: 'color-mix(in srgb, var(--border) 84%, transparent)',
-                background: 'color-mix(in srgb, var(--bg-secondary) 64%, transparent)',
-              }}
-            >
-              {(
-                [
-                  { mode: 'chat', labelKey: 'ai.mode.chat' },
-                  { mode: 'edit', labelKey: 'ai.mode.edit', disabled: !canReplaceSelection },
-                  { mode: 'insert', labelKey: 'ai.mode.insert' },
-                  { mode: 'new-note', labelKey: 'ai.mode.newNote' },
-                ] as Array<{ mode: typeof currentMode; labelKey: string; disabled?: boolean }>
-              ).map(({ mode, labelKey, disabled }) => (
-                <button
-                  key={mode}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => !disabled && handleSetMode(mode)}
-                  className="rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                  style={{
-                    background:
-                      currentMode === mode
-                        ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-primary))'
-                        : 'transparent',
-                    color: currentMode === mode ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    border:
-                      currentMode === mode
-                        ? '1px solid color-mix(in srgb, var(--accent) 28%, var(--border))'
-                        : '1px solid transparent',
-                  }}
-                >
-                  {t(labelKey)}
-                </button>
-              ))}
-            </div>
-
-            {/* Run ↔ Stop / Cancel */}
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex gap-2">
               {composer.requestState === 'streaming' ? (
                 <button
                   type="button"
                   onClick={() => void handleCancelRequest()}
-                  data-ai-action="stop"
+                  data-ai-action="cancel-request"
                   className="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
                   style={{ background: 'var(--accent)', color: 'white' }}
                 >
@@ -1488,6 +1429,18 @@ export default function AIComposer() {
               >
                 {t('dialog.cancel')}
               </button>
+            </div>
+            <div
+              data-ai-current-output-target="true"
+              className="ml-auto inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--border) 84%, transparent)',
+                background: 'color-mix(in srgb, var(--bg-secondary) 64%, transparent)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <span>{t('ai.responseModeLabel')}</span>
+              <span style={{ color: 'var(--text-primary)' }}>{t(`ai.outputTarget.${composer.outputTarget}`)}</span>
             </div>
           </div>
 
@@ -1599,10 +1552,9 @@ export default function AIComposer() {
                         </button>
                       </>
                     )}
-                    {/* Primary action: single Insert (chat mode) or Apply (edit/insert/new-note mode) */}
+                    {/* Result actions: explicit destination choices */}
                     {!hasWorkspaceExecutionTasks && canApplyToEditor && (
                       <>
-                        {/* Copy — small icon-style, always secondary */}
                         <button
                           type="button"
                           onClick={() => void handleCopy()}
@@ -1612,31 +1564,77 @@ export default function AIComposer() {
                         >
                           {t('ai.copy')}
                         </button>
-                        {composer.outputTarget === 'chat-only' ? (
-                          // Chat mode: single "Insert at cursor" primary button
-                          <button
-                            type="button"
-                            onClick={() => handleApplyToTarget(aiDefaultWriteTarget !== 'replace-selection' ? aiDefaultWriteTarget : 'insert-below')}
-                            data-ai-action="insert"
-                            className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
-                            style={{ background: 'var(--accent)', color: 'white' }}
-                          >
-                            {t('ai.insert')}
-                          </button>
-                        ) : (
-                          // Edit / Insert / New Note mode: Apply
-                          <button
-                            type="button"
-                            onClick={handleApply}
-                            data-ai-action="apply"
-                            aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"
-                            className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
-                            style={{ background: 'var(--accent)', color: 'white' }}
-                            title={`${t('ai.apply')} (${applyShortcutLabel})`}
-                          >
-                            {t('ai.apply')}
-                          </button>
-                        )}
+                        <div
+                          aria-hidden="true"
+                          className="mx-0.5 h-4 w-px"
+                          style={{ background: 'color-mix(in srgb, var(--border) 88%, transparent)' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (replaceActionTarget) handleApplyToTarget(replaceActionTarget)
+                          }}
+                          data-ai-action="replace"
+                          disabled={!canApplyToAnyTarget || !canReplaceCurrentTarget}
+                          aria-keyshortcuts={
+                            preferredResultAction === 'replace' ? 'Control+Shift+Enter Meta+Shift+Enter' : undefined
+                          }
+                          className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                          style={currentDocumentResultActionStyle}
+                          title={
+                            preferredResultAction === 'replace'
+                              ? `${t('ai.apply')} (${applyShortcutLabel})`
+                              : undefined
+                          }
+                        >
+                          {replaceActionTarget ? t(`ai.outputTarget.${replaceActionTarget}`) : t('search.replace')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyToTarget(defaultInsertTarget)}
+                          data-ai-action="insert"
+                          disabled={!canApplyToAnyTarget}
+                          aria-keyshortcuts={
+                            preferredResultAction === 'insert' ? 'Control+Shift+Enter Meta+Shift+Enter' : undefined
+                          }
+                          className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                          style={currentDocumentResultActionStyle}
+                          title={
+                            preferredResultAction === 'insert'
+                              ? `${t('ai.apply')} (${applyShortcutLabel})`
+                              : t(`ai.outputTarget.${defaultInsertTarget}`)
+                          }
+                        >
+                          {t('ai.insert')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyToTarget('new-note')}
+                          data-ai-action="new-note"
+                          disabled={!canApplyToAnyTarget}
+                          aria-keyshortcuts={
+                            preferredResultAction === 'new-note' ? 'Control+Shift+Enter Meta+Shift+Enter' : undefined
+                          }
+                          className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                          style={{
+                            background:
+                              preferredResultAction === 'new-note'
+                                ? 'var(--accent)'
+                                : 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)',
+                            color: preferredResultAction === 'new-note' ? 'white' : 'var(--text-primary)',
+                            border:
+                              preferredResultAction === 'new-note'
+                                ? '1px solid var(--accent)'
+                                : '1px solid color-mix(in srgb, var(--border) 88%, transparent)',
+                          }}
+                          title={
+                            preferredResultAction === 'new-note'
+                              ? `${t('ai.apply')} (${applyShortcutLabel})`
+                              : undefined
+                          }
+                        >
+                          {t('ai.outputTarget.new-note')}
+                        </button>
                       </>
                     )}
                   </div>
@@ -1709,17 +1707,23 @@ export default function AIComposer() {
 function AIQuickChips({
   templates,
   composerIntent,
+  composerScope,
   composerOutputTarget,
   composerPrompt,
   hasSelection,
+  hasCurrentBlock,
+  hasSlashCommandContext,
   aiDefaultWriteTarget,
   onSelectTemplate,
 }: {
   templates: AITemplateModel[]
   composerIntent: AIIntent
+  composerScope: 'selection' | 'current-block' | 'document'
   composerOutputTarget: string
   composerPrompt: string
   hasSelection: boolean
+  hasCurrentBlock: boolean
+  hasSlashCommandContext: boolean
   aiDefaultWriteTarget: 'replace-selection' | 'at-cursor' | 'insert-below'
   onSelectTemplate: (template: AITemplateModel) => void
 }) {
@@ -1732,45 +1736,67 @@ function AIQuickChips({
         .filter((tmpl): tmpl is AITemplateModel => tmpl !== undefined),
     [templates]
   )
+  const resolvedTemplates = useMemo(
+    () =>
+      chipTemplates.map((template) => ({
+        template,
+        resolution: resolveAIComposerTemplateResolution(template, {
+          hasSelection,
+          hasCurrentBlock,
+          hasSlashCommandContext,
+          aiDefaultWriteTarget,
+        }),
+      })),
+    [aiDefaultWriteTarget, chipTemplates, hasCurrentBlock, hasSelection, hasSlashCommandContext]
+  )
+  const showTransformHint = resolvedTemplates.some(({ resolution }) => !resolution.enabled)
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-        {t('ai.mode.suggestions')}
-      </span>
-      {chipTemplates.map((template) => {
-        const resolvedTarget = resolveAIOpenOutputTarget(
-          template.intent,
-          template.outputTarget,
-          hasSelection,
-          aiDefaultWriteTarget
-        )
-        const active =
-          composerIntent === template.intent &&
-          composerOutputTarget === resolvedTarget &&
-          composerPrompt === template.prompt
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          {t('ai.mode.suggestions')}
+        </span>
+        {resolvedTemplates.map(({ template, resolution }) => {
+          const active =
+            composerIntent === resolution.intent &&
+            composerScope === resolution.scope &&
+            composerOutputTarget === resolution.outputTarget &&
+            composerPrompt === template.prompt
 
-        return (
-          <button
-            key={template.id}
-            type="button"
-            data-ai-template={template.id}
-            onClick={() => onSelectTemplate(template)}
-            className="rounded-full border px-2.5 py-1 text-xs transition-colors"
-            style={{
-              borderColor: active
-                ? 'color-mix(in srgb, var(--accent) 32%, var(--border))'
-                : 'color-mix(in srgb, var(--border) 82%, transparent)',
-              background: active
-                ? 'color-mix(in srgb, var(--accent) 12%, var(--bg-primary))'
-                : 'color-mix(in srgb, var(--bg-secondary) 64%, transparent)',
-              color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-            }}
-          >
-            {template.label}
-          </button>
-        )
-      })}
+          return (
+            <button
+              key={template.id}
+              type="button"
+              data-ai-template={template.id}
+              onClick={() => onSelectTemplate(template)}
+              disabled={!resolution.enabled}
+              className="rounded-full border px-2.5 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+              style={{
+                borderColor: active
+                  ? 'color-mix(in srgb, var(--accent) 32%, var(--border))'
+                  : 'color-mix(in srgb, var(--border) 82%, transparent)',
+                background: active
+                  ? 'color-mix(in srgb, var(--accent) 12%, var(--bg-primary))'
+                  : 'color-mix(in srgb, var(--bg-secondary) 64%, transparent)',
+                color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+              }}
+              title={resolution.enabled ? template.detail : t('ai.target.transformHint')}
+            >
+              {template.label}
+            </button>
+          )
+        })}
+      </div>
+      {showTransformHint && (
+        <p
+          data-ai-template-hint="transform-target-required"
+          className="text-xs"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          {t('ai.target.transformHint')}
+        </p>
+      )}
     </div>
   )
 }

@@ -83,7 +83,7 @@ test('AI composer prompt placeholder follows the suggestion chip order across lo
   assert.equal(buildAIComposerPromptPlaceholder(createLocaleTranslate(zh)), '翻译、总结提炼、解释或改写润色...')
 })
 
-test('AI sidebar status copy describes the document session instead of generic readiness', async () => {
+test('AI locales remove sidebar-specific copy while keeping the remaining source labels', async () => {
   const [enRaw, jaRaw, zhRaw] = await Promise.all([
     readFile(new URL('../src/i18n/locales/en.json', import.meta.url), 'utf8'),
     readFile(new URL('../src/i18n/locales/ja.json', import.meta.url), 'utf8'),
@@ -94,21 +94,36 @@ test('AI sidebar status copy describes the document session instead of generic r
   const ja = JSON.parse(jaRaw) as Record<string, unknown>
   const zh = JSON.parse(zhRaw) as Record<string, unknown>
 
-  assert.equal(getNestedValue(en, 'ai.sidebar.activeStatus'), 'Document Session')
-  assert.equal(getNestedValue(en, 'ai.sidebar.statusReady'), 'Idle')
-  assert.equal(getNestedValue(en, 'ai.sidebar.statusOpen'), 'Awaiting Run')
-  assert.equal(getNestedValue(en, 'ai.sidebar.statusStreaming'), 'Generating')
-  assert.equal(getNestedValue(en, 'ai.sidebar.statusError'), 'Request Failed')
+  for (const locale of [en, ja, zh]) {
+    assert.equal(getNestedValue(locale, 'sidebar.ai'), undefined)
+    assert.equal(getNestedValue(locale, 'ai.sidebar'), undefined)
+    assert.equal(getNestedValue(locale, 'ai.source.sidebar-tab'), undefined)
+    assert.equal(typeof getNestedValue(locale, 'ai.source.shortcut'), 'string')
+    assert.equal(typeof getNestedValue(locale, 'ai.source.command-palette'), 'string')
+    assert.equal(typeof getNestedValue(locale, 'ai.source.slash-command'), 'string')
+  }
+})
 
-  assert.equal(getNestedValue(ja, 'ai.sidebar.activeStatus'), 'ドキュメント セッション')
-  assert.equal(getNestedValue(ja, 'ai.sidebar.statusReady'), '待機中')
-  assert.equal(getNestedValue(ja, 'ai.sidebar.statusOpen'), '実行待ち')
-  assert.equal(getNestedValue(ja, 'ai.sidebar.statusStreaming'), '生成中')
-  assert.equal(getNestedValue(ja, 'ai.sidebar.statusError'), 'リクエスト失敗')
+test('AI slash-context copy stays concise across locales for single-line composer hints', async () => {
+  const [enRaw, jaRaw, zhRaw] = await Promise.all([
+    readFile(new URL('../src/i18n/locales/en.json', import.meta.url), 'utf8'),
+    readFile(new URL('../src/i18n/locales/ja.json', import.meta.url), 'utf8'),
+    readFile(new URL('../src/i18n/locales/zh.json', import.meta.url), 'utf8'),
+  ])
 
-  assert.equal(getNestedValue(zh, 'ai.sidebar.activeStatus'), '文档会话')
-  assert.equal(getNestedValue(zh, 'ai.sidebar.statusReady'), '空闲中')
-  assert.equal(getNestedValue(zh, 'ai.sidebar.statusOpen'), '等待运行')
-  assert.equal(getNestedValue(zh, 'ai.sidebar.statusStreaming'), '生成中')
-  assert.equal(getNestedValue(zh, 'ai.sidebar.statusError'), '请求失败')
+  const en = JSON.parse(enRaw) as Record<string, unknown>
+  const ja = JSON.parse(jaRaw) as Record<string, unknown>
+  const zh = JSON.parse(zhRaw) as Record<string, unknown>
+
+  for (const locale of [en, ja, zh]) {
+    const attachedMessage = getNestedValue(locale, 'ai.slashContext.attachedMessage')
+    const emptyMessage = getNestedValue(locale, 'ai.slashContext.emptyMessage')
+
+    assert.equal(typeof attachedMessage, 'string')
+    assert.equal(typeof emptyMessage, 'string')
+    assert.equal((attachedMessage as string).includes('\n'), false)
+    assert.equal((emptyMessage as string).includes('\n'), false)
+    assert.ok((attachedMessage as string).length <= 48)
+    assert.ok((emptyMessage as string).length <= 32)
+  }
 })

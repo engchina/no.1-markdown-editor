@@ -49,6 +49,7 @@ import {
   type EditorAIOpenDetail,
 } from '../../lib/ai/events.ts'
 import { matchAISlashCommandQuery } from '../../lib/ai/slashCommands.ts'
+import { buildAISlashCommandContext } from '../../lib/ai/slashCommands.ts'
 import { resolveAIOpenOutputTarget, resolveAISelectedTextRole } from '../../lib/ai/opening.ts'
 import {
   DEFAULT_AI_SELECTION_BUBBLE_SIZE,
@@ -916,6 +917,12 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
           scope: finalScope,
         }
       }
+      if (detail.source === 'slash-command') {
+        context = {
+          ...context,
+          slashCommandContext: buildAISlashCommandContext(snapshot.docText, snapshot.anchorOffset),
+        }
+      }
       const threadId = useAIStore.getState().getThreadId(activeTab.id, activeTab.path)
       aiComposerRestoreSnapshotRef.current = {
         selection: view.state.selection,
@@ -932,7 +939,12 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         context,
         draftText: '',
         explanationText: '',
-        diffBaseText: context.outputTarget === 'replace-selection' ? context.selectedText ?? null : null,
+        diffBaseText:
+          context.outputTarget === 'replace-selection'
+            ? context.selectedText ?? null
+            : context.outputTarget === 'replace-current-block'
+              ? context.currentBlock ?? null
+              : null,
         threadId,
         errorMessage: null,
         requestState: 'idle',

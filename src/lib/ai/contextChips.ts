@@ -1,7 +1,7 @@
 import type { AIContextPacket } from './types.ts'
 
 export interface AIContextChipModel {
-  kind: 'selection' | 'block' | 'heading' | 'language' | 'frontMatter' | 'note' | 'search'
+  kind: 'selection' | 'block' | 'heading' | 'frontMatter' | 'note' | 'search'
   value?: string
 }
 
@@ -15,12 +15,6 @@ export function buildAIContextChipModels(context: AIContextPacket | null): AICon
     chips.push({
       kind: 'heading',
       value: context.headingPath[context.headingPath.length - 1],
-    })
-  }
-  if (context.documentLanguage) {
-    chips.push({
-      kind: 'language',
-      value: context.documentLanguage,
     })
   }
   if (context.frontMatter) chips.push({ kind: 'frontMatter' })

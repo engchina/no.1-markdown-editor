@@ -3,6 +3,7 @@ export type AIScope = 'selection' | 'current-block' | 'document'
 export type AIOutputTarget =
   | 'chat-only'
   | 'replace-selection'
+  | 'replace-current-block'
   | 'at-cursor'
   | 'insert-below'
   | 'new-note'
@@ -34,7 +35,6 @@ export type AIComposerSource =
   | 'selection-bubble'
   | 'command-palette'
   | 'slash-command'
-  | 'sidebar-tab'
 export type AIProviderKind = 'openai-compatible'
 export type AIStorageKind = 'keyring' | 'unsupported'
 export type AIExplicitContextKind = 'note' | 'search'
@@ -44,6 +44,12 @@ export type AIPromptMentionErrorCode =
   | 'note-not-found'
   | 'search-empty-query'
   | 'search-no-results'
+
+export interface AISlashCommandContext {
+  strategy: 'before-trigger'
+  text: string
+  isEmpty: boolean
+}
 
 export interface AIExplicitContextAttachment {
   id: string
@@ -95,6 +101,7 @@ export interface AIContextPacket {
   currentBlock?: string
   headingPath?: string[]
   frontMatter?: string | null
+  slashCommandContext?: AISlashCommandContext
   explicitContextAttachments?: AIExplicitContextAttachment[]
 }
 

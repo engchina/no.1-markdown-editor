@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 
-test('AIComposer exposes draft and diff result views plus chat-mode insert and apply actions', async () => {
+test('AIComposer exposes draft and diff result views plus explicit replace, insert, and new-note result actions', async () => {
   const composer = await readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8')
 
   assert.match(composer, /data-ai-result-view=\{view\}/)
@@ -11,9 +11,15 @@ test('AIComposer exposes draft and diff result views plus chat-mode insert and a
   assert.doesNotMatch(composer, /view: 'explain', label: t\('ai\.result\.explain'\)/)
   assert.match(composer, /onClick=\{\(\) => !disabled && setResultView\(view\)\}/)
   assert.doesNotMatch(composer, /AIExplainView/)
+  assert.match(composer, /data-ai-action="replace"/)
   assert.match(composer, /data-ai-action="insert"/)
-  assert.match(composer, /handleApplyToTarget\(aiDefaultWriteTarget !== 'replace-selection' \? aiDefaultWriteTarget : 'insert-below'\)/)
-  assert.match(composer, /data-ai-action="apply"/)
+  assert.match(composer, /data-ai-action="new-note"/)
+  assert.match(composer, /replaceActionTarget/)
+  assert.match(composer, /handleApplyToTarget\(defaultInsertTarget\)/)
+  assert.match(composer, /handleApplyToTarget\('new-note'\)/)
+  assert.match(composer, /data-ai-current-output-target="true"/)
+  assert.match(composer, /replace-current-block/)
+  assert.doesNotMatch(composer, /handleSetMode\(/)
 })
 
 test('AIComposer exposes retry, discard, stop, and copy actions in the toolbar', async () => {
@@ -179,6 +185,9 @@ test('CodeMirrorEditor and AIComposer wire provenance markers into AI apply and 
   assert.match(editor, /setAIProvenanceMarks\(view, marks\)/)
   assert.match(provenance, /data-ai-provenance-mark/)
   assert.match(extensions, /\.cm-ai-provenance-range/)
+  assert.match(extensions, /\.cm-ai-provenance-range': \{[\s\S]*background: 'transparent'/)
+  assert.match(extensions, /\.cm-ai-provenance-range': \{[\s\S]*textDecoration: 'underline'/)
+  assert.doesNotMatch(extensions, /\.cm-ai-provenance-range': \{[\s\S]*borderRadius: '6px'/)
 })
 
 test('ThemePanel removes privacy copy and editable AI default preference controls from the settings panel', async () => {

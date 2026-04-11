@@ -2,10 +2,9 @@ import { Suspense, lazy, type CSSProperties, useCallback, useEffect, useState } 
 import { useTranslation } from 'react-i18next'
 import Toolbar from './components/Toolbar/Toolbar'
 import Sidebar from './components/Sidebar/Sidebar'
-import AISidebarPeekRail from './components/Sidebar/AISidebarPeekRail'
 import StatusBar from './components/StatusBar/StatusBar'
 import DocumentTabs from './components/DocumentTabs/DocumentTabs'
-import ResizableDivider, { SIDEBAR_DIVIDER_SIZE_PX } from './components/Layout/ResizableDivider'
+import ResizableDivider from './components/Layout/ResizableDivider'
 import TitleBar from './components/TitleBar/TitleBar'
 import NotificationCenter from './components/Notifications/NotificationCenter'
 import ExternalFileConflictDialog from './components/ExternalFileConflicts/ExternalFileConflictDialog'
@@ -13,9 +12,10 @@ import ExternalMissingFileDialog from './components/ExternalFileConflicts/Extern
 import UpdateAvailableDialog from './components/Updates/UpdateAvailableDialog'
 import RecoverableErrorBoundary from './components/ErrorBoundary/RecoverableErrorBoundary'
 import ErrorFallback from './components/ErrorBoundary/ErrorFallback'
-import { buildAIContextPacket } from './lib/ai/context'
+import { buildAIContextPacket, resolveCurrentBlockRange } from './lib/ai/context'
 import { dispatchEditorAIOpen, EDITOR_AI_OPEN_EVENT, type EditorAIOpenDetail } from './lib/ai/events'
 import { resolveAIOpenOutputTarget } from './lib/ai/opening'
+import { buildAISlashCommandContext } from './lib/ai/slashCommands'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useDocumentDrop } from './hooks/useDocumentDrop'
 import { useExternalFileChanges } from './hooks/useExternalFileChanges'
@@ -28,7 +28,6 @@ import { maybeRunAutomaticUpdateCheck } from './lib/updateActions'
 import { useAIStore } from './store/ai'
 import { useActiveTab, useEditorStore } from './store/editor'
 import { applyTheme, getThemeById } from './themes'
-import type { AISidebarPeekView } from './components/Sidebar/aiSidebarShared'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const EditorPane = lazy(() => import('./components/Editor/EditorPane'))
@@ -95,7 +94,6 @@ export default function App() {
     sidebarWidth,
     setSidebarWidth,
     sidebarOpen,
-    sidebarTab,
     editorRatio,
     setEditorRatio,
     focusMode,
@@ -109,7 +107,6 @@ export default function App() {
   const aiComposerOpen = useAIStore((state) => state.composer.open)
   const { saveAllDirtyTabs } = useFileOps()
   const [paletteMode, setPaletteMode] = useState<'command' | 'file' | null>(null)
-  const [aiPeekView, setAiPeekView] = useState<AISidebarPeekView | null>(null)
   const [previewActivated, setPreviewActivated] = useState(viewMode === 'preview')
   const { saving } = useAutoSave()
   const focusColumnWidth = resolveFocusWidthPx(focusWidthMode, focusWidthCustomPx)
@@ -117,7 +114,6 @@ export default function App() {
   const resolvedSidebarWidth = clampSidebarWidth(sidebarWidth)
   const splitEditorPercent = Math.round(editorRatio * 100)
   const splitPreviewPercent = 100 - splitEditorPercent
-  const sidebarPeekOffset = resolvedSidebarWidth + SIDEBAR_DIVIDER_SIZE_PX
   const appStyle = {
     background: 'transparent',
     '--focus-column-max-width': `${focusColumnWidth}px`,
@@ -237,18 +233,29 @@ export default function App() {
           anchorOffset: offset,
           selection: undefined,
         })
+        const enrichedContext =
+          detail.source === 'slash-command'
+            ? {
+                ...context,
+                slashCommandContext: buildAISlashCommandContext(fallbackTab.content, offset),
+              }
+            : context
+        const blockRange = resolveCurrentBlockRange(fallbackTab.content, offset) ?? {
+          from: offset,
+          to: offset,
+        }
         const threadId = useAIStore.getState().getThreadId(fallbackTab.id, fallbackTab.path)
 
         useAIStore.getState().openComposer({
           source: detail.source,
           intent,
-          scope: context.scope,
+          scope: enrichedContext.scope,
           outputTarget,
           prompt: detail.prompt ?? '',
-          context,
+          context: enrichedContext,
           draftText: '',
           explanationText: '',
-          diffBaseText: null,
+          diffBaseText: outputTarget === 'replace-current-block' ? enrichedContext.currentBlock ?? null : null,
           threadId,
           errorMessage: null,
           requestState: 'idle',
@@ -258,8 +265,8 @@ export default function App() {
             selectionFrom: offset,
             selectionTo: offset,
             anchorOffset: offset,
-            blockFrom: offset,
-            blockTo: offset,
+            blockFrom: blockRange.from,
+            blockTo: blockRange.to,
             docText: fallbackTab.content,
           },
         })
@@ -332,13 +339,6 @@ export default function App() {
   const showSidebar = sidebarOpen && !focusMode
   const showEditor = viewMode !== 'preview'
   const showPreview = viewMode !== 'source'
-  const showAIPeekRail = showSidebar && sidebarTab === 'ai' && aiPeekView !== null
-
-  useEffect(() => {
-    if (showSidebar && sidebarTab === 'ai') return
-    if (aiPeekView === null) return
-    setAiPeekView(null)
-  }, [aiPeekView, showSidebar, sidebarTab])
 
   useEffect(() => {
     if (!showPreview || previewActivated) return
@@ -478,11 +478,7 @@ export default function App() {
                 className="flex min-h-0 flex-shrink-0 flex-col overflow-hidden"
                 style={{ width: resolvedSidebarWidth }}
               >
-                <Sidebar
-                  width={resolvedSidebarWidth}
-                  aiPeekView={aiPeekView}
-                  onAiPeekViewChange={setAiPeekView}
-                />
+                <Sidebar width={resolvedSidebarWidth} />
               </div>
               <ResizableDivider
                 variant="sidebar"
@@ -496,32 +492,6 @@ export default function App() {
                 onReset={resetSidebarResize}
               />
             </div>
-          )}
-
-          {showAIPeekRail && (
-            <>
-              <div
-                aria-hidden="true"
-                className="sidebar-peek-backdrop absolute inset-y-0 right-0 z-20"
-                style={{
-                  left: `${sidebarPeekOffset}px`,
-                  background:
-                    'linear-gradient(90deg, color-mix(in srgb, var(--bg-canvas) 6%, transparent) 0%, color-mix(in srgb, var(--bg-canvas) 34%, transparent) 20%, color-mix(in srgb, var(--bg-canvas) 54%, transparent) 100%)',
-                }}
-                onMouseDown={() => setAiPeekView(null)}
-              />
-              <div
-                className="pointer-events-none absolute inset-y-0 z-30"
-                style={{
-                  left: `${sidebarPeekOffset}px`,
-                  width: `min(420px, calc(100% - ${sidebarPeekOffset + 8}px))`,
-                }}
-              >
-                <div className="pointer-events-auto h-full">
-                  <AISidebarPeekRail view={aiPeekView} onClose={() => setAiPeekView(null)} />
-                </div>
-              </div>
-            </>
           )}
 
           <div

@@ -26,6 +26,25 @@ test('resolveAIApplyChange replaces the original selection when requested', () =
   })
 })
 
+test('resolveAIApplyChange replaces the captured current block when requested', () => {
+  const change = resolveAIApplyChange(
+    'replace-current-block',
+    {
+      ...snapshot,
+      blockFrom: 0,
+      blockTo: 11,
+    },
+    snapshot.docText,
+    'rewritten block'
+  )
+
+  assert.deepEqual(change, {
+    range: { from: 0, to: 11 },
+    text: 'rewritten block',
+    selectionAnchor: 15,
+  })
+})
+
 test('resolveAIApplyChange inserts below the captured block with readable spacing', () => {
   const doc = 'First paragraph\ncontinues here\n\nSecond paragraph'
   const change = resolveAIApplyChange(

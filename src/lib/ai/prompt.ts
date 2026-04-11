@@ -32,6 +32,7 @@ function buildAISystemPrompt(context: AIContextPacket): string {
     'Return standards-compliant Markdown whenever your response is meant to be inserted into or read as Markdown content.',
     'Use valid Markdown block syntax, including required spacing for ATX headings.',
     'Do not wrap your response in ```markdown fences.',
+    'Treat XML-like context tags as authoritative context boundaries.',
     'Keep links, tables, headings, fenced code blocks, Mermaid blocks, math, and front matter safe.',
     context.explicitContextAttachments?.length
       ? 'Use only the explicit attached note, heading, and search context shown below. Do not assume any hidden workspace state.'
@@ -80,10 +81,20 @@ function buildAIUserPrompt(prompt: string, context: AIContextPacket): string {
   if (context.fileName) sections.push(`File: ${context.fileName}`)
   if (context.headingPath?.length) sections.push(`Heading path:\n${context.headingPath.join(' > ')}`)
   if (context.frontMatter) sections.push(`Front matter:\n${context.frontMatter}`)
+  if (context.slashCommandContext && !context.slashCommandContext.isEmpty) {
+    sections.push(
+      `Slash command context (hidden from the composer UI, content before the "/" trigger):\n${context.slashCommandContext.text}`
+    )
+  }
   if (context.beforeText) sections.push(`Before context:\n${context.beforeText}`)
   if (context.selectedText) {
     sections.push(
-      `Selected text (${context.selectedTextRole ?? 'transform-target'}):\n${context.selectedText}`
+      [
+        `Selected text (${context.selectedTextRole ?? 'transform-target'}):`,
+        '<selected_content>',
+        context.selectedText,
+        '</selected_content>',
+      ].join('\n')
     )
   }
   if (context.currentBlock) sections.push(`Current block:\n${context.currentBlock}`)

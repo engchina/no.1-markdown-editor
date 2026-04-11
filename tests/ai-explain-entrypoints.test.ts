@@ -16,7 +16,13 @@ test('AI keeps explain prompt entry points but removes explain from the reply re
   ])
 
   assert.ok(getAITemplateDefinitions().some((definition) => definition.id === 'explain'))
-  assert.deepEqual(AI_COMPOSER_SUGGESTION_TEMPLATE_ORDER, ['translate', 'summarize', 'explain', 'rewrite'])
+  assert.deepEqual(AI_COMPOSER_SUGGESTION_TEMPLATE_ORDER, [
+    'continueWriting',
+    'translate',
+    'summarize',
+    'explain',
+    'rewrite',
+  ])
   assert.deepEqual(createAIQuickActionOpenDetail('explain', t), {
     source: 'selection-bubble',
     intent: 'ask',

@@ -6,6 +6,7 @@ import {
   resolveAIPromptMentions,
 } from '../src/lib/ai/mentions.ts'
 import {
+  buildAIComposerContextPacket,
   buildAIContextPacket,
   detectAIDocumentLanguage,
   extractCurrentBlock,
@@ -105,6 +106,46 @@ test('buildAIContextPacket captures selection, heading path, front matter, and n
   assert.match(packet.frontMatter ?? '', /title: Demo/u)
   assert.match(packet.beforeText ?? '', /First paragraph line|## Details/u)
   assert.match(packet.afterText ?? '', /Another line\./u)
+})
+
+test('buildAIComposerContextPacket rebuilds current-block transform context from the captured snapshot', () => {
+  const from = sampleDocument.indexOf('Target sentence for editing.')
+  const to = from + 'Target sentence for editing.'.length
+  const baseContext = buildAIContextPacket({
+    tabId: 'tab-1',
+    tabPath: 'notes/demo.md',
+    content: sampleDocument,
+    intent: 'edit',
+    outputTarget: 'replace-selection',
+    selection: { from, to },
+  })
+  baseContext.slashCommandContext = {
+    strategy: 'before-trigger',
+    text: '# Intro\n\nLead paragraph.',
+    isEmpty: false,
+  }
+  const context = buildAIComposerContextPacket({
+    baseContext,
+    sourceSnapshot: {
+      tabId: 'tab-1',
+      selectionFrom: from,
+      selectionTo: to,
+      anchorOffset: to,
+      blockFrom: sampleDocument.indexOf('Target sentence for editing.'),
+      blockTo: sampleDocument.indexOf('Another line.') + 'Another line.'.length,
+      docText: sampleDocument,
+    },
+    intent: 'edit',
+    scope: 'current-block',
+    outputTarget: 'replace-current-block',
+  })
+
+  assert.ok(context)
+  assert.equal(context?.scope, 'current-block')
+  assert.equal(context?.outputTarget, 'replace-current-block')
+  assert.equal(context?.selectedText, undefined)
+  assert.equal(context?.currentBlock, ['Target sentence for editing.', 'Another line.'].join('\n'))
+  assert.equal(context?.slashCommandContext?.text, '# Intro\n\nLead paragraph.')
 })
 
 test('parseAIPromptMentions strips explicit context directives from the user instruction', () => {

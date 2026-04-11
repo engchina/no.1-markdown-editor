@@ -31,8 +31,11 @@ test('buildAIRequestMessages creates system and user messages with visible conte
   assert.match(messages[0].content, /Markdown editor/u)
   assert.match(messages[0].content, /standards-compliant Markdown/u)
   assert.match(messages[0].content, /ATX headings/u)
+  assert.match(messages[0].content, /XML-like context tags/u)
   assert.match(messages[1].content, /Rewrite this in a concise tone\./u)
   assert.match(messages[1].content, /Selected text/u)
+  assert.match(messages[1].content, /<selected_content>/u)
+  assert.match(messages[1].content, /<\/selected_content>/u)
   assert.match(messages[1].content, /Heading path/u)
 })
 
@@ -80,6 +83,29 @@ test('buildAIRequestMessages appends explicit attached context sections after th
   assert.match(messages[0].content, /Use only the explicit attached note, heading, and search context/u)
   assert.match(messages[1].content, /Attached note/u)
   assert.match(messages[1].content, /Attached workspace search/u)
+})
+
+test('buildAIRequestMessages includes hidden slash-command prefix context without exposing it as selected text', () => {
+  const messages = buildAIRequestMessages({
+    prompt: 'Continue from here.',
+    context: {
+      ...baseContext,
+      intent: 'generate',
+      scope: 'current-block',
+      outputTarget: 'at-cursor',
+      selectedText: undefined,
+      selectedTextRole: undefined,
+      slashCommandContext: {
+        strategy: 'before-trigger',
+        text: '# Intro\n\nLead paragraph.',
+        isEmpty: false,
+      },
+    },
+  })
+
+  assert.match(messages[1].content, /Slash command context \(hidden from the composer UI, content before the "\/" trigger\):/u)
+  assert.match(messages[1].content, /Lead paragraph\./u)
+  assert.doesNotMatch(messages[1].content, /Selected text/u)
 })
 
 test('normalizeAIDraftText removes surrounding markdown fences for insertion targets', () => {

@@ -1,5 +1,6 @@
 import type { EditorAIOpenDetail } from './events.ts'
 import type { AIComposerSource, AIIntent, AIOutputTarget, AIScope } from './types.ts'
+import { resolveAIOpenOutputTarget, type AIDefaultWriteTarget } from './opening.ts'
 
 export type AITemplateId =
   | 'ask'
@@ -25,6 +26,14 @@ export interface AITemplateModel extends AITemplateDefinition {
   prompt: string
   label: string
   detail: string
+}
+
+export interface AIComposerTemplateResolution {
+  intent: AIIntent
+  scope: AIScope
+  outputTarget: AIOutputTarget
+  enabled: boolean
+  targetKind: 'selection' | 'current-block' | 'slash-context' | null
 }
 
 const TEMPLATE_DEFINITIONS: AITemplateDefinition[] = [
@@ -77,7 +86,9 @@ const TEMPLATE_DEFINITIONS: AITemplateDefinition[] = [
   },
 ]
 
-export const AI_COMPOSER_SUGGESTION_TEMPLATE_ORDER = ['translate', 'summarize', 'explain', 'rewrite'] as const
+export const AI_COMPOSER_SUGGESTION_TEMPLATE_ORDER = ['continueWriting', 'translate', 'summarize', 'explain', 'rewrite'] as const
+
+const BLOCK_AWARE_TEMPLATE_IDS = new Set<AITemplateId>(['translate', 'summarize', 'explain', 'rewrite'])
 
 export function getAITemplateDefinitions(): readonly AITemplateDefinition[] {
   return TEMPLATE_DEFINITIONS
@@ -90,6 +101,75 @@ export function getAITemplateModels(t: Translate): AITemplateModel[] {
     detail: t(definition.detailKey),
     prompt: definition.promptKey ? t(definition.promptKey) : '',
   }))
+}
+
+export function resolveAIComposerTemplateResolution(
+  template: Pick<AITemplateDefinition, 'id' | 'intent' | 'scope' | 'outputTarget'>,
+  options: {
+    hasSelection: boolean
+    hasCurrentBlock: boolean
+    hasSlashCommandContext: boolean
+    aiDefaultWriteTarget: AIDefaultWriteTarget
+  }
+): AIComposerTemplateResolution {
+  if (BLOCK_AWARE_TEMPLATE_IDS.has(template.id)) {
+    if (options.hasSelection) {
+      return {
+        intent: template.intent,
+        scope: 'selection',
+        outputTarget: template.id === 'explain' ? 'chat-only' : 'replace-selection',
+        enabled: true,
+        targetKind: 'selection',
+      }
+    }
+
+    if (options.hasCurrentBlock) {
+      return {
+        intent: template.intent,
+        scope: 'current-block',
+        outputTarget: template.id === 'explain' ? 'chat-only' : 'replace-current-block',
+        enabled: true,
+        targetKind: 'current-block',
+      }
+    }
+
+    if (options.hasSlashCommandContext) {
+      return {
+        intent: template.intent,
+        scope: 'document',
+        outputTarget: template.id === 'explain' ? 'chat-only' : 'at-cursor',
+        enabled: true,
+        targetKind: 'slash-context',
+      }
+    }
+
+    return {
+      intent: template.intent,
+      scope: 'current-block',
+      outputTarget: template.id === 'explain' ? 'chat-only' : 'replace-current-block',
+      enabled: false,
+      targetKind: null,
+    }
+  }
+
+  return {
+    intent: template.intent,
+    scope: template.scope ?? (options.hasSelection ? 'selection' : 'current-block'),
+    outputTarget: resolveAIOpenOutputTarget(
+      template.intent,
+      template.outputTarget,
+      options.hasSelection,
+      options.aiDefaultWriteTarget
+    ),
+    enabled: true,
+    targetKind: options.hasSelection
+      ? 'selection'
+      : options.hasCurrentBlock
+        ? 'current-block'
+        : options.hasSlashCommandContext
+          ? 'slash-context'
+          : null,
+  }
 }
 
 export function buildAIComposerPromptPlaceholder(

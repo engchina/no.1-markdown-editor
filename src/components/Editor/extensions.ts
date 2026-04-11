@@ -77,11 +77,13 @@ export const lightTheme = EditorView.theme(
       opacity: '0.6',
     },
     '.cm-ai-provenance-range': {
-      background: 'color-mix(in srgb, var(--accent) 10%, transparent)',
-      borderRadius: '6px',
-      borderBottom: '1px dashed color-mix(in srgb, var(--accent) 34%, var(--border))',
-      boxDecorationBreak: 'clone',
-      WebkitBoxDecorationBreak: 'clone',
+      background: 'transparent',
+      borderRadius: '0',
+      borderBottom: 'none',
+      textDecoration: 'underline',
+      textDecorationStyle: 'dashed',
+      textDecorationColor: 'color-mix(in srgb, var(--accent) 34%, var(--border))',
+      textUnderlineOffset: '0.18em',
     },
   },
   { dark: false }

@@ -27,6 +27,8 @@ export function resolveAIApplyChange(
 
   if (outputTarget === 'replace-selection') {
     range = { from: snapshot.selectionFrom, to: snapshot.selectionTo }
+  } else if (outputTarget === 'replace-current-block') {
+    range = { from: snapshot.blockFrom, to: snapshot.blockTo }
   } else if (outputTarget === 'insert-below') {
     const insertBelowOffset = resolveInsertBelowOffset(snapshot, currentDoc)
     range = { from: insertBelowOffset, to: insertBelowOffset }

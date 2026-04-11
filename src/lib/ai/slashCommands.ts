@@ -1,4 +1,4 @@
-import type { AIComposerSource } from './types.ts'
+import type { AIComposerSource, AISlashCommandContext } from './types.ts'
 import { createAITemplateOpenDetail } from './templateLibrary.ts'
 import type { EditorAIOpenDetail } from './events.ts'
 
@@ -72,5 +72,16 @@ export function resolveAISlashCommandTrigger(
   return {
     ...match,
     entry,
+  }
+}
+
+export function buildAISlashCommandContext(docText: string, anchorOffset: number): AISlashCommandContext {
+  const safeOffset = Math.max(0, Math.min(Math.trunc(anchorOffset), docText.length))
+  const text = docText.slice(0, safeOffset)
+
+  return {
+    strategy: 'before-trigger',
+    text,
+    isEmpty: text.trim().length === 0,
   }
 }
