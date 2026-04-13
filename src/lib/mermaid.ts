@@ -5,17 +5,20 @@ import { attemptDynamicImportRecovery, wasDynamicImportRecoveryTriggered } from 
 export type MermaidTheme = 'default' | 'dark'
 
 type MermaidModule = typeof import('mermaid')
+type MermaidLogosIconPackModule = typeof import('@iconify-json/logos')
 type MermaidWarmLoader = () => Promise<unknown>
 type MermaidExternalDiagramType = 'zenuml'
 type MermaidDetectedDiagramType = SupportedMermaidParserType | MermaidExternalDiagramType
 
 let mermaidPromise: Promise<MermaidModule> | null = null
 let mermaidParserPromise: Promise<typeof import('./mermaidParser.ts')> | null = null
+let mermaidLogosIconPackPromise: Promise<MermaidLogosIconPackModule['icons']> | null = null
 let mermaidRenderSequence = 0
 const MAX_MERMAID_RENDER_CACHE_ENTRIES = 48
 const mermaidRenderCache = new Map<string, string>()
 const mermaidWarmCache = new Map<string, Promise<void>>()
 const canUseBrowserChunkLoaders = typeof window !== 'undefined'
+const registeredMermaidIconPacks = new Set<'logos'>()
 let mermaidZenumlPluginPromise: Promise<ExternalDiagramDefinition> | null = null
 let mermaidZenumlRegistrationPromise: Promise<void> | null = null
 let mermaidZenumlRegistrationLevel: 'none' | 'lazy' | 'eager' = 'none'
@@ -56,7 +59,7 @@ const mermaidDiagramWarmers: Partial<Record<MermaidDetectedDiagramType, MermaidW
   treeView: () => warmMermaidLoaderGroup(genericDiagramLoader, 'generic-diagram-family'),
   wardley: () => pickSingleMermaidWarmLoader(wardleyDiagramLoader, 'wardley')(),
   zenuml: async () => {
-    const mermaid = (await loadMermaid()).default
+    const mermaid = await loadConfiguredMermaid()
     await ensureMermaidExternalDiagramRegistered(mermaid, 'zenuml', true)
   },
 }
@@ -99,6 +102,40 @@ function loadMermaid() {
     throw error
   })
   return mermaidPromise
+}
+
+function loadMermaidLogosIconPack() {
+  mermaidLogosIconPackPromise ??= import('@iconify-json/logos')
+    .then((module) => module.icons)
+    .catch((error) => {
+      mermaidLogosIconPackPromise = null
+      attemptDynamicImportRecovery(error)
+      throw error
+    })
+
+  return mermaidLogosIconPackPromise
+}
+
+function ensureMermaidIconPacksRegistered(mermaid: MermaidModule['default']): void {
+  if (registeredMermaidIconPacks.has('logos')) {
+    return
+  }
+
+  // Mermaid's architecture examples use Iconify-backed `logos:*` icons. We
+  // register the pack lazily so offline desktop builds still render them.
+  mermaid.registerIconPacks([
+    {
+      name: 'logos',
+      loader: loadMermaidLogosIconPack,
+    },
+  ])
+  registeredMermaidIconPacks.add('logos')
+}
+
+async function loadConfiguredMermaid(): Promise<MermaidModule['default']> {
+  const mermaid = (await loadMermaid()).default
+  ensureMermaidIconPacksRegistered(mermaid)
+  return mermaid
 }
 
 function loadMermaidParser() {
@@ -204,7 +241,7 @@ function warmMermaidResource(resourceKey: string, loader: MermaidWarmLoader): Pr
 }
 
 export async function warmMermaid(): Promise<void> {
-  await warmMermaidResource('core', loadMermaid)
+  await warmMermaidResource('core', loadConfiguredMermaid)
 }
 
 function getMermaidDefinitionLine(source: string): string | null {
@@ -531,7 +568,7 @@ export async function renderMermaidShells(
 
     try {
       clearMermaidShellStatus(shell)
-      mermaid ??= (await loadMermaid()).default
+      mermaid ??= await loadConfiguredMermaid()
       await ensureMermaidDiagramSupport(mermaid, source)
       mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' })
 
@@ -604,7 +641,7 @@ export async function renderMermaidInHtml(html: string, theme: MermaidTheme): Pr
       const svg = cachedSvg
         ? cachedSvg
         : (
-            mermaid ??= (await loadMermaid()).default,
+            mermaid ??= await loadConfiguredMermaid(),
             await ensureMermaidDiagramSupport(mermaid, source),
             mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' }),
             (await mermaid.render(

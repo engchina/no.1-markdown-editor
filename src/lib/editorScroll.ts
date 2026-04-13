@@ -7,8 +7,10 @@ export function createEditorSelectionScrollEffect(
   view: EditorView,
   anchor: number
 ): StateEffect<unknown> {
+  // Keep insertions from yanking an already-visible cursor toward the viewport
+  // edge. We still request a margin so off-screen insertions settle with context.
   return EditorView.scrollIntoView(anchor, {
-    y: 'end',
+    y: 'nearest',
     yMargin: Math.round(view.defaultLineHeight * EDITOR_CURSOR_SCROLL_LINES),
   })
 }

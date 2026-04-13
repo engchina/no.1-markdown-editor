@@ -1,6 +1,6 @@
 {
   "name": "no1-markdown-editor",
-  "version": "0.12.6",
+  "version": "0.12.7",
   "private": true,
   "type": "module",
   "scripts": {
@@ -31,6 +31,7 @@
     "@codemirror/search": "^6",
     "@codemirror/state": "^6",
     "@codemirror/view": "^6",
+    "@iconify-json/logos": "^1.2.11",
     "@lezer/highlight": "^1",
     "@mermaid-js/mermaid-zenuml": "^0.2.2",
     "@tauri-apps/api": "^2",

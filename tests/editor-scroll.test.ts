@@ -1,6 +1,26 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { resolveEditorCursorBottomGapScrollTop } from '../src/lib/editorScroll.ts'
+import type { EditorView } from '@codemirror/view'
+import { createEditorSelectionScrollEffect, resolveEditorCursorBottomGapScrollTop } from '../src/lib/editorScroll.ts'
+
+test('createEditorSelectionScrollEffect uses nearest alignment so visible cursors stay put after paste', () => {
+  const effect = createEditorSelectionScrollEffect({
+    defaultLineHeight: 28,
+  } as EditorView, 17)
+  const target = effect.value as {
+    range: {
+      from: number
+      to: number
+    }
+    y: string
+    yMargin: number
+  }
+
+  assert.equal(target.range.from, 17)
+  assert.equal(target.range.to, 17)
+  assert.equal(target.y, 'nearest')
+  assert.equal(target.yMargin, 84)
+})
 
 test('resolveEditorCursorBottomGapScrollTop keeps the cursor line three lines above the viewport bottom', () => {
   const nextScrollTop = resolveEditorCursorBottomGapScrollTop({

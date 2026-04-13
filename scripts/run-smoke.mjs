@@ -42,6 +42,20 @@ const SMOKE_MARKDOWN = [
   '```',
   '',
   '```mermaid',
+  'architecture-beta',
+  '  group api(logos:aws-lambda)[API]',
+  '',
+  '  service db(logos:aws-aurora)[Database] in api',
+  '  service disk1(logos:aws-glacier)[Storage] in api',
+  '  service disk2(logos:aws-s3)[Storage] in api',
+  '  service server(logos:aws-ec2)[Server] in api',
+  '',
+  '  db:L -- R:server',
+  '  disk1:T -- B:server',
+  '  disk2:T -- B:db',
+  '```',
+  '',
+  '```mermaid',
   'wardley-beta',
   '  title Value chain',
   '  component User[0.8, 0.1]',
@@ -266,7 +280,7 @@ async function main() {
     await page.goto(staticServer.origin, { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('.preview-diagram-toolbar__button')
     await waitForCondition(
-      async () => (await page.locator('.mermaid-shell').count()) === 5,
+      async () => (await page.locator('.mermaid-shell').count()) === 6,
       'Mermaid preview shells'
     )
 
@@ -292,14 +306,27 @@ async function main() {
     await renderAllButton.click()
 
     await waitForCondition(
-      async () => (await page.locator('.mermaid-shell[data-mermaid-rendered="true"]').count()) === 5,
+      async () => (await page.locator('.mermaid-shell[data-mermaid-rendered="true"]').count()) === 6,
       'rendered Mermaid shells',
       60000
     )
     await waitForCondition(
-      async () => (await page.locator('.mermaid-render-surface > *').count()) === 5,
+      async () => (await page.locator('.mermaid-render-surface > *').count()) === 6,
       'rendered Mermaid output surfaces',
       60000
+    )
+
+    const architectureLogoFallbackQuestionMarks = await page
+      .locator('.mermaid-shell')
+      .nth(1)
+      .locator('text')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => (node.textContent ?? '').trim()).filter((text) => text === '?')
+      )
+    assert.equal(
+      architectureLogoFallbackQuestionMarks.length,
+      0,
+      'Architecture logo icons fell back to question marks.'
     )
 
     const warmRequestsAfterClick = getWarmRequests(requestUrls, staticServer.origin)

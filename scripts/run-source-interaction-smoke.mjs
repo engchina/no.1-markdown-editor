@@ -246,7 +246,14 @@ async function placeCursorAtLineEnd(page, targetLineText) {
 
     const anchor = lineIndex + lineText.length
     view.focus()
-    view.dispatch({ selection: { anchor } })
+    const scrollIntoView = view.constructor?.scrollIntoView
+    view.dispatch({
+      selection: { anchor },
+      effects:
+        typeof scrollIntoView === 'function'
+          ? scrollIntoView(anchor, { y: 'center' })
+          : undefined,
+    })
   }, { lineText: targetLineText })
 
   await waitForCondition(
@@ -258,6 +265,13 @@ async function placeCursorAtLineEnd(page, targetLineText) {
     async () => (await readEditorSnapshot(page))?.lineText === targetLineText,
     'editor cursor to land on the target line'
   )
+
+  await waitForCondition(async () => {
+    const snapshot = await readEditorSnapshot(page)
+    if (!snapshot) return false
+    const minimumMeaningfulScroll = Math.max(snapshot.defaultLineHeight * 8, 80)
+    return snapshot.scrollTop >= minimumMeaningfulScroll
+  }, 'editor viewport to settle around the moved cursor')
 }
 
 async function seedClipboardWithText(page, text) {
