@@ -25,3 +25,13 @@ test('CodeMirrorEditor aborts async paste writes when the original editor view i
   assert.match(source, /const resolveActivePasteView = \(\): EditorView \| null => \{/)
   assert.match(source, /currentView !== view \|\| !currentView\.dom\.isConnected/)
 })
+
+test('replaceSelectionWithMarkdown normalizes \\r\\n to \\n before computing insertion length', async () => {
+  const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
+
+  // Windows clipboard returns \r\n plain text. CodeMirror strips \r when it splits
+  // on /\r\n?|\n/, so without normalization the computed nextDocLength in
+  // resolveSafeEditorInsertion would be too large and selectionAnchor would exceed
+  // the real post-insertion doc length, triggering a RangeError.
+  assert.match(source, /replace\(\/\\r\\n\?\/g, '\\n'\)/)
+})

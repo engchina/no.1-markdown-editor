@@ -1335,8 +1335,14 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 }
 
 function replaceSelectionWithMarkdown(view: EditorView, markdownText: string): void {
+  // Normalize \r\n and bare \r to \n. CodeMirror's internal Text representation
+  // strips \r when it splits on /\r\n?|\n/, so markdownText.length would otherwise
+  // over-count by one per carriage-return — causing selectionAnchor to exceed the
+  // real post-insertion doc length and triggering a "Selection points outside of
+  // document" RangeError on Windows where clipboardData returns \r\n plain text.
+  const normalizedText = markdownText.replace(/\r\n?/g, '\n')
   const selection = view.state.selection.main
-  const insertion = prepareMarkdownInsertion(markdownText, view.state.sliceDoc(selection.to))
+  const insertion = prepareMarkdownInsertion(normalizedText, view.state.sliceDoc(selection.to))
 
   insertMarkdown(view, insertion.text, {
     from: selection.from,
