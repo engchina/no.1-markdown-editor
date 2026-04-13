@@ -171,6 +171,7 @@
     "renderDiagram": "渲染图表",
     "refreshDiagram": "重新渲染",
     "diagramError": "图表无法渲染",
+    "packetPlaceholderError": "Packet 图需要使用数值位范围，例如 0-15: \"Field\" 或 +8: \"Field\"。",
     "diagramsPending": "有 {{count}} 个图表可供渲染",
     "renderAllDiagrams": "全部渲染",
     "renderingDiagrams": "渲染中...",

@@ -40,6 +40,7 @@
   --toolbar-shell-height: 64px;
   --focus-column-max-width: 1600px;
   --focus-column-inline-padding: 112px;
+  --document-bottom-buffer: 5.4em;
 }
 
 .dark {
@@ -307,7 +308,7 @@ a:focus-visible {
 }
 
 .cm-content {
-  padding: 24px 0 5.4em !important;
+  padding: 24px 0 var(--document-bottom-buffer) !important;
   color: var(--editor-text) !important;
   caret-color: var(--editor-cursor) !important;
 }
@@ -404,7 +405,7 @@ a:focus-visible {
 .markdown-preview {
   background-color: transparent;
   color: var(--preview-text);
-  padding: 32px 48px;
+  padding: 32px 48px var(--document-bottom-buffer);
   overflow-y: auto;
   height: 100%;
   --md-block-space: 0.75em;
@@ -986,7 +987,7 @@ a:focus-visible {
 }
 
 .focus-mode-container .cm-content {
-  padding: 24px 0 5.4em !important;
+  padding: 24px 0 var(--document-bottom-buffer) !important;
 }
 
 .focus-mode-container .cm-line {

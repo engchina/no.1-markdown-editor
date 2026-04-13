@@ -171,6 +171,7 @@
     "renderDiagram": "図を描画",
     "refreshDiagram": "図を再描画",
     "diagramError": "図を描画できませんでした",
+    "packetPlaceholderError": "Packet 図では 0-15: \"Field\" や +8: \"Field\" のような数値ビット位置が必要です。",
     "diagramsPending": "描画待ちの図が {{count}} 件あります",
     "renderAllDiagrams": "すべて描画",
     "renderingDiagrams": "描画中...",

@@ -72,6 +72,7 @@ export default function MarkdownPreview() {
       render: t('preview.renderDiagram'),
       refresh: t('preview.refreshDiagram'),
       error: t('preview.diagramError'),
+      packetPlaceholderError: t('preview.packetPlaceholderError'),
     }),
     [i18n.language, t]
   )

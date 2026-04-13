@@ -9,7 +9,7 @@ const packageJson = JSON.parse(readFileSync(path.resolve(__dirname, './package.j
 const appVersion = typeof packageJson.version === 'string' ? packageJson.version : '0.0.0'
 
 const OPTIONAL_PREVIEW_CHUNK_PATTERN =
-  /\/assets\/(?:MarkdownPreview|markdown(?:[A-Za-z]+)?|vendor-markdown(?:-(?:math|html))?|vendor-mermaid(?:-[^"]+)?|mermaid|.*katex[^"]*|.*rehype-katex[^"]*)/
+  /\/assets\/(?:MarkdownPreview|markdown(?:[A-Za-z]+)?|vendor-markdown(?:-(?:math|html))?|vendor-mermaid(?:-[^"]+)?|mermaid|.*katex[^"]*|.*rehype-katex[^"]*|.*zenuml[^"]*)/
 const OPTIONAL_EDITOR_CHUNK_PATTERN =
   /\/assets\/(?:EditorPane|CodeMirrorEditor|vendor-editor(?:-(?:search|language|language-web|autocomplete))?|optionalFeatures|formatCommands|wysiwyg|.*autocomplete[^"]*)/
 
@@ -39,11 +39,12 @@ export default defineConfig(async () => ({
   },
   optimizeDeps: {
     // Mermaid only becomes reachable after the preview surface is mounted, so we
-    // pre-bundle its runtime, the upstream parser package, and Langium up front
-    // to avoid late dev-time optimizer churn the first time a diagram is
-    // rendered. Langium must be eagerly optimized so the browser never falls
-    // back to its raw cancellation bridge modules under /node_modules.
-    include: ['mermaid', '@mermaid-js/parser-upstream', 'langium'],
+    // pre-bundle its runtime, the upstream parser package, ZenUML's external
+    // diagram bridge, and their parser/runtime dependencies up front to avoid
+    // late dev-time optimizer churn the first time a diagram is rendered.
+    // Langium must be eagerly optimized so the browser never falls back to its
+    // raw cancellation bridge modules under /node_modules.
+    include: ['mermaid', '@mermaid-js/parser-upstream', '@mermaid-js/mermaid-zenuml', '@zenuml/core', 'langium'],
   },
   build: {
     // Mermaid's upstream parser core bundles several grammars into a single optional
@@ -95,7 +96,7 @@ export default defineConfig(async () => ({
           const normalizedId = id.replaceAll('\\', '/')
           const mermaidParserRuntimeChunk = getMermaidParserRuntimeChunkName(normalizedId)
           const isMermaidParserLeafModule =
-            /\/node_modules\/@mermaid-js\/parser\/dist\/chunks\/mermaid-parser\.core\/(?:architecture|gitGraph|info|packet|pie|radar|treeView|wardley)-/u.test(
+            /\/node_modules\/@mermaid-js\/parser\/dist\/chunks\/mermaid-parser\.core\/(?:architecture|gitGraph|info|packet|pie|radar|treemap|treeView|wardley)-/u.test(
               normalizedId
             )
 

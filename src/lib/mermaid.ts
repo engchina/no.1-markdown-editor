@@ -1,3 +1,4 @@
+import type { ExternalDiagramDefinition } from 'mermaid'
 import type { SupportedMermaidParserType } from './mermaidParser.ts'
 import { attemptDynamicImportRecovery, wasDynamicImportRecoveryTriggered } from './vitePreloadRecovery.ts'
 
@@ -5,13 +6,19 @@ export type MermaidTheme = 'default' | 'dark'
 
 type MermaidModule = typeof import('mermaid')
 type MermaidWarmLoader = () => Promise<unknown>
+type MermaidExternalDiagramType = 'zenuml'
+type MermaidDetectedDiagramType = SupportedMermaidParserType | MermaidExternalDiagramType
 
 let mermaidPromise: Promise<MermaidModule> | null = null
+let mermaidParserPromise: Promise<typeof import('./mermaidParser.ts')> | null = null
 let mermaidRenderSequence = 0
 const MAX_MERMAID_RENDER_CACHE_ENTRIES = 48
 const mermaidRenderCache = new Map<string, string>()
 const mermaidWarmCache = new Map<string, Promise<void>>()
 const canUseBrowserChunkLoaders = typeof window !== 'undefined'
+let mermaidZenumlPluginPromise: Promise<ExternalDiagramDefinition> | null = null
+let mermaidZenumlRegistrationPromise: Promise<void> | null = null
+let mermaidZenumlRegistrationLevel: 'none' | 'lazy' | 'eager' = 'none'
 
 const architectureDiagramLoader =
   canUseBrowserChunkLoaders
@@ -25,6 +32,10 @@ const infoDiagramLoader =
   canUseBrowserChunkLoaders
     ? import.meta.glob('../../node_modules/mermaid/dist/chunks/mermaid.core/infoDiagram-*.mjs')
     : {}
+const genericDiagramLoader =
+  canUseBrowserChunkLoaders
+    ? import.meta.glob('../../node_modules/mermaid/dist/chunks/mermaid.core/diagram-*.mjs')
+    : {}
 const pieDiagramLoader =
   canUseBrowserChunkLoaders
     ? import.meta.glob('../../node_modules/mermaid/dist/chunks/mermaid.core/pieDiagram-*.mjs')
@@ -34,15 +45,23 @@ const wardleyDiagramLoader =
     ? import.meta.glob('../../node_modules/mermaid/dist/chunks/mermaid.core/wardleyDiagram-*.mjs')
     : {}
 
-const mermaidDiagramWarmers: Partial<Record<SupportedMermaidParserType, MermaidWarmLoader>> = {
+const mermaidDiagramWarmers: Partial<Record<MermaidDetectedDiagramType, MermaidWarmLoader>> = {
   architecture: () => pickSingleMermaidWarmLoader(architectureDiagramLoader, 'architecture')(),
   gitGraph: () => pickSingleMermaidWarmLoader(gitGraphDiagramLoader, 'gitGraph')(),
   info: () => pickSingleMermaidWarmLoader(infoDiagramLoader, 'info')(),
+  packet: () => warmMermaidLoaderGroup(genericDiagramLoader, 'generic-diagram-family'),
   pie: () => pickSingleMermaidWarmLoader(pieDiagramLoader, 'pie')(),
+  radar: () => warmMermaidLoaderGroup(genericDiagramLoader, 'generic-diagram-family'),
+  treemap: () => warmMermaidLoaderGroup(genericDiagramLoader, 'generic-diagram-family'),
+  treeView: () => warmMermaidLoaderGroup(genericDiagramLoader, 'generic-diagram-family'),
   wardley: () => pickSingleMermaidWarmLoader(wardleyDiagramLoader, 'wardley')(),
+  zenuml: async () => {
+    const mermaid = (await loadMermaid()).default
+    await ensureMermaidExternalDiagramRegistered(mermaid, 'zenuml', true)
+  },
 }
 
-const mermaidDiagramTypeMatchers: ReadonlyArray<readonly [SupportedMermaidParserType, RegExp]> = [
+const mermaidDiagramTypeMatchers: ReadonlyArray<readonly [MermaidDetectedDiagramType, RegExp]> = [
   ['architecture', /^architecture(?:-beta)?\b/i],
   ['wardley', /^wardley-beta\b/i],
   ['gitGraph', /^gitGraph\b/i],
@@ -50,7 +69,9 @@ const mermaidDiagramTypeMatchers: ReadonlyArray<readonly [SupportedMermaidParser
   ['packet', /^packet(?:-beta)?\b/i],
   ['pie', /^pie\b/i],
   ['radar', /^radar-beta\b/i],
+  ['treemap', /^treemap(?:-beta)?\b/i],
   ['treeView', /^treeView-beta\b/i],
+  ['zenuml', /^zenuml\b/i],
 ]
 
 interface RenderMermaidOptions {
@@ -64,7 +85,12 @@ interface MermaidShellLabels {
   render: string
   refresh: string
   error: string
+  packetPlaceholderError: string
 }
+
+// Official Mermaid syntax pages sometimes show placeholder rows such as
+// "... More Fields ...", which are not valid diagram statements.
+const mermaidPlaceholderLinePattern = /^(?:\.{3}|…)(?:\s+.+\s+(?:\.{3}|…))?$/u
 
 function loadMermaid() {
   mermaidPromise ??= import('mermaid').catch((error) => {
@@ -73,6 +99,61 @@ function loadMermaid() {
     throw error
   })
   return mermaidPromise
+}
+
+function loadMermaidParser() {
+  mermaidParserPromise ??= import('./mermaidParser.ts').catch((error) => {
+    mermaidParserPromise = null
+    attemptDynamicImportRecovery(error)
+    throw error
+  })
+  return mermaidParserPromise
+}
+
+function isMermaidExternalDiagramType(
+  diagramType: MermaidDetectedDiagramType | null
+): diagramType is MermaidExternalDiagramType {
+  return diagramType === 'zenuml'
+}
+
+async function loadMermaidZenumlPlugin(): Promise<ExternalDiagramDefinition> {
+  mermaidZenumlPluginPromise ??= import('@mermaid-js/mermaid-zenuml')
+    .then((module) => module.default)
+    .catch((error) => {
+      mermaidZenumlPluginPromise = null
+      throw error
+    })
+
+  return mermaidZenumlPluginPromise
+}
+
+async function ensureMermaidExternalDiagramRegistered(
+  mermaid: MermaidModule['default'],
+  diagramType: MermaidExternalDiagramType,
+  eagerLoad = false
+): Promise<void> {
+  if (diagramType !== 'zenuml') return
+  if (eagerLoad ? mermaidZenumlRegistrationLevel === 'eager' : mermaidZenumlRegistrationLevel !== 'none') {
+    return
+  }
+
+  if (mermaidZenumlRegistrationPromise) {
+    await mermaidZenumlRegistrationPromise
+    if (eagerLoad && mermaidZenumlRegistrationLevel !== 'eager') {
+      await ensureMermaidExternalDiagramRegistered(mermaid, diagramType, true)
+    }
+    return
+  }
+
+  mermaidZenumlRegistrationPromise = (async () => {
+    const zenuml = await loadMermaidZenumlPlugin()
+    await mermaid.registerExternalDiagrams([zenuml], { lazyLoad: !eagerLoad })
+    mermaidZenumlRegistrationLevel = eagerLoad ? 'eager' : 'lazy'
+  })().finally(() => {
+    mermaidZenumlRegistrationPromise = null
+  })
+
+  await mermaidZenumlRegistrationPromise
 }
 
 function pickSingleMermaidWarmLoader(
@@ -89,6 +170,22 @@ function pickSingleMermaidWarmLoader(
   }
 
   return entries[0]
+}
+
+function warmMermaidLoaderGroup(
+  registry: Record<string, () => Promise<unknown>>,
+  type: string
+): Promise<void> {
+  const entries = Object.values(registry)
+  if (entries.length === 0) {
+    if (!canUseBrowserChunkLoaders) {
+      throw new Error(`Mermaid warm loader group "${type}" is unavailable outside the Vite runtime`)
+    }
+
+    throw new Error(`Expected at least one Mermaid warm chunk for "${type}", found 0`)
+  }
+
+  return Promise.all(entries.map((loader) => loader())).then(() => undefined)
 }
 
 function warmMermaidResource(resourceKey: string, loader: MermaidWarmLoader): Promise<void> {
@@ -120,7 +217,7 @@ function getMermaidDefinitionLine(source: string): string | null {
   return null
 }
 
-export function detectMermaidDiagramType(source: string): SupportedMermaidParserType | null {
+export function detectMermaidDiagramType(source: string): MermaidDetectedDiagramType | null {
   const definitionLine = getMermaidDefinitionLine(source)
   if (!definitionLine) return null
 
@@ -133,18 +230,56 @@ export function detectMermaidDiagramType(source: string): SupportedMermaidParser
   return null
 }
 
+export function getRenderableMermaidSource(source: string): string {
+  const lines = source.split(/\r?\n/u)
+  let removedPlaceholderLine = false
+
+  const renderableLines = lines.filter((line) => {
+    const isPlaceholderLine = mermaidPlaceholderLinePattern.test(line.trim())
+    removedPlaceholderLine ||= isPlaceholderLine
+    return !isPlaceholderLine
+  })
+
+  return removedPlaceholderLine ? renderableLines.join('\n') : source
+}
+
+function getMermaidWarmResourceKey(diagramType: MermaidDetectedDiagramType): string {
+  if (diagramType === 'packet' || diagramType === 'radar' || diagramType === 'treemap' || diagramType === 'treeView') {
+    return 'diagram:generic-family'
+  }
+
+  return `diagram:${diagramType}`
+}
+
 export async function warmMermaidForSource(source: string): Promise<void> {
   const diagramType = detectMermaidDiagramType(source)
   const warmTasks: Promise<void>[] = [warmMermaid()]
 
   if (diagramType) {
+    if (!isMermaidExternalDiagramType(diagramType)) {
+      warmTasks.push(loadMermaidParser().then(({ warmMermaidParser }) => warmMermaidParser(diagramType)))
+    }
+
     const diagramWarmer = mermaidDiagramWarmers[diagramType]
     if (diagramWarmer) {
-      warmTasks.push(warmMermaidResource(`diagram:${diagramType}`, diagramWarmer))
+      warmTasks.push(warmMermaidResource(getMermaidWarmResourceKey(diagramType), diagramWarmer))
     }
   }
 
   await Promise.all(warmTasks)
+}
+
+async function ensureMermaidDiagramSupport(
+  mermaid: MermaidModule['default'],
+  source: string
+): Promise<MermaidDetectedDiagramType | null> {
+  const diagramType = detectMermaidDiagramType(source)
+  if (!isMermaidExternalDiagramType(diagramType)) {
+    return diagramType
+  }
+
+  await ensureMermaidExternalDiagramRegistered(mermaid, diagramType)
+  return diagramType
 }
 
 export async function warmMermaidForSources(sources: Iterable<string>): Promise<void> {
@@ -236,6 +371,33 @@ export function getMermaidErrorMessage(error: unknown, fallbackMessage: string):
   return `${fallbackMessage}: ${detail}`
 }
 
+function isPacketSyntaxTemplate(source: string): boolean {
+  if (detectMermaidDiagramType(source) !== 'packet') return false
+
+  for (const line of source.split(/\r?\n/u)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('%%') || /^packet(?:-beta)?\b/iu.test(trimmed)) continue
+    if (/^start(?:-end)?:/iu.test(trimmed) || mermaidPlaceholderLinePattern.test(trimmed)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+export function getMermaidRenderErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+  source: string,
+  packetPlaceholderMessage?: string
+): string {
+  if (packetPlaceholderMessage && isPacketSyntaxTemplate(source)) {
+    return `${fallbackMessage}: ${packetPlaceholderMessage}`
+  }
+
+  return getMermaidErrorMessage(error, fallbackMessage)
+}
+
 function applyRenderedMermaidShell(shell: HTMLElement, svg: string, labels: MermaidShellLabels): void {
   const surface = shell.querySelector<HTMLElement>('.mermaid-render-surface')
   const code = shell.querySelector<HTMLElement>('.mermaid-card-code')
@@ -262,6 +424,7 @@ function createMermaidShell(
   shell.dataset.mermaidRenderLabel = labels.render
   shell.dataset.mermaidRefreshLabel = labels.refresh
   shell.dataset.mermaidErrorLabel = labels.error
+  shell.dataset.mermaidPacketPlaceholderError = labels.packetPlaceholderError
   shell.innerHTML = `
     <div class="mermaid-card">
       <div class="mermaid-card-header">
@@ -304,6 +467,7 @@ export function updateMermaidShellLabels(root: ParentNode, labels: MermaidShellL
     shell.dataset.mermaidRenderLabel = labels.render
     shell.dataset.mermaidRefreshLabel = labels.refresh
     shell.dataset.mermaidErrorLabel = labels.error
+    shell.dataset.mermaidPacketPlaceholderError = labels.packetPlaceholderError
 
     const label = shell.querySelector<HTMLElement>('.mermaid-card-label')
     if (label) label.textContent = labels.label
@@ -352,6 +516,7 @@ export async function renderMermaidShells(
     if (!surface) continue
 
     const source = decodeMermaidSource(encodedSource)
+    const renderableSource = getRenderableMermaidSource(source)
     const cachedSvg = getCachedMermaidSvg(source, theme)
     if (cachedSvg) {
       applyRenderedMermaidShell(shell, cachedSvg, {
@@ -359,6 +524,7 @@ export async function renderMermaidShells(
         render: button?.textContent ?? '',
         refresh: shell.dataset.mermaidRefreshLabel ?? 'Refresh diagram',
         error: shell.dataset.mermaidErrorLabel ?? 'Diagram could not be rendered',
+        packetPlaceholderError: shell.dataset.mermaidPacketPlaceholderError ?? '',
       })
       continue
     }
@@ -366,11 +532,12 @@ export async function renderMermaidShells(
     try {
       clearMermaidShellStatus(shell)
       mermaid ??= (await loadMermaid()).default
+      await ensureMermaidDiagramSupport(mermaid, source)
       mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' })
 
       const { svg } = await mermaid.render(
         `mermaid-${Date.now()}-${mermaidRenderSequence++}-${index}`,
-        source
+        renderableSource
       )
       if (options.isCancelled?.()) return false
 
@@ -381,6 +548,7 @@ export async function renderMermaidShells(
         render: button?.textContent ?? '',
         refresh: shell.dataset.mermaidRefreshLabel ?? 'Refresh diagram',
         error: shell.dataset.mermaidErrorLabel ?? 'Diagram could not be rendered',
+        packetPlaceholderError: shell.dataset.mermaidPacketPlaceholderError ?? '',
       })
     } catch (error) {
       if (wasDynamicImportRecoveryTriggered(error)) {
@@ -390,7 +558,12 @@ export async function renderMermaidShells(
       console.error('Mermaid error:', error)
       setMermaidShellStatus(
         shell,
-        getMermaidErrorMessage(error, shell.dataset.mermaidErrorLabel ?? 'Diagram could not be rendered')
+        getMermaidRenderErrorMessage(
+          error,
+          shell.dataset.mermaidErrorLabel ?? 'Diagram could not be rendered',
+          source,
+          shell.dataset.mermaidPacketPlaceholderError
+        )
       )
       if (button) button.textContent = getMermaidActionLabel(shell)
       if (code) code.hidden = false
@@ -422,6 +595,7 @@ export async function renderMermaidInHtml(html: string, theme: MermaidTheme): Pr
   const blocks = Array.from(template.content.querySelectorAll('code.language-mermaid'))
   for (const [index, block] of blocks.entries()) {
     const source = block.textContent ?? ''
+    const renderableSource = getRenderableMermaidSource(source)
     const pre = block.parentElement
     if (!pre) continue
 
@@ -431,10 +605,11 @@ export async function renderMermaidInHtml(html: string, theme: MermaidTheme): Pr
         ? cachedSvg
         : (
             mermaid ??= (await loadMermaid()).default,
+            await ensureMermaidDiagramSupport(mermaid, source),
             mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' }),
             (await mermaid.render(
               `mermaid-export-${Date.now()}-${mermaidRenderSequence++}-${index}`,
-              source
+              renderableSource
             )).svg
           )
 

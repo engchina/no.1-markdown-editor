@@ -173,6 +173,7 @@
     "renderDiagram": "Render Diagram",
     "refreshDiagram": "Refresh Diagram",
     "diagramError": "Diagram could not be rendered",
+    "packetPlaceholderError": "Packet diagrams require numeric bit positions such as 0-15: \"Field\" or +8: \"Field\".",
     "diagramsPending": "{{count}} diagram ready to render",
     "diagramsPending_other": "{{count}} diagrams ready to render",
     "renderAllDiagrams": "Render All",

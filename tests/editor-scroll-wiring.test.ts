@@ -30,9 +30,11 @@ test('editor scroll helper keeps three line-heights below the cursor', async () 
   assert.match(helper, /view\.defaultLineHeight \* EDITOR_CURSOR_SCROLL_LINES/)
 })
 
-test('editor content keeps a bottom buffer so end-of-document cursors can lift off the viewport edge', async () => {
+test('editor and preview share a bottom buffer so end-of-document content can lift off the viewport edge', async () => {
   const css = await readFile(new URL('../src/global.css', import.meta.url), 'utf8')
 
-  assert.match(css, /\.cm-content\s*\{[\s\S]*padding:\s*24px 0 5\.4em !important;/)
-  assert.match(css, /\.focus-mode-container \.cm-content\s*\{[\s\S]*padding:\s*24px 0 5\.4em !important;/)
+  assert.match(css, /--document-bottom-buffer:\s*5\.4em;/)
+  assert.match(css, /\.cm-content\s*\{[\s\S]*?padding:\s*24px 0 var\(--document-bottom-buffer\) !important;/)
+  assert.match(css, /\.focus-mode-container \.cm-content\s*\{[\s\S]*?padding:\s*24px 0 var\(--document-bottom-buffer\) !important;/)
+  assert.match(css, /\.markdown-preview\s*\{[\s\S]*?padding:\s*32px 48px var\(--document-bottom-buffer\);/)
 })

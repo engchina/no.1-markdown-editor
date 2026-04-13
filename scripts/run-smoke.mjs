@@ -10,9 +10,14 @@ const FAILURE_SCREENSHOT_PATH = resolve('output/playwright/mermaid-smoke-failure
 const LOCAL_STORAGE_KEY = 'editor-settings'
 const SAME_ORIGIN_WARM_PATTERNS = [
   /\/assets\/mermaid\.core-.*\.js$/u,
-  /\/assets\/vendor-mermaid-parser-core-.*\.js$/u,
+  /\/assets\/(?:vendor-mermaid-parser-core|mermaid-parser\.core)-.*\.js$/u,
+  /\/assets\/mermaid-parser-.*\.js$/u,
+  /\/assets\/vendor-mermaid-parser-chunk-.*\.js$/u,
   /\/assets\/architectureDiagram-.*\.js$/u,
+  /\/assets\/diagram-.*\.js$/u,
   /\/assets\/wardleyDiagram-.*\.js$/u,
+  /\/assets\/mermaid-zenuml\.core-.*\.js$/u,
+  /\/assets\/zenuml-definition-.*\.js$/u,
   /\/assets\/cytoscape\.esm-.*\.js$/u,
 ]
 
@@ -39,7 +44,29 @@ const SMOKE_MARKDOWN = [
   '```mermaid',
   'wardley-beta',
   '  title Value chain',
-  '  component User [User]',
+  '  component User[0.8, 0.1]',
+  '```',
+  '',
+  '```mermaid',
+  'zenuml',
+  '  title Demo',
+  '  Alice->John: Hello John, how are you?',
+  '  John->Alice: Great!',
+  '  Alice->John: See you later!',
+  '```',
+  '',
+  '```mermaid',
+  'packet',
+  '0-15: "Source Port"',
+  '16-31: "Destination Port"',
+  '```',
+  '',
+  '```mermaid',
+  'radar-beta',
+  'axis A, B, C, D, E',
+  'curve c1{1,2,3,4,5}',
+  'curve c2{5,4,3,2,1}',
+  '... More Fields ...',
   '```',
 ].join('\n')
 
@@ -239,7 +266,7 @@ async function main() {
     await page.goto(staticServer.origin, { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('.preview-diagram-toolbar__button')
     await waitForCondition(
-      async () => (await page.locator('.mermaid-shell').count()) === 2,
+      async () => (await page.locator('.mermaid-shell').count()) === 5,
       'Mermaid preview shells'
     )
 
@@ -265,12 +292,14 @@ async function main() {
     await renderAllButton.click()
 
     await waitForCondition(
-      async () => (await page.locator('.mermaid-shell[data-mermaid-rendered="true"]').count()) === 2,
-      'rendered Mermaid shells'
+      async () => (await page.locator('.mermaid-shell[data-mermaid-rendered="true"]').count()) === 5,
+      'rendered Mermaid shells',
+      60000
     )
     await waitForCondition(
-      async () => (await page.locator('.mermaid-render-surface svg').count()) === 2,
-      'rendered Mermaid SVG output'
+      async () => (await page.locator('.mermaid-render-surface > *').count()) === 5,
+      'rendered Mermaid output surfaces',
+      60000
     )
 
     const warmRequestsAfterClick = getWarmRequests(requestUrls, staticServer.origin)

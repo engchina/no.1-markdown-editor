@@ -5,6 +5,7 @@ export type SupportedMermaidParserType =
   | 'packet'
   | 'pie'
   | 'radar'
+  | 'treemap'
   | 'treeView'
   | 'wardley'
 
@@ -25,6 +26,7 @@ type MermaidParserCoreModule = {
   createPacketServices: MermaidParserFactory
   createPieServices: MermaidParserFactory
   createRadarServices: MermaidParserFactory
+  createTreemapServices: MermaidParserFactory
   createTreeViewServices: MermaidParserFactory
   createWardleyServices: MermaidParserFactory
 }
@@ -42,6 +44,7 @@ const parserFactoryMap = {
   packet: { create: 'createPacketServices', service: 'Packet' },
   pie: { create: 'createPieServices', service: 'Pie' },
   radar: { create: 'createRadarServices', service: 'Radar' },
+  treemap: { create: 'createTreemapServices', service: 'Treemap' },
   treeView: { create: 'createTreeViewServices', service: 'TreeView' },
   wardley: { create: 'createWardleyServices', service: 'Wardley' },
 } as const satisfies Record<SupportedMermaidParserType, { create: keyof MermaidParserCoreModule; service: string }>
