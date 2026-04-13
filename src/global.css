@@ -492,6 +492,7 @@ a:focus-visible {
 }
 
 .markdown-preview pre {
+  position: relative;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -509,6 +510,46 @@ a:focus-visible {
 .markdown-preview pre code {
   background: none;
   padding: 0;
+}
+
+.preview-code-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.markdown-preview pre:hover .preview-code-copy {
+  opacity: 1;
+}
+
+.preview-code-copy__btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.preview-code-copy__btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover, var(--border));
+}
+
+.preview-code-copy__btn--done {
+  color: var(--color-success, #22c55e);
+  border-color: var(--color-success, #22c55e);
 }
 
 .markdown-preview blockquote {

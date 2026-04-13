@@ -13,9 +13,15 @@ test('CodeMirrorEditor routes plain-text clipboard pastes through the shared mar
   const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
 
   assert.match(source, /event\.stopPropagation\(\)/)
-  assert.match(source, /const plainText = clipboardData/)
-  assert.match(source, /readClipboardString\(clipboardData, 'text\/plain'\)/)
-  assert.match(source, /typeof navigator\.clipboard\?\.readText === 'function'/)
-  assert.match(source, /navigator\.clipboard\.readText\(\)\.catch\(\(\) => ''\)/)
-  assert.match(source, /replaceSelectionWithMarkdown\(view, plainText\)/)
+  assert.match(source, /const clipboardApi = typeof navigator === 'object' \? navigator\.clipboard : null/)
+  assert.match(source, /readClipboardStringBestEffort\(clipboardData, 'text\/plain', clipboardApi\)/)
+  assert.match(source, /readClipboardStringBestEffort\(clipboardData, 'text\/html', clipboardApi\)/)
+  assert.match(source, /replaceSelectionWithMarkdown\(activeView, plainText\)/)
+})
+
+test('CodeMirrorEditor aborts async paste writes when the original editor view is no longer active', async () => {
+  const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /const resolveActivePasteView = \(\): EditorView \| null => \{/)
+  assert.match(source, /currentView !== view \|\| !currentView\.dom\.isConnected/)
 })

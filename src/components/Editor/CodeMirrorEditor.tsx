@@ -57,7 +57,7 @@ import {
   type SelectionBubbleSize,
 } from '../../lib/ai/selectionBubble.ts'
 import { buildAIRequestMessages, normalizeAIDraftText } from '../../lib/ai/prompt.ts'
-import { clipboardHasType, readClipboardString } from '../../lib/clipboard'
+import { clipboardHasType, readClipboardStringBestEffort } from '../../lib/clipboard'
 import {
   buildMarkdownSafeClipboardPayload,
   writeClipboardEventPayload,
@@ -71,6 +71,7 @@ import {
 } from '../../lib/documentPersistence'
 import { prepareImageMarkdownInsertion } from '../../lib/imageMarkdownInsertion'
 import { prepareMarkdownInsertion } from '../../lib/markdownInsertion'
+import { resolveSafeEditorInsertion } from '../../lib/editorInsertion.ts'
 import { appendEditorSelectionScrollEffect, keepEditorCursorBottomGap } from '../../lib/editorScroll.ts'
 import { convertClipboardHtmlToMarkdown } from '../../lib/pasteHtml'
 import { pushErrorNotice, pushInfoNotice } from '../../lib/notices'
@@ -761,9 +762,16 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       const view = viewRef.current
       if (!view) return
 
+      const clipboardApi = typeof navigator === 'object' ? navigator.clipboard : null
+      const resolveActivePasteView = (): EditorView | null => {
+        const currentView = viewRef.current
+        if (!currentView || currentView !== view || !currentView.dom.isConnected) return null
+        return currentView
+      }
+
       const queuePasteCursorBottomGapSync = () => {
         setTimeout(() => {
-          if (viewRef.current !== view) return
+          if (viewRef.current !== view || !view.dom.isConnected) return
           keepEditorCursorBottomGap(view, { force: true })
         }, 0)
       }
@@ -776,19 +784,21 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       event.stopPropagation()
 
       if (hasHtml) {
-        const [html, plainText] = await Promise.all([
-          readClipboardString(clipboardData, 'text/html'),
-          readClipboardString(clipboardData, 'text/plain'),
-        ])
+        const html = await readClipboardStringBestEffort(clipboardData, 'text/html', clipboardApi)
+        const plainText = await readClipboardStringBestEffort(clipboardData, 'text/plain', clipboardApi)
         const markdownText = convertClipboardHtmlToMarkdown(html, plainText)
         if (markdownText) {
-          replaceSelectionWithMarkdown(view, markdownText)
+          const activeView = resolveActivePasteView()
+          if (!activeView) return
+          replaceSelectionWithMarkdown(activeView, markdownText)
           queuePasteCursorBottomGapSync()
           return
         }
 
         if (plainText) {
-          replaceSelectionWithMarkdown(view, plainText)
+          const activeView = resolveActivePasteView()
+          if (!activeView) return
+          replaceSelectionWithMarkdown(activeView, plainText)
           queuePasteCursorBottomGapSync()
           return
         }
@@ -808,7 +818,9 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
               activeTab?.id ?? null
             )
             if (!markdownText) return
-            replaceSelectionWithImageMarkdown(view, markdownText)
+            const activeView = resolveActivePasteView()
+            if (!activeView) return
+            replaceSelectionWithImageMarkdown(activeView, markdownText)
             queuePasteCursorBottomGapSync()
           } catch (error) {
             console.error('Persist pasted image error:', error)
@@ -817,14 +829,12 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         }
       }
 
-      const plainText = clipboardData
-        ? await readClipboardString(clipboardData, 'text/plain')
-        : typeof navigator.clipboard?.readText === 'function'
-          ? await navigator.clipboard.readText().catch(() => '')
-          : ''
+      const plainText = await readClipboardStringBestEffort(clipboardData, 'text/plain', clipboardApi)
 
       if (plainText) {
-        replaceSelectionWithMarkdown(view, plainText)
+        const activeView = resolveActivePasteView()
+        if (!activeView) return
+        replaceSelectionWithMarkdown(activeView, plainText)
         queuePasteCursorBottomGapSync()
       }
     }
@@ -1362,14 +1372,22 @@ function insertMarkdown(
     scrollIntoView?: boolean
   } = {}
 ): void {
-  const selectionAnchor = options.selectionAnchor ?? range.from + markdownText.length
+  const requestedSelectionAnchor =
+    options.selectionAnchor ?? Math.min(range.from, range.to) + markdownText.length
+  const safeInsertion = resolveSafeEditorInsertion(
+    view.state.doc.length,
+    range,
+    markdownText.length,
+    requestedSelectionAnchor
+  )
+  const selectionAnchor = safeInsertion.selectionAnchor
   const effects =
     options.scrollIntoView === false
       ? options.effects
       : appendEditorSelectionScrollEffect(view, options.effects, selectionAnchor)
 
   view.dispatch({
-    changes: { from: range.from, to: range.to, insert: markdownText },
+    changes: { from: safeInsertion.range.from, to: safeInsertion.range.to, insert: markdownText },
     selection: { anchor: selectionAnchor },
     annotations: options.isolateHistoryBoundary ? isolateHistory.of('full') : undefined,
     effects,
@@ -1383,7 +1401,9 @@ function insertMarkdown(
         // lineBlockAt() may return estimated coords for off-screen content on
         // the first dispatch, so a second pass with fresh measurements is needed
         // (important for large multi-image insertions).
-        view.dispatch({ effects: appendEditorSelectionScrollEffect(view, undefined, selectionAnchor) })
+        view.dispatch({
+          effects: appendEditorSelectionScrollEffect(view, undefined, selectionAnchor),
+        })
         keepEditorCursorBottomGap(view, { force: true })
       })
     )

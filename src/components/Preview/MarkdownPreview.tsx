@@ -291,6 +291,56 @@ export default function MarkdownPreview() {
   }, [])
 
   useEffect(() => {
+    const preview = previewRef.current
+    if (!preview) return
+
+    const copyLabel = t('preview.copyCode')
+    const doneLabel = t('preview.copyCodeDone')
+
+    const blocks = Array.from(preview.querySelectorAll<HTMLElement>('pre'))
+    const controllers: AbortController[] = []
+
+    for (const pre of blocks) {
+      if (pre.querySelector('.preview-code-copy')) continue
+
+      const wrapper = document.createElement('div')
+      wrapper.className = 'preview-code-copy'
+
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'preview-code-copy__btn'
+      btn.textContent = copyLabel
+
+      const ac = new AbortController()
+      controllers.push(ac)
+
+      btn.addEventListener(
+        'click',
+        () => {
+          const code = pre.querySelector('code')
+          const text = (code ?? pre).innerText
+          void navigator.clipboard.writeText(text).then(() => {
+            btn.textContent = doneLabel
+            btn.classList.add('preview-code-copy__btn--done')
+            setTimeout(() => {
+              btn.textContent = copyLabel
+              btn.classList.remove('preview-code-copy__btn--done')
+            }, 2000)
+          })
+        },
+        { signal: ac.signal }
+      )
+
+      wrapper.appendChild(btn)
+      pre.appendChild(wrapper)
+    }
+
+    return () => {
+      for (const ac of controllers) ac.abort()
+    }
+  }, [previewHtml, t])
+
+  useEffect(() => {
     // Preview selections do not reliably focus the preview container, so intercept copy at the document level.
     const onCopy = (event: ClipboardEvent) => {
       const preview = previewRef.current

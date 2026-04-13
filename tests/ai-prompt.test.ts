@@ -33,13 +33,23 @@ test('buildAIRequestMessages creates system and user messages with visible conte
   assert.match(messages[0].content, /ATX headings/u)
   assert.match(messages[0].content, /XML-like context tags/u)
   assert.match(messages[1].content, /Rewrite this in a concise tone\./u)
-  assert.match(messages[1].content, /Selected text/u)
-  assert.match(messages[1].content, /<selected_content>/u)
-  assert.match(messages[1].content, /<\/selected_content>/u)
-  assert.match(messages[1].content, /Heading path/u)
+  assert.match(messages[1].content, /Input source: selected-text/u)
+  assert.match(messages[1].content, /Input role: transform-target/u)
+  assert.match(messages[1].content, /<input_content>/u)
+  assert.match(messages[1].content, /<\/input_content>/u)
+  assert.doesNotMatch(messages[1].content, /Intent:/u)
+  assert.doesNotMatch(messages[1].content, /Scope:/u)
+  assert.doesNotMatch(messages[1].content, /Output target:/u)
+  assert.doesNotMatch(messages[1].content, /File:/u)
+  assert.doesNotMatch(messages[1].content, /Heading path/u)
+  assert.doesNotMatch(messages[1].content, /Front matter/u)
+  assert.doesNotMatch(messages[1].content, /Current block/u)
+  assert.doesNotMatch(messages[1].content, /After context/u)
+  assert.doesNotMatch(messages[1].content, /Before context/u)
+  assert.doesNotMatch(messages[1].content, /Selected text/u)
 })
 
-test('buildAIRequestMessages uses standalone-note guidance for new-note targets', () => {
+test('buildAIRequestMessages keeps the system prompt free of output target, intent, and language-specific guidance', () => {
   const messages = buildAIRequestMessages({
     prompt: 'Create a knowledge note from this section.',
     context: {
@@ -47,14 +57,20 @@ test('buildAIRequestMessages uses standalone-note guidance for new-note targets'
       intent: 'generate',
       scope: 'current-block',
       outputTarget: 'new-note',
+      selectedTextRole: 'reference-only',
     },
   })
 
-  assert.match(messages[0].content, /self-contained new note/u)
-  assert.match(messages[1].content, /Output target: new-note/u)
+  assert.doesNotMatch(messages[0].content, /self-contained new note/u)
+  assert.doesNotMatch(messages[0].content, /Answer the user question clearly/u)
+  assert.doesNotMatch(messages[0].content, /Edit only the intended target text or block/u)
+  assert.doesNotMatch(messages[0].content, /Generate content that fits naturally/u)
+  assert.doesNotMatch(messages[0].content, /Review the content and point out issues/u)
+  assert.doesNotMatch(messages[0].content, /The document language is primarily/u)
+  assert.doesNotMatch(messages[0].content, /Selected text is reference-only context/u)
 })
 
-test('buildAIRequestMessages appends explicit attached context sections after the visible local context', () => {
+test('buildAIRequestMessages does not expose explicit attached context sections in the user message', () => {
   const messages = buildAIRequestMessages({
     prompt: 'Compare the selected text against the attached references.',
     context: {
@@ -80,9 +96,9 @@ test('buildAIRequestMessages appends explicit attached context sections after th
     },
   })
 
-  assert.match(messages[0].content, /Use only the explicit attached note, heading, and search context/u)
-  assert.match(messages[1].content, /Attached note/u)
-  assert.match(messages[1].content, /Attached workspace search/u)
+  assert.doesNotMatch(messages[0].content, /Use only the explicit attached note, heading, and search context/u)
+  assert.doesNotMatch(messages[1].content, /Attached note/u)
+  assert.doesNotMatch(messages[1].content, /Attached workspace search/u)
 })
 
 test('buildAIRequestMessages includes hidden slash-command prefix context without exposing it as selected text', () => {
@@ -103,9 +119,36 @@ test('buildAIRequestMessages includes hidden slash-command prefix context withou
     },
   })
 
-  assert.match(messages[1].content, /Slash command context \(hidden from the composer UI, content before the "\/" trigger\):/u)
+  assert.match(messages[1].content, /Input source: slash-prefix/u)
+  assert.match(messages[1].content, /Input role: continuation-context/u)
+  assert.match(messages[1].content, /<input_content>/u)
   assert.match(messages[1].content, /Lead paragraph\./u)
   assert.doesNotMatch(messages[1].content, /Selected text/u)
+  assert.doesNotMatch(messages[1].content, /Before context/u)
+  assert.doesNotMatch(messages[1].content, /Slash command context \(hidden from the composer UI, content before the "\/" trigger\):/u)
+})
+
+test('buildAIRequestMessages prioritizes slash-prefix input over selected text when both are present', () => {
+  const messages = buildAIRequestMessages({
+    prompt: 'Continue from here.',
+    context: {
+      ...baseContext,
+      selectedText: 'This selection should be ignored.',
+      selectedTextRole: 'reference-only',
+      slashCommandContext: {
+        strategy: 'before-trigger',
+        text: '# Intro\n\nLead paragraph.',
+        isEmpty: false,
+      },
+    },
+  })
+
+  assert.match(messages[1].content, /Input source: slash-prefix/u)
+  assert.match(messages[1].content, /Input role: continuation-context/u)
+  assert.match(messages[1].content, /Lead paragraph\./u)
+  assert.doesNotMatch(messages[1].content, /This selection should be ignored\./u)
+  assert.doesNotMatch(messages[1].content, /Input source: selected-text/u)
+  assert.doesNotMatch(messages[1].content, /Input role: reference-only/u)
 })
 
 test('normalizeAIDraftText removes surrounding markdown fences for insertion targets', () => {

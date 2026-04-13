@@ -176,7 +176,9 @@
     "diagramsPending": "{{count}} diagram ready to render",
     "diagramsPending_other": "{{count}} diagrams ready to render",
     "renderAllDiagrams": "Render All",
-    "renderingDiagrams": "Rendering..."
+    "renderingDiagrams": "Rendering...",
+    "copyCode": "Copy",
+    "copyCodeDone": "Copied!"
   },
   "externalConflict": {
     "title": "Resolve External File Conflict",
@@ -395,10 +397,10 @@
       "newNotePrompt": "Draft a self-contained Markdown note from the current context. Give it a clear title and useful section structure.",
       "workspaceRunPrompt": "Review the attached notes and return a coordinated workspace execution plan. Use exactly this structure:\n\n<!-- ai-workspace-summary -->\n- concise summary bullets\n<!-- /ai-workspace-summary -->\n\nFor each task, output:\n<!-- ai-workspace-task action=\"update-note\" target=\"note name or path\" title=\"Draft title\" phase=\"optional phase name\" depends-on=\"optional prior task target or title, optional second dependency\" -->\n# Draft content\n...\n<!-- /ai-workspace-task -->\n\nOmit phase when a task belongs in the default phase. Omit depends-on when a task has no prerequisite. If you use phases, keep every task dependency within the same phase or an earlier phase; never make a task depend on a later phase. Use action=\"create-note\" when the result should become a new note. The parser also accepts stage=\"...\" for compatibility, but prefer phase=\"...\". Return only the summary block and task blocks.",
       "reviewPrompt": "Review the current block, point out concrete improvements, and keep the response concise.",
-      "explainPrompt": "Explain the selected content or current block in plain language. Break down any complex terms, structures, or concepts so they are easy to understand.",
-      "rewritePrompt": "Rewrite the selected content or current block to improve clarity and flow while preserving meaning and Markdown structure.",
-      "summarizePrompt": "Summarize the selected content or current block while preserving the key meaning and Markdown structure.",
-      "translatePrompt": "Translate the selected content or current block while preserving Markdown structure, links, tables, code fences, Mermaid, math, and front matter.",
+      "explainPrompt": "Explain the input content in plain language. Break down any complex terms, structures, or concepts so they are easy to understand.",
+      "rewritePrompt": "Rewrite the input content to improve clarity and flow while preserving meaning.",
+      "summarizePrompt": "Summarize the input content while preserving the key meaning.",
+      "translatePrompt": "Translate the input content.",
       "generateBelowPrompt": "Generate the next block below the current one and keep the tone aligned with the surrounding document."
     },
     "mentions": {

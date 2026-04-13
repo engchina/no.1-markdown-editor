@@ -79,6 +79,23 @@ test('AIComposer rebuilds effective context from the captured snapshot while kee
   assert.doesNotMatch(composer, /formatAIDocumentLanguage\(/)
 })
 
+test('AIComposer template chips append a trailing newline and place the caret on the next line', async () => {
+  const composer = await readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8')
+
+  assert.match(composer, /const initialTemplatePromptRef = useRef<string \| null>\(composer\.prompt\)/)
+  assert.match(composer, /const pendingPromptSelectionRef = useRef<number \| null>\(null\)/)
+  assert.match(composer, /const initialPrompt = initialTemplatePromptRef\.current/)
+  assert.match(composer, /const matchingTemplate = templateModels\.find\(\(template\) => template\.prompt === initialPrompt\)/)
+  assert.match(composer, /function buildTemplatePromptDraft\(prompt: string\): string/)
+  assert.match(composer, /return `\$\{trimmedPrompt\}\\n`/)
+  assert.match(composer, /const nextPrompt = buildTemplatePromptDraft\(template\.prompt\)/)
+  assert.match(composer, /pendingPromptSelectionRef\.current = nextPrompt\.length/)
+  assert.match(composer, /setPrompt\(nextPrompt\)/)
+  assert.match(composer, /const caret = Math\.min\(nextSelection, composer\.prompt\.length\)/)
+  assert.match(composer, /focusElementWithoutScroll\(textarea\)/)
+  assert.match(composer, /textarea\.setSelectionRange\(caret, caret\)/)
+})
+
 test('slash-command AI entry keeps the hidden context explanation while removing the extra title chrome', async () => {
   const [composer, editor, app, prompt] = await Promise.all([
     readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8'),
@@ -96,7 +113,10 @@ test('slash-command AI entry keeps the hidden context explanation while removing
   assert.match(composer, /className="m-0 truncate whitespace-nowrap"/)
   assert.doesNotMatch(composer, /t\('ai\.slashContext\.attachedTitle'\)/)
   assert.doesNotMatch(composer, /t\('ai\.slashContext\.emptyTitle'\)/)
-  assert.match(prompt, /Slash command context \(hidden from the composer UI, content before the "\/" trigger\):/)
+  assert.match(prompt, /Input source: slash-prefix/)
+  assert.match(prompt, /Input role: continuation-context/)
+  assert.match(prompt, /<input_content>/)
+  assert.doesNotMatch(prompt, /Slash command context \(hidden from the composer UI, content before the "\/" trigger\):/)
 })
 
 test('AIComposer exposes keyboard shortcuts for run and apply, and the editor regains focus when the composer closes', async () => {

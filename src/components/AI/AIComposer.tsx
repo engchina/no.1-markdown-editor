@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import AppIcon from '../Icons/AppIcon'
 import { useAIStore } from '../../store/ai'
@@ -91,15 +91,48 @@ type WorkspaceExecutionPreflightState =
   | { status: 'ready'; data: AIWorkspaceExecutionPreflight; errorMessage: null }
   | { status: 'error'; data: AIWorkspaceExecutionPreflight | null; errorMessage: string }
 
+interface AIComposerContentTypography {
+  text: CSSProperties
+  meta: CSSProperties
+  code: CSSProperties
+}
+
+function resolveAIComposerContentLineHeight(fontSize: number): number {
+  if (fontSize <= 12) return 1.55
+  if (fontSize >= 20) return 1.72
+  return 1.64
+}
+
+function buildAIComposerContentTypography(fontSize: number): AIComposerContentTypography {
+  const lineHeight = resolveAIComposerContentLineHeight(fontSize)
+
+  return {
+    text: {
+      fontSize: `${fontSize}px`,
+      lineHeight,
+    },
+    meta: {
+      fontSize: `${Math.max(11, Math.round(fontSize * 0.82))}px`,
+      lineHeight: 1.5,
+    },
+    code: {
+      fontSize: `${Math.max(11, Math.round(fontSize * 0.92))}px`,
+      lineHeight,
+    },
+  }
+}
+
 export default function AIComposer() {
   const { t } = useTranslation()
   const activeTab = useActiveTab()
   const openTabs = useEditorStore((state) => state.tabs)
   const viewMode = useEditorStore((state) => state.viewMode)
+  const fontSize = useEditorStore((state) => state.fontSize)
   const aiDefaultWriteTarget = useEditorStore((state) => state.aiDefaultWriteTarget)
   const addTab = useEditorStore((state) => state.addTab)
   const rootPath = useFileTreeStore((state) => state.rootPath)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const pendingPromptSelectionRef = useRef<number | null>(null)
   const requestRunIdRef = useRef(0)
   const activeRequestIdRef = useRef<string | null>(null)
   const disposedRef = useRef(false)
@@ -127,6 +160,7 @@ export default function AIComposer() {
     startSessionHistory,
     updateSessionHistory,
   } = useAIStore()
+  const initialTemplatePromptRef = useRef<string | null>(composer.prompt)
   const [resultView, setResultView] = useState<AIResultView>('draft')
   const [providerState, setProviderState] = useState<AIProviderState | null>(null)
   const [connectionLoading, setConnectionLoading] = useState(false)
@@ -249,6 +283,7 @@ export default function AIComposer() {
       : []
   const templateModels = useMemo(() => getAITemplateModels(t), [t])
   const promptPlaceholder = useMemo(() => buildAIComposerPromptPlaceholder(t), [t])
+  const composerContentTypography = useMemo(() => buildAIComposerContentTypography(fontSize), [fontSize])
   const completedWorkspaceTaskIds = useMemo(
     () =>
       Object.entries(workspaceExecutionStates)
@@ -271,6 +306,21 @@ export default function AIComposer() {
   }, [])
 
   useEffect(() => {
+    const initialPrompt = initialTemplatePromptRef.current
+    initialTemplatePromptRef.current = null
+    if (!initialPrompt) return
+
+    const matchingTemplate = templateModels.find((template) => template.prompt === initialPrompt)
+    if (!matchingTemplate) return
+
+    const nextPrompt = buildTemplatePromptDraft(matchingTemplate.prompt)
+    pendingPromptSelectionRef.current = nextPrompt.length
+    if (nextPrompt !== composer.prompt) {
+      setPrompt(nextPrompt)
+    }
+  }, [composer.prompt, setPrompt, templateModels])
+
+  useEffect(() => {
     disposedRef.current = false
     return () => {
       disposedRef.current = true
@@ -284,6 +334,17 @@ export default function AIComposer() {
   useEffect(() => {
     setResultView('draft')
   }, [composer.draftText, composer.outputTarget])
+
+  useEffect(() => {
+    const nextSelection = pendingPromptSelectionRef.current
+    const textarea = textareaRef.current
+    if (nextSelection === null || !textarea) return
+
+    const caret = Math.min(nextSelection, composer.prompt.length)
+    focusElementWithoutScroll(textarea)
+    textarea.setSelectionRange(caret, caret)
+    pendingPromptSelectionRef.current = null
+  }, [composer.prompt])
 
   useEffect(() => {
     setWorkspaceExecutionStates({})
@@ -584,7 +645,9 @@ export default function AIComposer() {
     setIntent(resolution.intent)
     setScope(resolution.scope)
     setOutputTarget(resolution.outputTarget)
-    setPrompt(template.prompt)
+    const nextPrompt = buildTemplatePromptDraft(template.prompt)
+    pendingPromptSelectionRef.current = nextPrompt.length
+    setPrompt(nextPrompt)
     setResultView('draft')
   }
 
@@ -1370,6 +1433,7 @@ export default function AIComposer() {
             rows={5}
             className="w-full resize-none rounded-2xl border px-4 py-3 text-sm outline-none transition-colors"
             style={{
+              ...composerContentTypography.text,
               background: 'color-mix(in srgb, var(--bg-primary) 94%, transparent)',
               borderColor: 'color-mix(in srgb, var(--border) 86%, transparent)',
               color: 'var(--text-primary)',
@@ -1644,12 +1708,12 @@ export default function AIComposer() {
               {/* Result body */}
               <div data-ai-result-body="true" className="max-h-[280px] min-h-0 overflow-y-auto px-4 py-3">
                 {composer.requestState === 'streaming' && (
-                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  <p className="text-sm" style={{ ...composerContentTypography.text, color: 'var(--text-muted)' }}>
                     {t('ai.loading')}
                   </p>
                 )}
                 {composer.errorMessage && (
-                  <p className="text-sm" style={{ color: '#dc2626' }}>
+                  <p className="text-sm" style={{ ...composerContentTypography.text, color: '#dc2626' }}>
                     {composer.errorMessage}
                   </p>
                 )}
@@ -1670,7 +1734,11 @@ export default function AIComposer() {
                     ) : (
                       <pre
                         className="m-0 whitespace-pre-wrap break-words text-sm"
-                        style={{ color: 'var(--text-primary)', fontFamily: 'inherit' }}
+                        style={{
+                          ...composerContentTypography.text,
+                          color: 'var(--text-primary)',
+                          fontFamily: 'inherit',
+                        }}
                       >
                         {normalizedDraft || t('ai.result.empty')}
                       </pre>
@@ -1680,16 +1748,21 @@ export default function AIComposer() {
                 {!composer.errorMessage && resultView === 'diff' && (
                   <>
                     {hasDiffPreview ? (
-                      <AIDiffPreview blocks={diffBlocks} emptyLabel={t('ai.result.noDiff')} />
+                      <AIDiffPreview
+                        blocks={diffBlocks}
+                        emptyLabel={t('ai.result.noDiff')}
+                        typography={composerContentTypography}
+                      />
                     ) : hasInsertPreview ? (
                       <AIInsertionPreview
                         outputTarget={composer.outputTarget}
                         text={normalizedDraft}
                         targetLabel={t(`ai.outputTarget.${composer.outputTarget}`)}
                         emptyLabel={t('ai.result.noDiff')}
+                        typography={composerContentTypography}
                       />
                     ) : (
-                      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                      <p className="text-sm" style={{ ...composerContentTypography.text, color: 'var(--text-muted)' }}>
                         {t('ai.result.noDiff')}
                       </p>
                     )}
@@ -2678,6 +2751,12 @@ function formatWorkspaceExecutionPhaseHeading(
   return `${t('ai.workspaceExecution.phaseLabel', { index: phaseIndex + 1 })} · ${getWorkspaceExecutionPhaseName(phaseGroup.label, t)}`
 }
 
+function buildTemplatePromptDraft(prompt: string): string {
+  const trimmedPrompt = prompt.trimEnd()
+  if (!trimmedPrompt) return ''
+  return `${trimmedPrompt}\n`
+}
+
 function getWorkspaceExecutionTaskStatusMeta(
   status: WorkspaceExecutionTaskStatus,
   t: (key: string, values?: Record<string, string | number>) => string
@@ -2946,14 +3025,16 @@ function buildWorkspaceExecutionResumedLogMessage(
 function AIDiffPreview({
   blocks,
   emptyLabel,
+  typography,
 }: {
   blocks: ReturnType<typeof diffTextByLine>
   emptyLabel: string
+  typography: AIComposerContentTypography
 }) {
   const { t } = useTranslation()
 
   if (blocks.length === 0) {
-    return <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{emptyLabel}</p>
+    return <p className="text-sm" style={{ ...typography.text, color: 'var(--text-muted)' }}>{emptyLabel}</p>
   }
 
   return (
@@ -2969,11 +3050,22 @@ function AIDiffPreview({
               title={t('ai.result.context')}
               lines={block.localLines}
               tone="context"
+              typography={typography}
             />
           ) : (
             <div className="grid gap-px md:grid-cols-2" style={{ background: 'var(--border)' }}>
-              <AIMarkdownLineList title={t('ai.result.current')} lines={block.localLines} tone="current" />
-              <AIMarkdownLineList title={t('ai.result.aiDraft')} lines={block.diskLines} tone="draft" />
+              <AIMarkdownLineList
+                title={t('ai.result.current')}
+                lines={block.localLines}
+                tone="current"
+                typography={typography}
+              />
+              <AIMarkdownLineList
+                title={t('ai.result.aiDraft')}
+                lines={block.diskLines}
+                tone="draft"
+                typography={typography}
+              />
             </div>
           )}
         </div>
@@ -2986,10 +3078,12 @@ function AIMarkdownLineList({
   title,
   lines,
   tone,
+  typography,
 }: {
   title: string
   lines: string[]
   tone: 'context' | 'current' | 'draft'
+  typography: AIComposerContentTypography
 }) {
   const renderedLines = buildMarkdownPreviewLines(lines)
   const palette = getMarkdownTonePalette(tone)
@@ -3015,7 +3109,7 @@ function AIMarkdownLineList({
       <div className="grid gap-px" style={{ background: palette.rowDivider }}>
         {renderedLines.length > 0 ? (
           renderedLines.map((line) => (
-            <AIMarkdownLineRow key={line.id} line={line} tone={tone} />
+            <AIMarkdownLineRow key={line.id} line={line} tone={tone} typography={typography} />
           ))
         ) : (
           <div
@@ -3037,9 +3131,11 @@ function AIMarkdownLineList({
 function AIMarkdownLineRow({
   line,
   tone,
+  typography,
 }: {
   line: ReturnType<typeof buildMarkdownPreviewLines>[number]
   tone: 'context' | 'current' | 'draft'
+  typography: AIComposerContentTypography
 }) {
   const tonePalette = getMarkdownTonePalette(tone)
   const kindPalette = getMarkdownKindPalette(line.kind, tone)
@@ -3076,6 +3172,7 @@ function AIMarkdownLineRow({
         <span
           className="block text-xs"
           style={{
+            ...typography.code,
             color: kindPalette.text,
             fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
             fontWeight: line.kind === 'heading' ? 700 : 500,
@@ -3205,24 +3302,30 @@ function AIInsertionPreview({
   targetLabel,
   text,
   emptyLabel,
+  typography,
 }: {
   outputTarget: string
   targetLabel: string
   text: string
   emptyLabel: string
+  typography: AIComposerContentTypography
 }) {
   if (!text.trim()) {
-    return <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{emptyLabel}</p>
+    return <p className="text-sm" style={{ ...typography.text, color: 'var(--text-muted)' }}>{emptyLabel}</p>
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)' }}>
+      <p
+        className="text-xs uppercase tracking-[0.18em]"
+        style={{ ...typography.meta, color: 'var(--text-muted)' }}
+      >
         {targetLabel}
       </p>
       <pre
         className="whitespace-pre-wrap break-words rounded-xl border px-3 py-3 text-sm"
         style={{
+          ...typography.code,
           borderColor: 'color-mix(in srgb, var(--accent) 18%, var(--border))',
           background:
             outputTarget === 'chat-only'

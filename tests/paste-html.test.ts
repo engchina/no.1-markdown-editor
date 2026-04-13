@@ -185,6 +185,38 @@ test('renderClipboardHtmlAstToMarkdown keeps inline code literals unescaped in p
   assert.match(html, /<code>-\[ ]-><\/code>/)
 })
 
+test('renderClipboardHtmlAstToMarkdown preserves fenced markdown source copied from syntax-highlighted markdown blocks', () => {
+  const root = parseHtml(`
+    <div class="highlight">
+      <pre><code><span class="p">\`\`\`</span><span class="nl">mermaid
+</span><span class="sb">graph TD
+    A[開始] --&gt; B{条件分岐}
+    B --&gt;|Yes| C[処理A]
+    B --&gt;|No| D[処理B]
+    C --&gt; E[終了]
+    D --&gt; E</span>
+<span class="p">\`\`\`</span>
+</code></pre>
+    </div>
+  `)
+
+  const markdown = renderClipboardHtmlAstToMarkdown(root)
+
+  assert.equal(
+    markdown,
+    [
+      '```mermaid',
+      'graph TD',
+      '    A[開始] --> B{条件分岐}',
+      '    B -->|Yes| C[処理A]',
+      '    B -->|No| D[処理B]',
+      '    C --> E[終了]',
+      '    D --> E',
+      '```',
+    ].join('\n')
+  )
+})
+
 test('renderClipboardHtmlAstToMarkdown unwraps links that contain block descendants instead of emitting multiline markdown links', () => {
   const root = parseHtml(
     '<a href="https://qiita.com/yushibats"><div><img src="https://example.com/avatar.png" /></div>@yushibats</a>' +
@@ -385,6 +417,51 @@ test('convertClipboardHtmlToMarkdown matches Typora-style output for block-desce
         'in[![img](https://qiita-organization-images.imgix.net/https%3A%2F%2Fs3-ap-northeast-1.amazonaws.com%2Fqiita-organization-image%2F30955fa7f039a85c449ff480a2a7dbc5d9ff5ab0%2Foriginal.jpg%3F1452145683?ixlib=rb-4.0.0&auto=compress%2Cformat&s=bf701062776d83e01a458f70c5943af3)日本オラクル株式会社](https://qiita.com/organizations/oracle)',
       ].join('\n')
     )
+  } finally {
+    globalThis.DOMParser = originalDomParser
+  }
+})
+
+test('convertClipboardHtmlToMarkdown keeps fenced markdown source from Qiita-style copy buttons flat instead of nesting fences', () => {
+  const originalDomParser = globalThis.DOMParser
+  globalThis.DOMParser = FakeDOMParser as unknown as typeof DOMParser
+
+  try {
+    const html = `
+      <div class="code-frame" data-lang="markdown" data-sourcepos="174:1-183:4">
+        <div class="code-copy">
+          <div class="code-copy__message" style="display: none;">Copied!</div>
+          <button class="code-copy__button" style="display: none;">
+            <span class="fa fa-fw fa-clipboard"></span>
+          </button>
+        </div>
+        <div class="highlight">
+          <pre><code><span class="p">\`\`\`</span><span class="nl">mermaid
+</span><span class="sb">graph TD
+    A[開始] --&gt; B{条件分岐}
+    B --&gt;|Yes| C[処理A]
+    B --&gt;|No| D[処理B]
+    C --&gt; E[終了]
+    D --&gt; E</span>
+<span class="p">\`\`\`</span>
+</code></pre>
+        </div>
+      </div>
+    `
+    const plainText = [
+      '```mermaid',
+      'graph TD',
+      '    A[開始] --> B{条件分岐}',
+      '    B -->|Yes| C[処理A]',
+      '    B -->|No| D[処理B]',
+      '    C --> E[終了]',
+      '    D --> E',
+      '```',
+    ].join('\n')
+
+    const markdown = convertClipboardHtmlToMarkdown(html, plainText)
+
+    assert.equal(markdown, plainText)
   } finally {
     globalThis.DOMParser = originalDomParser
   }

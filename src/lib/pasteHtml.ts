@@ -565,6 +565,9 @@ function serializeCodeBlock(node: ClipboardHtmlAstNode): string {
   const language = extractCodeBlockLanguage(codeChild?.attributes?.class)
   const rawText = extractTextContent(codeChild ?? node, { preserveWhitespace: true }).replace(/\r\n?/g, '\n')
   const trimmedCode = rawText.replace(/\n+$/, '')
+  if (isStandaloneFencedBlock(trimmedCode)) {
+    return trimmedCode
+  }
   const fence = repeatFence('`', trimmedCode, 3)
   const languageSuffix = language ? language : ''
 
@@ -810,6 +813,23 @@ function repeatFence(marker: string, content: string, minimum: number): string {
   const matches = content.match(new RegExp(`${escapeForRegExp(marker)}+`, 'g')) ?? []
   const maxRunLength = matches.reduce((max, match) => Math.max(max, match.length), 0)
   return marker.repeat(Math.max(minimum, maxRunLength + 1))
+}
+
+function isStandaloneFencedBlock(content: string): boolean {
+  const normalized = content.trim()
+  if (!normalized) return false
+
+  const lines = normalized.split('\n')
+  if (lines.length < 2) return false
+
+  const openingFenceMatch = lines[0].match(/^([`~]{3,})(.*)$/)
+  if (!openingFenceMatch) return false
+
+  const openingFence = openingFenceMatch[1]
+  const marker = openingFence[0]
+  const minimumFenceLength = openingFence.length
+  const closingFencePattern = new RegExp(`^${escapeForRegExp(marker)}{${minimumFenceLength},}\\s*$`)
+  return closingFencePattern.test(lines[lines.length - 1])
 }
 
 function formatMarkdownDestination(url: string): string {

@@ -61,6 +61,53 @@ test('AI template library resolves localized models and open details', () => {
   })
 })
 
+test('AI locale prompt templates keep task intent while removing repeated Markdown-structure guidance', async () => {
+  const [en, ja, zh] = await Promise.all([
+    readFile(new URL('../src/i18n/locales/en.json', import.meta.url), 'utf8').then(JSON.parse),
+    readFile(new URL('../src/i18n/locales/ja.json', import.meta.url), 'utf8').then(JSON.parse),
+    readFile(new URL('../src/i18n/locales/zh.json', import.meta.url), 'utf8').then(JSON.parse),
+  ])
+
+  assert.equal(
+    en.ai.templates.translatePrompt,
+    'Translate the input content.'
+  )
+  assert.equal(
+    en.ai.templates.summarizePrompt,
+    'Summarize the input content while preserving the key meaning.'
+  )
+  assert.equal(
+    en.ai.templates.explainPrompt,
+    'Explain the input content in plain language. Break down any complex terms, structures, or concepts so they are easy to understand.'
+  )
+  assert.equal(
+    en.ai.templates.rewritePrompt,
+    'Rewrite the input content to improve clarity and flow while preserving meaning.'
+  )
+
+  assert.equal(ja.ai.templates.translatePrompt, '入力内容を翻訳してください。')
+  assert.equal(ja.ai.templates.summarizePrompt, '入力内容を要約し、重要な意味を保ってください。')
+  assert.equal(
+    ja.ai.templates.explainPrompt,
+    '入力内容をわかりやすい言葉で説明してください。複雑な用語・構造・概念があれば噛み砕いて解説してください。'
+  )
+  assert.equal(
+    ja.ai.templates.rewritePrompt,
+    '入力内容の意味を保ったまま、明確さと流れが良くなるように書き直してください。'
+  )
+
+  assert.equal(zh.ai.templates.translatePrompt, '请翻译输入内容。')
+  assert.equal(zh.ai.templates.summarizePrompt, '请总结输入内容，并保留关键含义。')
+  assert.equal(
+    zh.ai.templates.explainPrompt,
+    '请用平易近人的语言解释输入内容，拆解其中的复杂术语、结构或概念，使其易于理解。'
+  )
+  assert.equal(
+    zh.ai.templates.rewritePrompt,
+    '请改写输入内容，在保留原意的前提下提升清晰度与流畅度。'
+  )
+})
+
 test('AI composer template resolution prefers selection, falls back to current block, enables slash-context transforms, and disables block-aware actions when no target is available', () => {
   const models = getAITemplateModels(t)
   const translate = models.find((model) => model.id === 'translate')

@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { readFile } from 'node:fs/promises'
+
+test('AI Composer binds document font size to content text while keeping the dialog shell bounded', async () => {
+  const composer = await readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8')
+
+  assert.match(composer, /const fontSize = useEditorStore\(\(state\) => state\.fontSize\)/)
+  assert.match(composer, /function buildAIComposerContentTypography\(fontSize: number\)/)
+  assert.match(composer, /data-ai-composer-prompt="true"[\s\S]*style=\{\{\s*\.\.\.composerContentTypography\.text,/)
+  assert.match(composer, /<AIDiffPreview[\s\S]*typography=\{composerContentTypography\}/)
+  assert.match(composer, /<AIInsertionPreview[\s\S]*typography=\{composerContentTypography\}/)
+  assert.match(composer, /maxWidth: 'min\(620px, calc\(var\(--focus-column-max-width\) - 48px\), calc\(100vw - 2rem\)\)'/)
+  assert.doesNotMatch(composer, /data-ai-composer="true"[\s\S]{0,260}fontSize:/)
+})
+
+test('sidebar stays width-driven and does not subscribe to document font size', async () => {
+  const [sidebar, app, layout] = await Promise.all([
+    readFile(new URL('../src/components/Sidebar/Sidebar.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/layout.ts', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(sidebar, /export default function Sidebar\(\{ width \}: Props\)/)
+  assert.match(sidebar, /className="sidebar-surface flex h-full min-h-0 flex-shrink-0 flex-col"[\s\S]*style=\{\{\s*[\s\S]*width,/)
+  assert.doesNotMatch(sidebar, /useEditorStore\(\(state\) => state\.fontSize\)/)
+  assert.match(app, /store\.setFontSize\(Math\.min\(24, store\.fontSize \+ 1\)\)/)
+  assert.match(app, /store\.setFontSize\(Math\.max\(11, store\.fontSize - 1\)\)/)
+  assert.match(layout, /export const SIDEBAR_MIN_WIDTH = 260/)
+  assert.match(layout, /export const SIDEBAR_MAX_WIDTH = 420/)
+})

@@ -8,8 +8,6 @@ export type SupportedMermaidParserType =
   | 'treeView'
   | 'wardley'
 
-type ParserServiceModule = Record<string, (...args: never[]) => Record<string, { parser: { LangiumParser: MermaidLangiumParser } }>>
-
 type MermaidLangiumParser = {
   parse: (text: string) => {
     lexerErrors: Array<{ line?: number; column?: number; message: string }>
@@ -18,57 +16,26 @@ type MermaidLangiumParser = {
   }
 }
 
-type ParserRecord = Record<SupportedMermaidParserType, MermaidLangiumParser>
-type LoaderRecord = Record<SupportedMermaidParserType, () => Promise<ParserServiceModule>>
-const canUseBrowserChunkLoaders = typeof window !== 'undefined'
-
-const architectureLoader =
-  canUseBrowserChunkLoaders
-    ? import.meta.glob('../../node_modules/@mermaid-js/parser/dist/chunks/mermaid-parser.core/architecture-*.mjs')
-    : {}
-const gitGraphLoader =
-  canUseBrowserChunkLoaders
-    ? import.meta.glob('../../node_modules/@mermaid-js/parser/dist/chunks/mermaid-parser.core/gitGraph-*.mjs')
-    : {}
-const infoLoader =
-  canUseBrowserChunkLoaders
-    ? import.meta.glob('../../node_modules/@mermaid-js/parser/dist/chunks/mermaid-parser.core/info-*.mjs')
-    : {}
-const packetLoader =
-  canUseBrowserChunkLoaders
-    ? import.meta.glob('../../node_modules/@mermaid-js/parser/dist/chunks/mermaid-parser.core/packet-*.mjs')
-    : {}
-const pieLoader =
-  canUseBrowserChunkLoaders
-    ? import.meta.glob('../../node_modules/@mermaid-js/parser/dist/chunks/mermaid-parser.core/pie-*.mjs')
-    : {}
-const radarLoader =
-  canUseBrowserChunkLoaders
-    ? import.meta.glob('../../node_modules/@mermaid-js/parser/dist/chunks/mermaid-parser.core/radar-*.mjs')
-    : {}
-const treeViewLoader =
-  canUseBrowserChunkLoaders
-    ? import.meta.glob('../../node_modules/@mermaid-js/parser/dist/chunks/mermaid-parser.core/treeView-*.mjs')
-    : {}
-const wardleyLoader =
-  canUseBrowserChunkLoaders
-    ? import.meta.glob('../../node_modules/@mermaid-js/parser/dist/chunks/mermaid-parser.core/wardley-*.mjs')
-    : {}
-
-const parsers: Partial<ParserRecord> = {}
-
-const loaderMap: LoaderRecord = {
-  architecture: () => pickSingleLoader(architectureLoader, 'architecture')(),
-  gitGraph: () => pickSingleLoader(gitGraphLoader, 'gitGraph')(),
-  info: () => pickSingleLoader(infoLoader, 'info')(),
-  packet: () => pickSingleLoader(packetLoader, 'packet')(),
-  pie: () => pickSingleLoader(pieLoader, 'pie')(),
-  radar: () => pickSingleLoader(radarLoader, 'radar')(),
-  treeView: () => pickSingleLoader(treeViewLoader, 'treeView')(),
-  wardley: () => pickSingleLoader(wardleyLoader, 'wardley')(),
+type MermaidParserServices = Record<string, { parser: { LangiumParser: MermaidLangiumParser } }>
+type MermaidParserFactory = () => MermaidParserServices
+type MermaidParserCoreModule = {
+  createArchitectureServices: MermaidParserFactory
+  createGitGraphServices: MermaidParserFactory
+  createInfoServices: MermaidParserFactory
+  createPacketServices: MermaidParserFactory
+  createPieServices: MermaidParserFactory
+  createRadarServices: MermaidParserFactory
+  createTreeViewServices: MermaidParserFactory
+  createWardleyServices: MermaidParserFactory
 }
 
-const parserFactoryMap: Record<SupportedMermaidParserType, { create: string; service: string }> = {
+type ParserRecord = Record<SupportedMermaidParserType, MermaidLangiumParser>
+
+const parsers: Partial<ParserRecord> = {}
+let mermaidParserCorePromise: Promise<MermaidParserCoreModule> | null = null
+const nodeMermaidParserSpecifier = '@mermaid-js/parser'
+
+const parserFactoryMap = {
   architecture: { create: 'createArchitectureServices', service: 'Architecture' },
   gitGraph: { create: 'createGitGraphServices', service: 'GitGraph' },
   info: { create: 'createInfoServices', service: 'Info' },
@@ -77,22 +44,21 @@ const parserFactoryMap: Record<SupportedMermaidParserType, { create: string; ser
   radar: { create: 'createRadarServices', service: 'Radar' },
   treeView: { create: 'createTreeViewServices', service: 'TreeView' },
   wardley: { create: 'createWardleyServices', service: 'Wardley' },
-}
+} as const satisfies Record<SupportedMermaidParserType, { create: keyof MermaidParserCoreModule; service: string }>
 
-function pickSingleLoader(
-  registry: Record<string, () => Promise<unknown>>,
-  type: SupportedMermaidParserType
-): () => Promise<ParserServiceModule> {
-  const entries = Object.values(registry)
-  if (entries.length !== 1) {
-    if (entries.length === 0 && !canUseBrowserChunkLoaders) {
-      throw new Error(`Mermaid parser loader "${type}" is unavailable outside the Vite runtime`)
-    }
-
-    throw new Error(`Expected exactly one Mermaid parser chunk for "${type}", found ${entries.length}`)
-  }
-
-  return entries[0] as () => Promise<ParserServiceModule>
+function loadMermaidParserCore(): Promise<MermaidParserCoreModule> {
+  mermaidParserCorePromise ??= (
+    typeof window === 'undefined'
+      ? (import(nodeMermaidParserSpecifier) as unknown as Promise<MermaidParserCoreModule>)
+      : (
+          // @ts-expect-error Vite resolves this alias to the upstream parser package at runtime.
+          import('@mermaid-js/parser-upstream') as Promise<MermaidParserCoreModule>
+        )
+  ).catch((error) => {
+    mermaidParserCorePromise = null
+    throw error
+  })
+  return mermaidParserCorePromise
 }
 
 function formatMermaidParseErrorMessage(result: {
@@ -124,7 +90,7 @@ async function ensureParser(type: SupportedMermaidParserType): Promise<MermaidLa
   const existing = parsers[type]
   if (existing) return existing
 
-  const module = await loaderMap[type]()
+  const module = await loadMermaidParserCore()
   const mapping = parserFactoryMap[type]
   const createServices = module[mapping.create]
   if (typeof createServices !== 'function') {
@@ -146,7 +112,7 @@ export async function warmMermaidParser(type: SupportedMermaidParserType): Promi
 }
 
 export async function parse(diagramType: string, text: string): Promise<unknown> {
-  if (!(diagramType in loaderMap)) {
+  if (!(diagramType in parserFactoryMap)) {
     throw new Error(`Unknown diagram type: ${diagramType}`)
   }
 

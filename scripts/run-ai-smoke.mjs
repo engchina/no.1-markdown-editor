@@ -256,7 +256,18 @@ async function main() {
       'composer template library to render'
     )
     await shortcutComposer.locator('[data-ai-template="translate"]').click()
-    assert.match(await shortcutComposer.locator('textarea').inputValue(), /Translate/u)
+    const shortcutPromptValue = await shortcutComposer.locator('textarea').inputValue()
+    assert.equal(shortcutPromptValue, 'Translate the input content.\n')
+    assert.deepEqual(
+      await shortcutComposer.locator('textarea').evaluate((element) => ({
+        start: element.selectionStart,
+        end: element.selectionEnd,
+      })),
+      {
+        start: shortcutPromptValue.length,
+        end: shortcutPromptValue.length,
+      }
+    )
     await page.keyboard.press('Escape')
     await waitForCondition(async () => (await page.getByRole('dialog', { name: 'AI Composer' }).count()) === 0, 'AI composer to close after shortcut-opened template action')
 
@@ -276,7 +287,17 @@ async function main() {
     await expectNoText(page, 'body', 'Insert Under Heading')
     assert.equal(await composer.getByText('New Note', { exact: true }).count(), 0)
     const promptValue = await composer.locator('textarea').inputValue()
-    assert.match(promptValue, /Translate the selected content/u)
+    assert.equal(promptValue, 'Translate the input content.\n')
+    assert.deepEqual(
+      await composer.locator('textarea').evaluate((element) => ({
+        start: element.selectionStart,
+        end: element.selectionEnd,
+      })),
+      {
+        start: promptValue.length,
+        end: promptValue.length,
+      }
+    )
 
     await page.keyboard.press('Escape')
     await waitForCondition(async () => (await page.getByRole('dialog', { name: 'AI Composer' }).count()) === 0, 'AI composer to close after bubble action')

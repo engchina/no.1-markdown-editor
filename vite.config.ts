@@ -31,15 +31,19 @@ export default defineConfig(async () => ({
     },
   ],
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@mermaid-js/parser': path.resolve(__dirname, './src/lib/mermaidParser.ts'),
-    },
+    alias: [
+      { find: /^@mermaid-js\/parser$/, replacement: path.resolve(__dirname, './src/lib/mermaidParser.ts') },
+      { find: /^@mermaid-js\/parser-upstream$/, replacement: '@mermaid-js/parser' },
+      { find: '@', replacement: path.resolve(__dirname, './src') },
+    ],
   },
   optimizeDeps: {
     // Mermaid only becomes reachable after the preview surface is mounted, so we
-    // pre-bundle it up front to avoid late dev-time optimizer churn.
-    include: ['mermaid'],
+    // pre-bundle its runtime, the upstream parser package, and Langium up front
+    // to avoid late dev-time optimizer churn the first time a diagram is
+    // rendered. Langium must be eagerly optimized so the browser never falls
+    // back to its raw cancellation bridge modules under /node_modules.
+    include: ['mermaid', '@mermaid-js/parser-upstream', 'langium'],
   },
   build: {
     // Mermaid's upstream parser core bundles several grammars into a single optional

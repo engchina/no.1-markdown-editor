@@ -173,7 +173,9 @@
     "diagramError": "図を描画できませんでした",
     "diagramsPending": "描画待ちの図が {{count}} 件あります",
     "renderAllDiagrams": "すべて描画",
-    "renderingDiagrams": "描画中..."
+    "renderingDiagrams": "描画中...",
+    "copyCode": "コピー",
+    "copyCodeDone": "コピーしました！"
   },
   "externalConflict": {
     "title": "外部ファイルの競合を解決",
@@ -390,10 +392,10 @@
       "newNotePrompt": "現在のコンテキストをもとに、明確なタイトルと使いやすいセクション構成を持つ独立した Markdown ノートを下書きしてください。",
       "workspaceRunPrompt": "添付されたノートを確認し、連携したワークスペース実行プランを返してください。必ず次の構造だけを返します。\n\n<!-- ai-workspace-summary -->\n- 簡潔な要約箇条書き\n<!-- /ai-workspace-summary -->\n\n各タスクは次の形式にします:\n<!-- ai-workspace-task action=\"update-note\" target=\"note name or path\" title=\"Draft title\" phase=\"任意のフェーズ名\" depends-on=\"前提となる task の target または title, 任意の第2依存\" -->\n# Draft content\n...\n<!-- /ai-workspace-task -->\n\n既定フェーズに属するタスクでは phase を省略してください。前提がないタスクでは depends-on を省略してください。phase を使う場合、依存先は同じフェーズかそれ以前のフェーズだけにしてください。後続フェーズへの依存は作らないでください。新規ノート化する場合は action=\"create-note\" を使ってください。互換性のため stage=\"...\" も受け付けますが、基本は phase=\"...\" を使ってください。summary ブロックと task ブロック以外は返さないでください。",
       "reviewPrompt": "現在のブロックをレビューし、具体的な改善点を簡潔に指摘してください。",
-      "explainPrompt": "選択した内容または現在のブロックをわかりやすい言葉で説明してください。複雑な用語・構造・概念があれば噛み砕いて解説してください。",
-      "rewritePrompt": "選択した内容または現在のブロックの意味と Markdown 構造を保ったまま、読みやすさと流れを改善するように書き直してください。",
-      "summarizePrompt": "選択した内容または現在のブロックを、重要な意味と Markdown 構造を保ったまま要約してください。",
-      "translatePrompt": "選択した内容または現在のブロックを、Markdown 構造、リンク、表、コードフェンス、Mermaid、数式、front matter を保ったまま翻訳してください。",
+      "explainPrompt": "入力内容をわかりやすい言葉で説明してください。複雑な用語・構造・概念があれば噛み砕いて解説してください。",
+      "rewritePrompt": "入力内容の意味を保ったまま、明確さと流れが良くなるように書き直してください。",
+      "summarizePrompt": "入力内容を要約し、重要な意味を保ってください。",
+      "translatePrompt": "入力内容を翻訳してください。",
       "generateBelowPrompt": "現在のブロックの下に次のブロックを生成し、周囲の文体に合わせてください。"
     },
     "mentions": {

@@ -173,7 +173,9 @@
     "diagramError": "图表无法渲染",
     "diagramsPending": "有 {{count}} 个图表可供渲染",
     "renderAllDiagrams": "全部渲染",
-    "renderingDiagrams": "渲染中..."
+    "renderingDiagrams": "渲染中...",
+    "copyCode": "复制",
+    "copyCodeDone": "已复制！"
   },
   "externalConflict": {
     "title": "解决外部文件冲突",
@@ -390,10 +392,10 @@
       "newNotePrompt": "基于当前上下文起草一篇可独立阅读的 Markdown 笔记，并给出清晰标题和实用的小节结构。",
       "workspaceRunPrompt": "请审阅已附加的笔记，并返回一份协同的工作区执行计划。必须只返回下面这种结构。\n\n<!-- ai-workspace-summary -->\n- 简洁的摘要要点\n<!-- /ai-workspace-summary -->\n\n每个任务使用：\n<!-- ai-workspace-task action=\"update-note\" target=\"note name or path\" title=\"Draft title\" phase=\"可选阶段名\" depends-on=\"可选的前置 task target 或 title，可再跟第 2 个依赖\" -->\n# Draft content\n...\n<!-- /ai-workspace-task -->\n\n如果任务属于默认阶段，就省略 phase。若任务没有前置依赖，就省略 depends-on。若使用 phase，依赖只能指向同阶段或更早阶段，不能让任务依赖更后面的阶段。若应生成新笔记，请使用 action=\"create-note\"。为兼容旧输出，解析器也接受 stage=\"...\"，但默认优先使用 phase=\"...\"。除了 summary 和 task blocks 之外不要返回其他内容。",
       "reviewPrompt": "审阅当前块内容，简洁地指出具体改进建议。",
-      "explainPrompt": "请用平易近人的语言解释选中的内容或当前块，拆解其中的复杂术语、结构或概念，使其易于理解。",
-      "rewritePrompt": "请改写选中的内容或当前块，在保留原意和 Markdown 结构的前提下提升清晰度与流畅度。",
-      "summarizePrompt": "请总结选中的内容或当前块，并保留关键含义与 Markdown 结构。",
-      "translatePrompt": "请翻译选中的内容或当前块，并保留 Markdown 结构、链接、表格、代码围栏、Mermaid、数学公式和 front matter。",
+      "explainPrompt": "请用平易近人的语言解释输入内容，拆解其中的复杂术语、结构或概念，使其易于理解。",
+      "rewritePrompt": "请改写输入内容，在保留原意的前提下提升清晰度与流畅度。",
+      "summarizePrompt": "请总结输入内容，并保留关键含义。",
+      "translatePrompt": "请翻译输入内容。",
       "generateBelowPrompt": "在当前块下方生成下一段块内容，并保持与周围文档语气一致。"
     },
     "mentions": {
