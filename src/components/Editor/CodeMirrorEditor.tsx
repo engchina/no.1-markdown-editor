@@ -64,7 +64,11 @@ import {
   writeClipboardPayload,
 } from '../../lib/clipboardHtml'
 import { getImageAltText } from '../../lib/fileTypes'
-import { getTauriFilePersistence, persistImageFilesAsMarkdown } from '../../lib/documentPersistence'
+import {
+  getTauriFilePersistence,
+  persistDraftImageFilesAsMarkdown,
+  persistImageFilesAsMarkdown,
+} from '../../lib/documentPersistence'
 import { prepareImageMarkdownInsertion } from '../../lib/imageMarkdownInsertion'
 import { prepareMarkdownInsertion } from '../../lib/markdownInsertion'
 import { appendEditorSelectionScrollEffect, keepEditorCursorBottomGap } from '../../lib/editorScroll.ts'
@@ -797,9 +801,18 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
           .filter((file): file is File => file !== null)
 
         if (imageFiles.length > 0) {
-          const markdownText = await buildImageMarkdown(imageFiles, activeTab?.path ?? null)
-          replaceSelectionWithImageMarkdown(view, markdownText)
-          queuePasteCursorBottomGapSync()
+          try {
+            const markdownText = await buildImageMarkdown(
+              imageFiles,
+              activeTab?.path ?? null,
+              activeTab?.id ?? null
+            )
+            if (!markdownText) return
+            replaceSelectionWithImageMarkdown(view, markdownText)
+            queuePasteCursorBottomGapSync()
+          } catch (error) {
+            console.error('Persist pasted image error:', error)
+          }
           return
         }
       }
@@ -867,7 +880,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       container.removeEventListener('cut', handleCut)
       container.removeEventListener('paste', handlePaste, true)
     }
-  }, [activeTab?.path])
+  }, [activeTab?.id, activeTab?.path])
 
   useEffect(() => {
     const handleAIOpen = (event: Event) => {
@@ -1228,8 +1241,17 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       event.stopPropagation()
 
       const dropPos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.from
-      const markdownText = await buildImageMarkdown(imageFiles, activeTab?.path ?? null)
-      insertImageMarkdown(view, markdownText, { from: dropPos, to: dropPos })
+      try {
+        const markdownText = await buildImageMarkdown(
+          imageFiles,
+          activeTab?.path ?? null,
+          activeTab?.id ?? null
+        )
+        if (!markdownText) return
+        insertImageMarkdown(view, markdownText, { from: dropPos, to: dropPos })
+      } catch (error) {
+        console.error('Persist dropped image error:', error)
+      }
     }
 
     container.addEventListener('dragover', handleDragOver)
@@ -1238,7 +1260,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       container.removeEventListener('dragover', handleDragOver)
       container.removeEventListener('drop', handleDrop)
     }
-  }, [activeTab?.path])
+  }, [activeTab?.id, activeTab?.path])
 
   useEffect(() => {
     const view = viewRef.current
@@ -1360,7 +1382,7 @@ function insertMarkdown(
         // Re-dispatch scroll after CodeMirror has rendered the new content.
         // lineBlockAt() may return estimated coords for off-screen content on
         // the first dispatch, so a second pass with fresh measurements is needed
-        // (important for large insertions such as base64 image markdown).
+        // (important for large multi-image insertions).
         view.dispatch({ effects: appendEditorSelectionScrollEffect(view, undefined, selectionAnchor) })
         keepEditorCursorBottomGap(view, { force: true })
       })
@@ -1387,13 +1409,20 @@ function createAIApplySnapshot(view: EditorView, tabId: string) {
   }
 }
 
-async function buildImageMarkdown(files: File[], activeTabPath: string | null): Promise<string> {
-  if (isTauri && activeTabPath) {
-    try {
-      const persistence = await getTauriFilePersistence()
-      return await persistImageFilesAsMarkdown(files, activeTabPath, persistence)
-    } catch (error) {
-      console.error('Persist dropped image error:', error)
+async function buildImageMarkdown(
+  files: File[],
+  activeTabPath: string | null,
+  activeTabId: string | null
+): Promise<string> {
+  if (isTauri) {
+    const persistence = await getTauriFilePersistence()
+
+    if (activeTabPath) {
+      return persistImageFilesAsMarkdown(files, activeTabPath, persistence)
+    }
+
+    if (activeTabId) {
+      return persistDraftImageFilesAsMarkdown(files, activeTabId, persistence)
     }
   }
 

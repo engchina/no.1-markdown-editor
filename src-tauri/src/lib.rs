@@ -34,6 +34,14 @@ fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn copy_file(source_path: String, destination_path: String) -> Result<(), String> {
+    ensure_parent_directory(&destination_path)?;
+    std::fs::copy(&source_path, &destination_path)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn get_file_name(path: String) -> String {
     std::path::Path::new(&path)
         .file_name()
@@ -375,6 +383,7 @@ pub fn run() {
             read_file,
             write_file,
             write_binary_file,
+            copy_file,
             get_file_name,
             allow_fs_scope_path,
             take_pending_open_paths,

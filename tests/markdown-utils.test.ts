@@ -241,6 +241,17 @@ test('renderMarkdown preserves Windows absolute markdown image sources by normal
   assert.match(html, /src="file:\/\/\/C:\/Users\/thinkpad\/Pictures\/hero-image\.png"/)
 })
 
+test('renderMarkdown preserves angle-wrapped absolute markdown image sources that contain spaces', async () => {
+  const html = await renderMarkdown(
+    '![Draft image](</Users/test/Library/Application Support/com.no1.markdown-editor/draft-images/tab-1/image-17.png>)'
+  )
+
+  assert.match(
+    html,
+    /src="\/Users\/test\/Library\/Application%20Support\/com\.no1\.markdown-editor\/draft-images\/tab-1\/image-17\.png"/
+  )
+})
+
 test('renderMarkdown preserves Windows absolute raw html image sources by normalizing them to file urls', async () => {
   const html = await renderMarkdown('<img src="C:/Users/thinkpad/Pictures/raw-hero.png" alt="Hero">')
 
