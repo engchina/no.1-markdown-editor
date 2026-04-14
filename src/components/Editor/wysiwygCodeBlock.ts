@@ -2,7 +2,7 @@ import { Decoration, type EditorView } from '@codemirror/view'
 import type { FencedCodeBlock } from './fencedCodeRanges.ts'
 import type { RangeSpec } from './sortedRangeSet.ts'
 
-export interface WysiwygCodeBlockDecorationView {
+export interface WysiwygDecorationView {
   state: Pick<EditorView['state'], 'doc' | 'selection'>
   visibleRanges: readonly { from: number; to: number }[]
 }
@@ -31,7 +31,7 @@ function formatCodeBlockLanguageLabel(language: string | null): string {
 }
 
 function selectionTouchesFencedCodeBlock(
-  view: WysiwygCodeBlockDecorationView,
+  view: WysiwygDecorationView,
   fencedCodeBlock: FencedCodeBlock
 ): boolean {
   const { ranges } = view.state.selection
@@ -67,7 +67,7 @@ function decorateInactiveFencedCodeBlockLine(
 }
 
 export function collectWysiwygCodeBlockDecorations(
-  view: WysiwygCodeBlockDecorationView,
+  view: WysiwygDecorationView,
   fencedCodeBlocks: readonly FencedCodeBlock[]
 ): WysiwygCodeBlockDecorationSpec[] {
   const decorations: WysiwygCodeBlockDecorationSpec[] = []

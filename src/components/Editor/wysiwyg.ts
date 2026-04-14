@@ -18,14 +18,16 @@ import {
 import katex from 'katex'
 import { ensureKatexStylesheet } from '../../lib/katexStylesheet'
 import { collectFencedCodeBlocks, type FencedCodeBlock } from './fencedCodeRanges'
+import { collectMathBlocks, type MathBlock } from './mathBlockRanges.ts'
 import { buildSortedRangeSet, type RangeSpec } from './sortedRangeSet'
 import { getTaskCheckboxChange } from './taskCheckbox'
 import { parseWysiwygBlockquoteLine } from './wysiwygBlockquote'
 import { findInlineSuperscriptRanges } from './wysiwygSuperscript'
 import {
   collectWysiwygCodeBlockDecorations,
-  type WysiwygCodeBlockDecorationView,
+  type WysiwygDecorationView,
 } from './wysiwygCodeBlock.ts'
+import { collectInactiveWysiwygMathBlocks } from './wysiwygMathBlock.ts'
 
 // ── Widgets ────────────────────────────────────────────────────────────────
 
@@ -66,24 +68,41 @@ class InlineMathWidget extends WidgetType {
 // KaTeX block math widget
 class BlockMathWidget extends WidgetType {
   private readonly latex: string
+  private readonly editAnchor: number
 
-  constructor(latex: string) {
+  constructor(latex: string, editAnchor: number) {
     super()
     this.latex = latex
+    this.editAnchor = editAnchor
   }
   toDOM() {
     const el = document.createElement('div')
     el.className = 'cm-wysiwyg-math-block'
+    el.dataset.mathEditAnchor = String(this.editAnchor)
+    el.setAttribute('aria-label', 'Edit math block')
+    el.setAttribute('role', 'button')
+
+    const surface = document.createElement('div')
+    surface.className = 'cm-wysiwyg-math-block__surface'
+
+    const rendered = document.createElement('div')
+    rendered.className = 'cm-wysiwyg-math-block__rendered'
+
     void ensureKatexStylesheet().catch(() => {})
     try {
-      katex.render(this.latex, el, { throwOnError: false, displayMode: true })
+      katex.render(this.latex, rendered, { throwOnError: false, displayMode: true })
     } catch {
-      el.textContent = this.latex
+      rendered.textContent = this.latex
+      rendered.style.whiteSpace = 'pre-wrap'
+      rendered.style.fontFamily = 'var(--font-mono, monospace)'
     }
+
+    surface.appendChild(rendered)
+    el.appendChild(surface)
     return el
   }
-  ignoreEvent() { return true }
-  eq(other: BlockMathWidget) { return this.latex === other.latex }
+  ignoreEvent() { return false }
+  eq(other: BlockMathWidget) { return this.latex === other.latex && this.editAnchor === other.editAnchor }
 }
 
 class CheckboxWidget extends WidgetType {
@@ -142,7 +161,7 @@ class BlockquoteSpacerWidget extends WidgetType {
 
 // ── Cursor range helpers ───────────────────────────────────────────────────
 
-function cursorIsOnLine(view: WysiwygCodeBlockDecorationView, lineFrom: number, lineTo: number): boolean {
+function cursorIsOnLine(view: WysiwygDecorationView, lineFrom: number, lineTo: number): boolean {
   const { ranges } = view.state.selection
   return ranges.some((r) => r.from >= lineFrom && r.from <= lineTo)
 }
@@ -161,14 +180,53 @@ function queueDecoration(
 }
 
 export function buildWysiwygDecorations(
-  view: WysiwygCodeBlockDecorationView,
-  fencedCodeBlocks: readonly FencedCodeBlock[]
+  view: WysiwygDecorationView,
+  fencedCodeBlocks: readonly FencedCodeBlock[],
+  mathBlocks: readonly MathBlock[]
 ): DecorationSet {
   // Mixed replace/mark decorations often start at the same position.
   // Collect first, then sort by CodeMirror's range ordering rules.
   const decorations: DecorationSpec[] = [...collectWysiwygCodeBlockDecorations(view, fencedCodeBlocks)]
   const { doc } = view.state
   let fenceIndex = 0
+  let mathIndex = 0
+
+  for (const mathBlock of collectInactiveWysiwygMathBlocks(view, mathBlocks)) {
+    const openingLine = doc.lineAt(mathBlock.from)
+    const closingLine = doc.lineAt(mathBlock.to)
+
+    queueDecoration(
+      decorations,
+      openingLine.from,
+      openingLine.from,
+      Decoration.line({ attributes: { class: 'cm-wysiwyg-math-block-anchor-line' } })
+    )
+
+    queueDecoration(
+      decorations,
+      openingLine.from,
+      openingLine.to,
+      Decoration.replace({ widget: new BlockMathWidget(mathBlock.latex, mathBlock.editAnchor) })
+    )
+
+    let hiddenLineFrom = openingLine.to + 1
+    while (hiddenLineFrom <= closingLine.to) {
+      const hiddenLine = doc.lineAt(hiddenLineFrom)
+      queueDecoration(
+        decorations,
+        hiddenLine.from,
+        hiddenLine.from,
+        Decoration.line({ attributes: { class: 'cm-wysiwyg-math-block-hidden-line' } })
+      )
+      queueDecoration(
+        decorations,
+        hiddenLine.from,
+        hiddenLine.to,
+        Decoration.replace({})
+      )
+      hiddenLineFrom = hiddenLine.to + 1
+    }
+  }
 
   // Process each visible line
   for (const { from, to } of view.visibleRanges) {
@@ -183,9 +241,18 @@ export function buildWysiwygDecorations(
       while (fenceIndex < fencedCodeBlocks.length && fencedCodeBlocks[fenceIndex].to < lineFrom) {
         fenceIndex += 1
       }
+      while (mathIndex < mathBlocks.length && mathBlocks[mathIndex].to < lineFrom) {
+        mathIndex += 1
+      }
 
       const fencedCodeBlock = fencedCodeBlocks[fenceIndex]
       if (fencedCodeBlock && lineFrom >= fencedCodeBlock.from && lineFrom <= fencedCodeBlock.to) {
+        pos = line.to + 1
+        continue
+      }
+
+      const mathBlock = mathBlocks[mathIndex]
+      if (mathBlock && lineFrom >= mathBlock.from && lineFrom <= mathBlock.to) {
         pos = line.to + 1
         continue
       }
@@ -281,19 +348,6 @@ export function buildWysiwygDecorations(
         }
       }
 
-      // ── Block math $$...$$  (single or multi-line — handle single-line here)
-      if (text.startsWith('$$') && text.endsWith('$$') && text.length > 4 && !onLine) {
-        const latex = text.slice(2, -2).trim()
-        queueDecoration(
-          decorations,
-          lineFrom,
-          lineTo,
-          Decoration.replace({ widget: new BlockMathWidget(latex), block: false })
-        )
-        pos = line.to + 1
-        continue
-      }
-
       // ── Inline patterns (bold, italic, highlight, code, strikethrough, links, math) ──
       // Only apply when NOT on the line containing the cursor
       if (!onLine) {
@@ -309,11 +363,12 @@ export function buildWysiwygDecorations(
 }
 
 function safeBuildDecorations(
-  view: WysiwygCodeBlockDecorationView,
-  fencedCodeBlocks: readonly FencedCodeBlock[]
+  view: WysiwygDecorationView,
+  fencedCodeBlocks: readonly FencedCodeBlock[],
+  mathBlocks: readonly MathBlock[]
 ): DecorationSet {
   try {
-    return buildWysiwygDecorations(view, fencedCodeBlocks)
+    return buildWysiwygDecorations(view, fencedCodeBlocks, mathBlocks)
   } catch {
     return Decoration.none
   }
@@ -469,21 +524,40 @@ function toggleTaskCheckbox(view: EditorView, target: EventTarget | null): boole
   return true
 }
 
+function activateMathBlock(view: EditorView, target: EventTarget | null): boolean {
+  const mathBlock = (target as HTMLElement | null)?.closest<HTMLElement>('.cm-wysiwyg-math-block')
+  if (!mathBlock) return false
+
+  const editAnchor = Number(mathBlock.dataset.mathEditAnchor)
+  if (!Number.isFinite(editAnchor)) return false
+
+  view.dispatch({
+    selection: { anchor: editAnchor },
+    userEvent: 'select.pointer',
+    scrollIntoView: true,
+  })
+  view.focus()
+  return true
+}
+
 // ── Plugin definition ──────────────────────────────────────────────────────
 
 export const wysiwygPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet
     fencedCodeBlocks: FencedCodeBlock[]
+    mathBlocks: MathBlock[]
 
     constructor(view: EditorView) {
       this.fencedCodeBlocks = collectFencedCodeBlocks(view.state.doc.toString())
-      this.decorations = safeBuildDecorations(view, this.fencedCodeBlocks)
+      this.mathBlocks = collectMathBlocks(view.state.doc.toString(), this.fencedCodeBlocks)
+      this.decorations = safeBuildDecorations(view, this.fencedCodeBlocks, this.mathBlocks)
     }
 
     update(update: ViewUpdate) {
       if (update.docChanged) {
         this.fencedCodeBlocks = collectFencedCodeBlocks(update.state.doc.toString())
+        this.mathBlocks = collectMathBlocks(update.state.doc.toString(), this.fencedCodeBlocks)
       }
 
       if (
@@ -491,14 +565,23 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
         update.selectionSet ||
         update.viewportChanged
       ) {
-        this.decorations = safeBuildDecorations(update.view, this.fencedCodeBlocks)
+        this.decorations = safeBuildDecorations(update.view, this.fencedCodeBlocks, this.mathBlocks)
       }
     }
   },
   {
     decorations: (v) => v.decorations,
     eventHandlers: {
+      mousedown(event, view) {
+        if (!activateMathBlock(view, event.target)) return false
+        event.preventDefault()
+        return true
+      },
       click(event, view) {
+        if (activateMathBlock(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
         if (!toggleTaskCheckbox(view, event.target)) return false
         event.preventDefault()
         return true
@@ -641,10 +724,44 @@ export const wysiwygTheme = EditorView.baseTheme({
     verticalAlign: 'middle',
     cursor: 'default',
   },
+  '.cm-wysiwyg-math-block-anchor-line': {
+    padding: '0 !important',
+  },
+  '.cm-wysiwyg-math-block-hidden-line': {
+    height: '0',
+    minHeight: '0',
+    padding: '0 !important',
+    lineHeight: '0',
+    fontSize: '0',
+    overflow: 'hidden',
+  },
   '.cm-wysiwyg-math-block': {
     display: 'block',
+    width: '100%',
+    cursor: 'text',
+  },
+  '.cm-wysiwyg-math-block__surface': {
+    margin: '0.5em 32px',
+    padding: '8px 16px',
+    borderRadius: '12px',
+    border: '1px solid transparent',
+    backgroundColor: 'transparent',
+    transition: 'background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease',
+  },
+  '.cm-wysiwyg-math-block:hover .cm-wysiwyg-math-block__surface': {
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 58%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--border) 74%, transparent)',
+    boxShadow: 'var(--shadow-sm)',
+  },
+  '.cm-wysiwyg-math-block__rendered': {
+    display: 'block',
     textAlign: 'center',
+    overflowX: 'auto',
+    boxSizing: 'border-box',
+  },
+  '.cm-wysiwyg-math-block__rendered .katex-display': {
+    margin: '0',
     padding: '8px 0',
-    cursor: 'default',
+    overflowX: 'auto',
   },
 })
