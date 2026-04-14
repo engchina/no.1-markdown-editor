@@ -181,7 +181,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         return
       }
 
-      const anchorCoords = view.coordsAtPos(selection.to)
+      const anchorCoords = view.coordsAtPos(selection.head)
       if (!anchorCoords) {
         setSelectionBubble(null)
         return

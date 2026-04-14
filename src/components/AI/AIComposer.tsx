@@ -1327,9 +1327,11 @@ export default function AIComposer() {
         role="dialog"
         aria-modal="true"
         aria-label={t('ai.title')}
-        className="glass-panel flex max-h-[calc(100vh-6rem)] w-full flex-col overflow-hidden rounded-[20px] border shadow-2xl"
+        className="glass-panel flex w-full flex-col overflow-hidden rounded-[20px] border shadow-2xl"
         style={{
-          maxWidth: 'min(620px, calc(var(--focus-column-max-width) - 48px), calc(100vw - 2rem))',
+          maxWidth: 'min(960px, calc(100vw - 4rem))',
+          minHeight: '540px',
+          maxHeight: '85vh',
           background: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
           borderColor: 'color-mix(in srgb, var(--accent) 18%, var(--border))',
         }}
