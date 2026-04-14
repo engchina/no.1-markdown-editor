@@ -9,12 +9,14 @@ import {
   buildPlaceholderExtensions,
   buildWordWrapExtensions,
 } from './extensions'
+import { collectMarkdownTableBlocks } from './tableBlockRanges.ts'
 import {
   loadAutocompleteExtensions,
   loadMarkdownLanguageExtensions,
   loadSearchSupport,
   type SearchSupport,
 } from './optionalFeatures'
+import { isBlankLineBelowTableSelection } from './wysiwygTable.ts'
 import AISelectionBubble from '../AI/AISelectionBubble'
 import { applyFormat } from './formatCommands'
 import { getFormatActionFromShortcut } from './formatShortcuts'
@@ -302,6 +304,26 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     []
   )
 
+  const scheduleTableExitFocusRestore = useCallback((viewOverride?: EditorView | null) => {
+    const view = viewOverride ?? viewRef.current
+    if (!view) return
+
+    setTimeout(() => {
+      if (!view.dom.isConnected) return
+
+      const doc = view.dom.ownerDocument
+      if (doc.activeElement !== doc.body) return
+
+      const selection = view.state.selection.main
+      if (view.state.selection.ranges.length !== 1 || !selection.empty) return
+
+      const tables = collectMarkdownTableBlocks(view.state.doc.toString())
+      if (!isBlankLineBelowTableSelection(view.state.doc, tables, selection.head)) return
+
+      view.focus()
+    }, 0)
+  }, [])
+
   const reconfigure = useCallback((compartment: Compartment, extension: Extension) => {
     const view = viewRef.current
     if (!view) return
@@ -410,6 +432,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
           syncProvenanceState(view)
           syncCursorBottomGap(view)
           updateSelectionBubble(view)
+          scheduleTableExitFocusRestore(view)
         },
       }),
       EditorView.updateListener.of((update) => {
@@ -480,7 +503,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       viewRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab?.id, handleCursorChange, t])
+  }, [activeTab?.id, handleCursorChange, scheduleTableExitFocusRestore, t])
 
   useEffect(() => {
     void ensureAutocompleteExtensions()

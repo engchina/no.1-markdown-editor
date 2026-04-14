@@ -1156,6 +1156,19 @@ class WysiwygPluginValue {
     const previousActiveTableCell = this.activeTableCell
     this.syncActiveTableCell(update.view)
     this.syncTableEditingPresentation(update.view, previousActiveTableCell)
+    const exitedTableEditing =
+      previousActiveTableCell !== null &&
+      this.activeTableCell === null &&
+      update.selectionSet &&
+      update.view.dom.ownerDocument.activeElement === update.view.dom.ownerDocument.body
+    const focusedTableInput = getTableCellInputFromTarget(update.view.dom.ownerDocument.activeElement, update.view)
+    const focusedActiveTableCell = focusedTableInput
+      ? resolveActiveTableCellFromInput(update.view, focusedTableInput)
+      : null
+    const shouldRestoreActiveTableInputFocus =
+      this.activeTableCell !== null &&
+      update.selectionSet &&
+      !areActiveTableCellsEqual(this.activeTableCell, focusedActiveTableCell)
 
     if (
       update.docChanged ||
@@ -1173,9 +1186,15 @@ class WysiwygPluginValue {
 
     if (
       this.activeTableCell &&
-      !areActiveTableCellsEqual(previousActiveTableCell, this.activeTableCell)
+      (
+        !areActiveTableCellsEqual(previousActiveTableCell, this.activeTableCell) ||
+        shouldRestoreActiveTableInputFocus
+      )
     ) {
       queueFocusTableCellInput(update.view, this.activeTableCell)
+    }
+    if (exitedTableEditing) {
+      restoreEditorFocusAfterTableExit(update.view)
     }
   }
 
@@ -1301,7 +1320,7 @@ function queueFocusTableCellInput(
   view: EditorView,
   activeCell: ActiveWysiwygTableCell
 ): void {
-  requestAnimationFrame(() => {
+  const focusInput = () => {
     const plugin = getWysiwygPluginState(view)
     if (!plugin || !areActiveTableCellsEqual(plugin.activeTableCell, activeCell)) return
 
@@ -1310,7 +1329,23 @@ function queueFocusTableCellInput(
 
     input.focus({ preventScroll: true })
     syncTextInputSelection(input, activeCell.selectionStart, activeCell.selectionEnd)
-  })
+  }
+
+  focusInput()
+  setTimeout(focusInput, 0)
+  requestAnimationFrame(focusInput)
+  requestAnimationFrame(() => requestAnimationFrame(focusInput))
+}
+
+function restoreEditorFocusAfterTableExit(view: EditorView): void {
+  const focusView = () => {
+    if (!view.dom.isConnected) return
+    view.focus()
+  }
+
+  focusView()
+  setTimeout(focusView, 0)
+  requestAnimationFrame(() => requestAnimationFrame(focusView))
 }
 
 function activateTable(view: EditorView, target: EventTarget | null): boolean {
@@ -1441,7 +1476,20 @@ function moveTableCellFocus(
 
   const nextLocation = resolveAdjacentTableCellLocation(resolved.table, resolved.location, direction)
   const nextCell = nextLocation ? resolveTableCell(resolved.table, nextLocation) : null
-  if (!nextLocation || !nextCell) return false
+  if (!nextLocation || !nextCell) {
+    if (direction === 'down') {
+      const doc = view.state.doc
+      const posAfterTable = Math.min(resolved.table.to + 1, doc.length)
+      input.blur()
+      view.dispatch({
+        selection: { anchor: posAfterTable },
+        userEvent: 'select',
+        scrollIntoView: true,
+      })
+      return true
+    }
+    return false
+  }
 
   const nextDisplayText = decodeMarkdownTableCellText(nextCell.text)
   const currentSelectionStart = input.selectionStart ?? input.value.length
@@ -1715,7 +1763,7 @@ export const wysiwygTheme = EditorView.baseTheme({
   },
   '.cm-wysiwyg-table-gap-line': {
     minHeight: '1.15em',
-    padding: '0 !important',
+    padding: '0 32px !important',
     lineHeight: '1.15',
     fontSize: 'inherit',
   },
@@ -1724,6 +1772,7 @@ export const wysiwygTheme = EditorView.baseTheme({
     width: '100%',
     boxSizing: 'border-box',
     cursor: 'text',
+    pointerEvents: 'none',
   },
   '.cm-wysiwyg-table__surface': {
     margin: '0 32px',
@@ -1732,6 +1781,7 @@ export const wysiwygTheme = EditorView.baseTheme({
     border: 'none',
     backgroundColor: 'transparent',
     boxShadow: 'none',
+    pointerEvents: 'auto',
   },
   '.cm-wysiwyg-table__grid': {
     borderCollapse: 'collapse',

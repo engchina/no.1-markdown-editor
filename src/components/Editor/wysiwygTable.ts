@@ -138,6 +138,23 @@ export function resolveAdjacentTableCellLocation(
   }
 }
 
+export function isBlankLineBelowTableSelection(
+  doc: Pick<WysiwygDecorationView['state']['doc'], 'lineAt' | 'line' | 'lines'>,
+  tables: readonly MarkdownTableBlock[],
+  position: number
+): boolean {
+  const line = doc.lineAt(position)
+  if (line.text.length !== 0) return false
+
+  return tables.some((table) => {
+    const closingLine = doc.lineAt(table.to)
+    if (closingLine.number >= doc.lines) return false
+
+    const nextLine = doc.line(closingLine.number + 1)
+    return nextLine.from <= position && position <= nextLine.to
+  })
+}
+
 export function isActiveTableCellLocation(
   activeCell: ActiveWysiwygTableCell | null,
   tableFrom: number,

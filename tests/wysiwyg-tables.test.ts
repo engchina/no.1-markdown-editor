@@ -7,6 +7,7 @@ import {
   collectInactiveWysiwygTables,
   decodeMarkdownTableCellText,
   encodeMarkdownTableCellText,
+  isBlankLineBelowTableSelection,
   resolveAdjacentTableCellLocation,
   resolveNearestTableCellLocation,
   resolveTableCell,
@@ -106,6 +107,27 @@ test('nearest table cell resolution still resolves a real editable cell for divi
   assert.ok(['Left', 'Right', 'a', 'b'].includes(cell.text))
 })
 
+test('blank-line selection detection only matches the immediate empty line below a table', () => {
+  const markdown = [
+    'Before',
+    '',
+    '| Left | Right |',
+    '| --- | ---: |',
+    '| a | b |',
+    '',
+    'After',
+  ].join('\n')
+
+  const state = EditorState.create({ doc: markdown })
+  const [table] = collectMarkdownTableBlocks(markdown)
+  const blankLine = state.doc.line(6)
+  const afterLine = state.doc.line(7)
+
+  assert.equal(isBlankLineBelowTableSelection(state.doc, [table], blankLine.from), true)
+  assert.equal(isBlankLineBelowTableSelection(state.doc, [table], blankLine.to), true)
+  assert.equal(isBlankLineBelowTableSelection(state.doc, [table], afterLine.from), false)
+})
+
 test('wysiwyg table integration keeps the table rendered while exposing an inline cell editor', async () => {
   const source = await readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8')
 
@@ -130,6 +152,7 @@ test('wysiwyg table integration keeps the table rendered while exposing an inlin
   assert.match(source, /dispatchWysiwygHistory\('undo'\)/u)
   assert.match(source, /dispatchWysiwygHistory\('redo'\)/u)
   assert.match(source, /queueFocusTableCellInput\(view, nextActiveTableCell\)/u)
+  assert.match(source, /function queueFocusTableCellInput\([\s\S]*?const focusInput = \(\) => \{[\s\S]*?input\.focus\(\{ preventScroll: true \}\)[\s\S]*?setTimeout\(focusInput, 0\)[\s\S]*?requestAnimationFrame\(focusInput\)[\s\S]*?requestAnimationFrame\(\(\) => requestAnimationFrame\(focusInput\)\)/u)
   assert.match(source, /function resolveTableColumnKind\(table: MarkdownTableBlock, columnIndex: number\): 'text' \| 'numeric'/u)
   assert.ok(source.includes("function isCompactNumericCell(value: string): boolean {"))
   assert.ok(source.includes("(?:[$€£¥₹]\\s*)?"))
@@ -143,9 +166,9 @@ test('wysiwyg table integration keeps the table rendered while exposing an inlin
   assert.match(source, /queueFocusTableCellInput\(view, nextActiveTableCell\)/u)
   assert.match(source, /'\.cm-wysiwyg-table-anchor-line': \{[\s\S]*?padding: '0 !important'/u)
   assert.match(source, /'\.cm-wysiwyg-table-hidden-line': \{[\s\S]*?height: '0'[\s\S]*?fontSize: '0'/u)
-  assert.match(source, /'\.cm-wysiwyg-table-gap-line': \{[\s\S]*?minHeight: '1\.15em'[\s\S]*?lineHeight: '1\.15'[\s\S]*?fontSize: 'inherit'/u)
-  assert.match(source, /'\.cm-wysiwyg-table': \{[\s\S]*?display: 'block'[\s\S]*?width: '100%'[\s\S]*?boxSizing: 'border-box'/u)
-  assert.match(source, /'\.cm-wysiwyg-table__surface': \{[\s\S]*?margin: '0 32px'[\s\S]*?overflowX: 'auto'/u)
+  assert.match(source, /'\.cm-wysiwyg-table-gap-line': \{[\s\S]*?minHeight: '1\.15em'[\s\S]*?padding: '0 32px !important'[\s\S]*?lineHeight: '1\.15'[\s\S]*?fontSize: 'inherit'/u)
+  assert.match(source, /'\.cm-wysiwyg-table': \{[\s\S]*?display: 'block'[\s\S]*?width: '100%'[\s\S]*?boxSizing: 'border-box'[\s\S]*?pointerEvents: 'none'/u)
+  assert.match(source, /'\.cm-wysiwyg-table__surface': \{[\s\S]*?margin: '0 32px'[\s\S]*?overflowX: 'auto'[\s\S]*?pointerEvents: 'auto'/u)
   assert.match(source, /'\.cm-wysiwyg-table__grid': \{[\s\S]*?tableLayout: 'auto'[\s\S]*?margin: '0'[\s\S]*?color: 'var\(--preview-text\)'[\s\S]*?fontFamily: 'var\(--font-preview, Inter, system-ui, sans-serif\)'[\s\S]*?fontSize: 'inherit'/u)
   assert.match(source, /'\.cm-wysiwyg-table__head-cell, \.cm-wysiwyg-table__cell': \{[\s\S]*?padding: '8px 16px'[\s\S]*?whiteSpace: 'normal'[\s\S]*?overflowWrap: 'anywhere'[\s\S]*?color: 'var\(--preview-text\)'[\s\S]*?fontFamily: 'var\(--font-preview, Inter, system-ui, sans-serif\)'[\s\S]*?fontSize: 'inherit'/u)
   assert.match(source, /'\.cm-wysiwyg-table__cell--active': \{[\s\S]*?boxShadow:/u)
@@ -157,10 +180,28 @@ test('wysiwyg table integration keeps the table rendered while exposing an inlin
   assert.ok(source.includes(`whiteSpace: 'nowrap'`))
 })
 
+test('wysiwyg table exit path restores editor focus after moving below the table', async () => {
+  const source = await readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /function restoreEditorFocusAfterTableExit\(view: EditorView\): void \{[\s\S]*?const focusView = \(\) => \{[\s\S]*?setTimeout\(focusView, 0\)[\s\S]*?requestAnimationFrame\(\(\) => requestAnimationFrame\(focusView\)\)/u)
+  assert.match(source, /const exitedTableEditing =[\s\S]*?previousActiveTableCell !== null[\s\S]*?this\.activeTableCell === null[\s\S]*?update\.selectionSet[\s\S]*?activeElement === update\.view\.dom\.ownerDocument\.body/u)
+  assert.match(source, /const shouldRestoreActiveTableInputFocus =[\s\S]*?this\.activeTableCell !== null[\s\S]*?update\.selectionSet[\s\S]*?!areActiveTableCellsEqual\(this\.activeTableCell, focusedActiveTableCell\)/u)
+  assert.match(source, /if \(exitedTableEditing\) \{[\s\S]*?restoreEditorFocusAfterTableExit\(update\.view\)/u)
+  assert.match(source, /if \(\s*this\.activeTableCell &&[\s\S]*?shouldRestoreActiveTableInputFocus[\s\S]*?\) \{[\s\S]*?queueFocusTableCellInput\(update\.view, this\.activeTableCell\)/u)
+  assert.match(source, /if \(!nextLocation \|\| !nextCell\) \{[\s\S]*?if \(direction === 'down'\) \{[\s\S]*?input\.blur\(\)[\s\S]*?selection: \{ anchor: posAfterTable \}/u)
+})
+
 test('CodeMirrorEditor keeps table width aligned with other source-mode block renderers instead of preview-specific gutter offsets', async () => {
   const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
 
   assert.doesNotMatch(source, /syncWysiwygTablePreviewInsets/u)
   assert.doesNotMatch(source, /--cm-wysiwyg-preview-inline-start/u)
   assert.doesNotMatch(source, /--cm-wysiwyg-preview-inline-end/u)
+})
+
+test('CodeMirrorEditor restores editor focus when a blank-line selection lands immediately below a table', async () => {
+  const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /const scheduleTableExitFocusRestore = useCallback\(\(viewOverride\?: EditorView \| null\) => \{[\s\S]*?collectMarkdownTableBlocks\(view\.state\.doc\.toString\(\)\)[\s\S]*?isBlankLineBelowTableSelection\(view\.state\.doc, tables, selection\.head\)[\s\S]*?view\.focus\(\)/u)
+  assert.match(source, /onSelectionChange: \(view\) => \{[\s\S]*?scheduleTableExitFocusRestore\(view\)/u)
 })
