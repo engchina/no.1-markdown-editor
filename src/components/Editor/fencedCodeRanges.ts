@@ -3,17 +3,27 @@ export interface TextRange {
   to: number
 }
 
+export interface FencedCodeBlock extends TextRange {
+  openingLineFrom: number
+  openingLineTo: number
+  closingLineFrom: number | null
+  closingLineTo: number | null
+  language: string | null
+}
+
 interface FenceState {
   from: number
+  openingLineTo: number
   markerChar: '`' | '~'
   markerLength: number
+  language: string | null
 }
 
 const openingFencePattern = /^\s{0,3}(`{3,}|~{3,})(.*)$/
 const closingFencePattern = /^\s{0,3}(`{3,}|~{3,})\s*$/
 
-export function collectFencedCodeRanges(markdown: string): TextRange[] {
-  const ranges: TextRange[] = []
+export function collectFencedCodeBlocks(markdown: string): FencedCodeBlock[] {
+  const blocks: FencedCodeBlock[] = []
   let activeFence: FenceState | null = null
   let from = 0
   let lastLineTo = 0
@@ -28,7 +38,15 @@ export function collectFencedCodeRanges(markdown: string): TextRange[] {
 
     if (activeFence) {
       if (isClosingFence(text, activeFence)) {
-        ranges.push({ from: activeFence.from, to })
+        blocks.push({
+          from: activeFence.from,
+          to,
+          openingLineFrom: activeFence.from,
+          openingLineTo: activeFence.openingLineTo,
+          closingLineFrom: from,
+          closingLineTo: to,
+          language: activeFence.language,
+        })
         activeFence = null
       }
     } else {
@@ -36,8 +54,10 @@ export function collectFencedCodeRanges(markdown: string): TextRange[] {
       if (openingFence) {
         activeFence = {
           from,
+          openingLineTo: to,
           markerChar: openingFence.markerChar,
           markerLength: openingFence.markerLength,
+          language: openingFence.language,
         }
       }
     }
@@ -47,13 +67,25 @@ export function collectFencedCodeRanges(markdown: string): TextRange[] {
   }
 
   if (activeFence) {
-    ranges.push({ from: activeFence.from, to: lastLineTo })
+    blocks.push({
+      from: activeFence.from,
+      to: lastLineTo,
+      openingLineFrom: activeFence.from,
+      openingLineTo: activeFence.openingLineTo,
+      closingLineFrom: null,
+      closingLineTo: null,
+      language: activeFence.language,
+    })
   }
 
-  return ranges
+  return blocks
 }
 
-function parseOpeningFence(text: string): Omit<FenceState, 'from'> | null {
+export function collectFencedCodeRanges(markdown: string): TextRange[] {
+  return collectFencedCodeBlocks(markdown).map(({ from, to }) => ({ from, to }))
+}
+
+function parseOpeningFence(text: string): Omit<FenceState, 'from' | 'openingLineTo'> | null {
   const match = text.match(openingFencePattern)
   if (!match) return null
 
@@ -64,10 +96,16 @@ function parseOpeningFence(text: string): Omit<FenceState, 'from'> | null {
   return {
     markerChar: marker[0] as '`' | '~',
     markerLength: marker.length,
+    language: parseFenceLanguage(info),
   }
 }
 
 function isClosingFence(text: string, fence: FenceState): boolean {
   const match = text.match(closingFencePattern)
   return Boolean(match && match[1][0] === fence.markerChar && match[1].length >= fence.markerLength)
+}
+
+function parseFenceLanguage(info: string): string | null {
+  const match = info.trim().match(/^([^\s`~]+)/)
+  return match?.[1] ?? null
 }

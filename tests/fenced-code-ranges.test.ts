@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { collectFencedCodeRanges } from '../src/components/Editor/fencedCodeRanges.ts'
+import { collectFencedCodeBlocks, collectFencedCodeRanges } from '../src/components/Editor/fencedCodeRanges.ts'
 
 test('collectFencedCodeRanges captures fenced blocks including opening and closing markers', () => {
   const markdown = [
@@ -45,4 +45,35 @@ test('collectFencedCodeRanges ignores inline triple backticks that are not stand
   const markdown = 'Paragraph with ```inline``` code'
 
   assert.deepEqual(collectFencedCodeRanges(markdown), [])
+})
+
+test('collectFencedCodeBlocks records language labels and fence line boundaries for WYSIWYG rendering', () => {
+  const markdown = [
+    'Before',
+    '```ts title="demo"',
+    'const value = 1',
+    '```',
+    'After',
+  ].join('\n')
+
+  const blocks = collectFencedCodeBlocks(markdown)
+
+  assert.equal(blocks.length, 1)
+  assert.equal(blocks[0].language, 'ts')
+  assert.equal(markdown.slice(blocks[0].openingLineFrom, blocks[0].openingLineTo), '```ts title="demo"')
+  assert.equal(markdown.slice(blocks[0].closingLineFrom ?? 0, blocks[0].closingLineTo ?? 0), '```')
+})
+
+test('collectFencedCodeBlocks leaves closing fence positions empty for unterminated code blocks', () => {
+  const markdown = [
+    '```python',
+    'print("hello")',
+  ].join('\n')
+
+  const blocks = collectFencedCodeBlocks(markdown)
+
+  assert.equal(blocks.length, 1)
+  assert.equal(blocks[0].closingLineFrom, null)
+  assert.equal(blocks[0].closingLineTo, null)
+  assert.equal(blocks[0].language, 'python')
 })

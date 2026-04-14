@@ -17,11 +17,15 @@ import {
 } from '@codemirror/view'
 import katex from 'katex'
 import { ensureKatexStylesheet } from '../../lib/katexStylesheet'
-import { collectFencedCodeRanges, type TextRange } from './fencedCodeRanges'
+import { collectFencedCodeBlocks, type FencedCodeBlock } from './fencedCodeRanges'
 import { buildSortedRangeSet, type RangeSpec } from './sortedRangeSet'
 import { getTaskCheckboxChange } from './taskCheckbox'
 import { parseWysiwygBlockquoteLine } from './wysiwygBlockquote'
 import { findInlineSuperscriptRanges } from './wysiwygSuperscript'
+import {
+  collectWysiwygCodeBlockDecorations,
+  type WysiwygCodeBlockDecorationView,
+} from './wysiwygCodeBlock.ts'
 
 // ── Widgets ────────────────────────────────────────────────────────────────
 
@@ -38,7 +42,12 @@ class HrWidget extends WidgetType {
 
 // KaTeX inline math widget
 class InlineMathWidget extends WidgetType {
-  constructor(private latex: string) { super() }
+  private readonly latex: string
+
+  constructor(latex: string) {
+    super()
+    this.latex = latex
+  }
   toDOM() {
     const el = document.createElement('span')
     el.className = 'cm-wysiwyg-math-inline'
@@ -56,7 +65,12 @@ class InlineMathWidget extends WidgetType {
 
 // KaTeX block math widget
 class BlockMathWidget extends WidgetType {
-  constructor(private latex: string) { super() }
+  private readonly latex: string
+
+  constructor(latex: string) {
+    super()
+    this.latex = latex
+  }
   toDOM() {
     const el = document.createElement('div')
     el.className = 'cm-wysiwyg-math-block'
@@ -73,12 +87,19 @@ class BlockMathWidget extends WidgetType {
 }
 
 class CheckboxWidget extends WidgetType {
+  private readonly checked: boolean
+  private readonly from: number
+  private readonly label: string
+
   constructor(
-    private checked: boolean,
-    private from: number,
-    private label: string
+    checked: boolean,
+    from: number,
+    label: string
   ) {
     super()
+    this.checked = checked
+    this.from = from
+    this.label = label
   }
   toDOM() {
     const el = document.createElement('input')
@@ -97,8 +118,11 @@ class CheckboxWidget extends WidgetType {
 }
 
 class BlockquoteSpacerWidget extends WidgetType {
-  constructor(private depth: number) {
+  private readonly depth: number
+
+  constructor(depth: number) {
     super()
+    this.depth = depth
   }
 
   toDOM() {
@@ -118,7 +142,7 @@ class BlockquoteSpacerWidget extends WidgetType {
 
 // ── Cursor range helpers ───────────────────────────────────────────────────
 
-function cursorIsOnLine(view: EditorView, lineFrom: number, lineTo: number): boolean {
+function cursorIsOnLine(view: WysiwygCodeBlockDecorationView, lineFrom: number, lineTo: number): boolean {
   const { ranges } = view.state.selection
   return ranges.some((r) => r.from >= lineFrom && r.from <= lineTo)
 }
@@ -136,10 +160,13 @@ function queueDecoration(
   decorations.push({ from, to, value })
 }
 
-function buildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange[]): DecorationSet {
+export function buildWysiwygDecorations(
+  view: WysiwygCodeBlockDecorationView,
+  fencedCodeBlocks: readonly FencedCodeBlock[]
+): DecorationSet {
   // Mixed replace/mark decorations often start at the same position.
   // Collect first, then sort by CodeMirror's range ordering rules.
-  const decorations: DecorationSpec[] = []
+  const decorations: DecorationSpec[] = [...collectWysiwygCodeBlockDecorations(view, fencedCodeBlocks)]
   const { doc } = view.state
   let fenceIndex = 0
 
@@ -153,12 +180,12 @@ function buildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange
       const lineTo = line.to
       const onLine = cursorIsOnLine(view, lineFrom, lineTo)
 
-      while (fenceIndex < fencedCodeRanges.length && fencedCodeRanges[fenceIndex].to < lineFrom) {
+      while (fenceIndex < fencedCodeBlocks.length && fencedCodeBlocks[fenceIndex].to < lineFrom) {
         fenceIndex += 1
       }
 
-      const fencedCodeRange = fencedCodeRanges[fenceIndex]
-      if (fencedCodeRange && lineFrom >= fencedCodeRange.from && lineFrom <= fencedCodeRange.to) {
+      const fencedCodeBlock = fencedCodeBlocks[fenceIndex]
+      if (fencedCodeBlock && lineFrom >= fencedCodeBlock.from && lineFrom <= fencedCodeBlock.to) {
         pos = line.to + 1
         continue
       }
@@ -270,7 +297,7 @@ function buildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange
       // ── Inline patterns (bold, italic, highlight, code, strikethrough, links, math) ──
       // Only apply when NOT on the line containing the cursor
       if (!onLine) {
-        processInlineMath(decorations, text, lineFrom, view)
+        processInlineMath(decorations, text, lineFrom)
         processInline(decorations, text, lineFrom)
       }
 
@@ -281,9 +308,12 @@ function buildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange
   return buildSortedRangeSet(decorations)
 }
 
-function safeBuildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange[]): DecorationSet {
+function safeBuildDecorations(
+  view: WysiwygCodeBlockDecorationView,
+  fencedCodeBlocks: readonly FencedCodeBlock[]
+): DecorationSet {
   try {
-    return buildDecorations(view, fencedCodeRanges)
+    return buildWysiwygDecorations(view, fencedCodeBlocks)
   } catch {
     return Decoration.none
   }
@@ -293,8 +323,7 @@ function safeBuildDecorations(view: EditorView, fencedCodeRanges: readonly TextR
 function processInlineMath(
   decorations: DecorationSpec[],
   text: string,
-  lineFrom: number,
-  _view: EditorView
+  lineFrom: number
 ): void {
   // Inline math: $expr$ (not $$)
   const re = /(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g
@@ -445,16 +474,16 @@ function toggleTaskCheckbox(view: EditorView, target: EventTarget | null): boole
 export const wysiwygPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet
-    fencedCodeRanges: TextRange[]
+    fencedCodeBlocks: FencedCodeBlock[]
 
     constructor(view: EditorView) {
-      this.fencedCodeRanges = collectFencedCodeRanges(view.state.doc.toString())
-      this.decorations = safeBuildDecorations(view, this.fencedCodeRanges)
+      this.fencedCodeBlocks = collectFencedCodeBlocks(view.state.doc.toString())
+      this.decorations = safeBuildDecorations(view, this.fencedCodeBlocks)
     }
 
     update(update: ViewUpdate) {
       if (update.docChanged) {
-        this.fencedCodeRanges = collectFencedCodeRanges(update.state.doc.toString())
+        this.fencedCodeBlocks = collectFencedCodeBlocks(update.state.doc.toString())
       }
 
       if (
@@ -462,7 +491,7 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
         update.selectionSet ||
         update.viewportChanged
       ) {
-        this.decorations = safeBuildDecorations(update.view, this.fencedCodeRanges)
+        this.decorations = safeBuildDecorations(update.view, this.fencedCodeBlocks)
       }
     }
   },
@@ -529,6 +558,67 @@ export const wysiwygTheme = EditorView.baseTheme({
   '.cm-wysiwyg-image': {
     color: 'var(--text-muted) !important',
     fontStyle: 'italic',
+  },
+  '.cm-wysiwyg-codeblock-meta-line': {
+    position: 'relative',
+    minHeight: '1.8em',
+    marginTop: '0.65em',
+    marginLeft: '32px',
+    marginRight: '32px',
+    padding: '10px 16px 8px !important',
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-tertiary))',
+    borderTop: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+    borderLeft: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+    borderRight: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+    borderTopLeftRadius: '10px',
+    borderTopRightRadius: '10px',
+    boxSizing: 'border-box',
+    fontSize: '0',
+    lineHeight: '0',
+  },
+  '.cm-wysiwyg-codeblock-meta-line::before': {
+    content: 'attr(data-code-language-label)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    minHeight: '1.35rem',
+    padding: '0 0.55rem',
+    borderRadius: '999px',
+    backgroundColor: 'color-mix(in srgb, var(--accent) 12%, var(--bg-primary))',
+    color: 'var(--text-secondary)',
+    fontFamily: 'var(--font-ui, inherit)',
+    fontSize: '0.74rem',
+    fontWeight: '600',
+    letterSpacing: '0.01em',
+    lineHeight: '1',
+    textTransform: 'none',
+  },
+  '.cm-wysiwyg-codeblock-line': {
+    fontFamily: 'var(--font-mono, monospace)',
+    fontSize: '0.94em',
+    marginLeft: '32px',
+    marginRight: '32px',
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-tertiary))',
+    borderLeft: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+    borderRight: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+    padding: '0 16px !important',
+    color: 'var(--text-primary)',
+    boxSizing: 'border-box',
+  },
+  '.cm-wysiwyg-codeblock-close-line': {
+    minHeight: '12px',
+    marginBottom: '0.65em',
+    marginLeft: '32px',
+    marginRight: '32px',
+    padding: '0 16px 10px !important',
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-tertiary))',
+    borderLeft: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+    borderRight: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+    borderBottom: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+    borderBottomLeftRadius: '10px',
+    borderBottomRightRadius: '10px',
+    boxSizing: 'border-box',
+    fontSize: '0',
+    lineHeight: '0',
   },
   '.cm-wysiwyg-blockquote': {
     color: 'var(--text-secondary) !important',
