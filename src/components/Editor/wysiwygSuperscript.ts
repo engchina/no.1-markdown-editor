@@ -1,3 +1,9 @@
+import {
+  collectInlineCodeRanges,
+  findContainingTextRange,
+  type TextRange,
+} from './wysiwygInlineCode.ts'
+
 export interface InlineSuperscriptRange {
   from: number
   to: number
@@ -5,12 +11,6 @@ export interface InlineSuperscriptRange {
   contentTo: number
 }
 
-interface TextRange {
-  from: number
-  to: number
-}
-
-const INLINE_CODE_PATTERN = /(`+)(.+?)\1/g
 const INLINE_MATH_PATTERN = /(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g
 
 function hasOddTrailingBackslashes(text: string, index: number): boolean {
@@ -24,12 +24,8 @@ function hasOddTrailingBackslashes(text: string, index: number): boolean {
 }
 
 function collectExcludedRanges(text: string): TextRange[] {
-  const ranges: TextRange[] = []
+  const ranges = collectInlineCodeRanges(text)
   let match: RegExpExecArray | null
-
-  while ((match = INLINE_CODE_PATTERN.exec(text)) !== null) {
-    ranges.push({ from: match.index, to: match.index + match[0].length })
-  }
 
   while ((match = INLINE_MATH_PATTERN.exec(text)) !== null) {
     ranges.push({ from: match.index, to: match.index + match[0].length })
@@ -38,21 +34,12 @@ function collectExcludedRanges(text: string): TextRange[] {
   return ranges.sort((left, right) => left.from - right.from)
 }
 
-function findRangeContaining(index: number, ranges: readonly TextRange[]): TextRange | null {
-  for (const range of ranges) {
-    if (range.from > index) break
-    if (index >= range.from && index < range.to) return range
-  }
-
-  return null
-}
-
 export function findInlineSuperscriptRanges(text: string): InlineSuperscriptRange[] {
   const ranges: InlineSuperscriptRange[] = []
   const excludedRanges = collectExcludedRanges(text)
 
   for (let index = 0; index < text.length; index += 1) {
-    const excludedRange = findRangeContaining(index, excludedRanges)
+    const excludedRange = findContainingTextRange(index, excludedRanges)
     if (excludedRange) {
       index = excludedRange.to - 1
       continue
@@ -70,7 +57,7 @@ export function findInlineSuperscriptRanges(text: string): InlineSuperscriptRang
 
     let closingIndex = -1
     for (let cursor = index + 1; cursor < text.length; cursor += 1) {
-      const nestedExcludedRange = findRangeContaining(cursor, excludedRanges)
+      const nestedExcludedRange = findContainingTextRange(cursor, excludedRanges)
       if (nestedExcludedRange) {
         closingIndex = -1
         break
