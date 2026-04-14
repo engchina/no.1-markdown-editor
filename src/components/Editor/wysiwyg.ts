@@ -20,6 +20,7 @@ import { ensureKatexStylesheet } from '../../lib/katexStylesheet'
 import { collectFencedCodeRanges, type TextRange } from './fencedCodeRanges'
 import { buildSortedRangeSet, type RangeSpec } from './sortedRangeSet'
 import { getTaskCheckboxChange } from './taskCheckbox'
+import { parseWysiwygBlockquoteLine } from './wysiwygBlockquote'
 import { findInlineSuperscriptRanges } from './wysiwygSuperscript'
 
 // ── Widgets ────────────────────────────────────────────────────────────────
@@ -92,6 +93,26 @@ class CheckboxWidget extends WidgetType {
   ignoreEvent() { return false }
   eq(other: CheckboxWidget) {
     return this.checked === other.checked && this.from === other.from && this.label === other.label
+  }
+}
+
+class BlockquoteSpacerWidget extends WidgetType {
+  constructor(private depth: number) {
+    super()
+  }
+
+  toDOM() {
+    const el = document.createElement('span')
+    el.className = 'cm-wysiwyg-blockquote-empty'
+    el.style.setProperty('--cm-wysiwyg-blockquote-depth', String(this.depth))
+    el.setAttribute('aria-hidden', 'true')
+    return el
+  }
+
+  ignoreEvent() { return true }
+
+  eq(other: BlockquoteSpacerWidget) {
+    return this.depth === other.depth
   }
 }
 
@@ -183,15 +204,32 @@ function buildDecorations(view: EditorView, fencedCodeRanges: readonly TextRange
       }
 
       // ── Blockquote decoration ─────────────────────────────────────────
-      if (text.startsWith('> ')) {
-        queueDecoration(
-          decorations,
-          lineFrom,
-          lineTo,
-          Decoration.mark({ class: 'cm-wysiwyg-blockquote' })
-        )
+      const blockquoteLine = parseWysiwygBlockquoteLine(text)
+      if (blockquoteLine) {
+        if (onLine || !blockquoteLine.isEmpty) {
+          queueDecoration(
+            decorations,
+            lineFrom,
+            lineTo,
+            Decoration.mark({ class: 'cm-wysiwyg-blockquote' })
+          )
+        }
         if (!onLine) {
-          queueDecoration(decorations, lineFrom, lineFrom + 2, Decoration.replace({}))
+          if (blockquoteLine.isEmpty) {
+            queueDecoration(
+              decorations,
+              lineFrom,
+              lineTo,
+              Decoration.replace({ widget: new BlockquoteSpacerWidget(blockquoteLine.depth) })
+            )
+          } else {
+            queueDecoration(
+              decorations,
+              lineFrom,
+              lineFrom + blockquoteLine.prefix.length,
+              Decoration.replace({})
+            )
+          }
         }
         pos = line.to + 1
         continue
@@ -497,6 +535,16 @@ export const wysiwygTheme = EditorView.baseTheme({
     fontStyle: 'normal',
     borderLeft: '4px solid color-mix(in srgb, var(--text-muted) 42%, transparent)',
     paddingLeft: '14px',
+  },
+  '.cm-wysiwyg-blockquote-empty': {
+    display: 'inline-block',
+    width: '0',
+    minHeight: '1.45em',
+    boxSizing: 'border-box',
+    verticalAlign: 'top',
+    borderLeft: '4px solid color-mix(in srgb, var(--text-muted) 42%, transparent)',
+    paddingLeft: '14px',
+    pointerEvents: 'none',
   },
   '.cm-wysiwyg-math-inline': {
     display: 'inline-block',
