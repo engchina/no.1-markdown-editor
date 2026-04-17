@@ -12,10 +12,12 @@ import {
   DecorationSet,
   Decoration,
   EditorView,
+  GutterMarker,
+  gutterLineClass,
   ViewUpdate,
   WidgetType,
 } from '@codemirror/view'
-import { StateField, type EditorState as CodeMirrorState } from '@codemirror/state'
+import { RangeSet, RangeSetBuilder, StateField, type EditorState as CodeMirrorState } from '@codemirror/state'
 import katex from 'katex'
 import { ensureKatexStylesheet } from '../../lib/katexStylesheet.ts'
 import { collectFencedCodeBlocks, type FencedCodeBlock } from './fencedCodeRanges.ts'
@@ -775,6 +777,88 @@ function safeBuildDecorations(
     return Decoration.none
   }
 }
+
+class HiddenGutterMarker extends GutterMarker {
+  elementClass = 'cm-wysiwyg-gutter-hidden'
+}
+
+const hiddenGutterMarker = new HiddenGutterMarker()
+
+function stateSelectionTouchesRange(
+  state: CodeMirrorState,
+  from: number,
+  to: number
+): boolean {
+  return state.selection.ranges.some((range) => range.from <= to && range.to >= from)
+}
+
+function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarker> {
+  const markdown = state.doc.toString()
+  const fencedCodeBlocks = collectFencedCodeBlocks(markdown)
+  const mathBlocks = collectMathBlocks(markdown, fencedCodeBlocks)
+  const tables = collectMarkdownTableBlocks(markdown, [...fencedCodeBlocks, ...mathBlocks])
+  const { doc } = state
+  const starts = new Set<number>()
+
+  for (const fence of fencedCodeBlocks) {
+    if (stateSelectionTouchesRange(state, fence.from, fence.to)) continue
+    const closingFrom = fence.closingLineFrom
+    if (closingFrom === null || closingFrom === undefined) continue
+    starts.add(doc.lineAt(closingFrom).from)
+  }
+
+  for (const mathBlock of mathBlocks) {
+    if (stateSelectionTouchesRange(state, mathBlock.from, mathBlock.to)) continue
+    const openingLine = doc.lineAt(mathBlock.from)
+    const closingLine = doc.lineAt(mathBlock.to)
+    let nextFrom = openingLine.to + 1
+    while (nextFrom <= closingLine.to) {
+      const hiddenLine = doc.lineAt(nextFrom)
+      starts.add(hiddenLine.from)
+      nextFrom = hiddenLine.to + 1
+    }
+  }
+
+  for (const table of tables) {
+    const openingLine = doc.lineAt(table.from)
+    const closingLine = doc.lineAt(table.to)
+    let nextFrom = openingLine.to + 1
+    while (nextFrom <= closingLine.to) {
+      const hiddenLine = doc.lineAt(nextFrom)
+      starts.add(hiddenLine.from)
+      nextFrom = hiddenLine.to + 1
+    }
+  }
+
+  if (starts.size === 0) return RangeSet.empty
+  const sorted = [...starts].sort((a, b) => a - b)
+  const builder = new RangeSetBuilder<GutterMarker>()
+  for (const pos of sorted) {
+    builder.add(pos, pos, hiddenGutterMarker)
+  }
+  return builder.finish()
+}
+
+function safeBuildGutterClasses(state: CodeMirrorState): RangeSet<GutterMarker> {
+  try {
+    return buildWysiwygGutterClasses(state)
+  } catch {
+    return RangeSet.empty
+  }
+}
+
+const wysiwygGutterClassField = StateField.define<RangeSet<GutterMarker>>({
+  create(state) {
+    return safeBuildGutterClasses(state)
+  },
+  update(value, transaction) {
+    if (!transaction.docChanged && transaction.newSelection.eq(transaction.startState.selection)) {
+      return value
+    }
+    return safeBuildGutterClasses(transaction.state)
+  },
+  provide: (field) => gutterLineClass.from(field),
+})
 
 function collectWysiwygTableDecorationSpecs(
   doc: CodeMirrorState['doc'],
@@ -1877,7 +1961,7 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
   }
 )
 
-export const wysiwygTableDecorations = [wysiwygTableDecorationField]
+export const wysiwygTableDecorations = [wysiwygTableDecorationField, wysiwygGutterClassField]
 
 // ── WYSIWYG CSS styles ─────────────────────────────────────────────────────
 // These are injected via a CM theme extension

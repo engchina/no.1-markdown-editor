@@ -299,7 +299,7 @@ test('wysiwyg table integration keeps the table rendered while exposing an inlin
   assert.match(source, /function activateTable\(view: EditorView, target: EventTarget \| null\): boolean \{/u)
   assert.match(source, /const wysiwygTableDecorationField = StateField\.define<WysiwygTableDecorationState>\(/u)
   assert.match(source, /EditorView\.decorations\.from\(field, \(value\) => value\.decorations\)/u)
-  assert.match(source, /export const wysiwygTableDecorations = \[wysiwygTableDecorationField\]/u)
+  assert.match(source, /export const wysiwygTableDecorations = \[wysiwygTableDecorationField, wysiwygGutterClassField\]/u)
   assert.match(source, /Decoration\.replace\(\{ widget: new TableWidget\(table, activeTableCellForTable\), block: true \}\)/u)
   assert.match(source, /view\.dom\.classList\.toggle\(TABLE_EDITING_CLASS, this\.activeTableCell !== null\)/u)
   assert.match(source, /ACTIVE_TABLE_COLUMN_WIDTH_SNAPSHOTS\.set\(resolved\.table\.from, columnWidths\)/u)

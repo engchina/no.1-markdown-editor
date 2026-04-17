@@ -340,6 +340,17 @@ a:focus-visible {
   min-width: 48px !important;
 }
 
+.cm-gutterElement.cm-wysiwyg-gutter-hidden {
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
+  pointer-events: none;
+}
+
 /* Markdown syntax colors — light */
 .cm-header {
   color: #1D4ED8 !important;
