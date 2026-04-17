@@ -164,6 +164,9 @@ const AI_STORE_STORAGE_KEY = 'ai-session-history'
 const MAX_HISTORY_COLLECTIONS = 32
 const MAX_HISTORY_SAVED_VIEWS = 32
 const MAX_HISTORY_PROVIDER_RERANK_AUDIT = 50
+// Hard cap on the streamed AI draft to keep React renders responsive.
+// Roughly ~5MB of UTF-16, comfortably above any realistic single AI response.
+const MAX_AI_DRAFT_TEXT_LENGTH = 2_500_000
 
 const HISTORY_RETENTION_LIMITS: Record<
   AIHistoryRetentionPreset,
@@ -850,7 +853,15 @@ export const useAIStore = create<AIStoreState>()(
       setDraftText: (draftText) => set((state) => ({ composer: { ...state.composer, draftText } })),
       setDraftFormat: (draftFormat) => set((state) => ({ composer: { ...state.composer, draftFormat } })),
       appendDraftText: (chunk) =>
-        set((state) => ({ composer: { ...state.composer, draftText: `${state.composer.draftText}${chunk}` } })),
+        set((state) => {
+          const current = state.composer.draftText
+          if (current.length >= MAX_AI_DRAFT_TEXT_LENGTH) {
+            return state
+          }
+          const remaining = MAX_AI_DRAFT_TEXT_LENGTH - current.length
+          const safeChunk = chunk.length > remaining ? chunk.slice(0, remaining) : chunk
+          return { composer: { ...state.composer, draftText: `${current}${safeChunk}` } }
+        }),
       setExplanationText: (explanationText) =>
         set((state) => ({ composer: { ...state.composer, explanationText } })),
       setWarningText: (warningText) =>

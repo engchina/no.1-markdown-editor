@@ -59,7 +59,8 @@ export default function MarkdownPreview() {
           resolvedImages: resolvedExternalImages,
         }
       ),
-    [documentPath, html, i18n.language, isTauri, previewOrigin, resolvedExternalImages, resolvedLocalImages, t]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is keyed off `i18n.language`; depending on its identity would re-run unnecessarily.
+    [documentPath, html, i18n.language, isTauri, previewOrigin, resolvedExternalImages, resolvedLocalImages]
   )
   const previewRef = useRef<HTMLDivElement>(null)
   const pendingExternalFallbacksRef = useRef(new Set<string>())
@@ -74,7 +75,8 @@ export default function MarkdownPreview() {
       error: t('preview.diagramError'),
       packetPlaceholderError: t('preview.packetPlaceholderError'),
     }),
-    [i18n.language, t]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is keyed off `i18n.language`.
+    [i18n.language]
   )
 
   const getMermaidTheme = () =>

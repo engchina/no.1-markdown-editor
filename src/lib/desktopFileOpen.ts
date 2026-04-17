@@ -11,7 +11,10 @@ function getDocumentNameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() ?? i18n.t('app.untitled')
 }
 
-export async function openDesktopDocumentPath(path: string): Promise<boolean> {
+export async function openDesktopDocumentPath(
+  path: string,
+  options: { silent?: boolean } = {}
+): Promise<boolean> {
   if (!path) return false
 
   const name = getDocumentNameFromPath(path)
@@ -30,17 +33,36 @@ export async function openDesktopDocumentPath(path: string): Promise<boolean> {
     return true
   } catch (error) {
     console.error('Open desktop document error:', error)
-    pushErrorNotice('notices.openFileErrorTitle', 'notices.openFileErrorMessage')
+    if (!options.silent) {
+      pushErrorNotice('notices.openFileErrorTitle', 'notices.openFileErrorMessage')
+    }
     return false
   }
 }
 
 export async function openDesktopDocumentPaths(paths: readonly string[]): Promise<void> {
   const seenPaths = new Set<string>()
+  const targets: string[] = []
 
   for (const path of paths) {
     if (typeof path !== 'string' || path.length === 0 || seenPaths.has(path)) continue
     seenPaths.add(path)
-    await openDesktopDocumentPath(path)
+    targets.push(path)
+  }
+
+  if (targets.length === 0) return
+
+  const isBatch = targets.length > 1
+  let failures = 0
+
+  for (const path of targets) {
+    const ok = await openDesktopDocumentPath(path, { silent: isBatch })
+    if (!ok) failures += 1
+  }
+
+  if (isBatch && failures > 0) {
+    pushErrorNotice('notices.openMultipleFilesErrorTitle', 'notices.openMultipleFilesErrorMessage', {
+      values: { count: failures, total: targets.length },
+    })
   }
 }

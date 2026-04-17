@@ -48,6 +48,38 @@ test('AI store opens composer, tracks request lifecycle, and closes cleanly', ()
   assert.deepEqual(useAIStore.getState().composer, createInitialAIComposerState())
 })
 
+test('AI store caps streaming draft text to keep React renders responsive', () => {
+  useAIStore.setState({
+    composer: createInitialAIComposerState(),
+    historyRetentionPreset: 'standard',
+    threadIdsByDocument: {},
+    sessionHistoryByDocument: {},
+    historyCollections: [],
+    historySavedViews: [],
+    historyProviderRerankAudit: [],
+    provenanceMarksByTab: {},
+  })
+
+  useAIStore.getState().openComposer({ source: 'shortcut', intent: 'generate', outputTarget: 'at-cursor' })
+
+  // Append a chunk near but under the cap, then a chunk that would overflow.
+  // The store should accept the safe portion and silently drop the overflow.
+  const cap = 2_500_000
+  const firstChunk = 'A'.repeat(cap - 10)
+  useAIStore.getState().appendDraftText(firstChunk)
+  assert.equal(useAIStore.getState().composer.draftText.length, cap - 10)
+
+  useAIStore.getState().appendDraftText('B'.repeat(50))
+  assert.equal(useAIStore.getState().composer.draftText.length, cap)
+  assert.equal(useAIStore.getState().composer.draftText.endsWith('BBBBBBBBBB'), true)
+
+  // Further appends are no-ops once at the cap.
+  useAIStore.getState().appendDraftText('C'.repeat(100))
+  assert.equal(useAIStore.getState().composer.draftText.length, cap)
+
+  useAIStore.getState().closeComposer()
+})
+
 test('AI store binds thread ids by saved path or draft id', () => {
   useAIStore.setState({
     composer: createInitialAIComposerState(),

@@ -18,7 +18,33 @@ test('CodeMirrorEditor renders the selection bubble and listens for AI open/appl
   assert.match(editor, /document\.addEventListener\(EDITOR_AI_OPEN_EVENT, handleAIOpen\)/)
   assert.match(editor, /document\.addEventListener\(EDITOR_AI_APPLY_EVENT, handleAIApply\)/)
   assert.match(editor, /onSizeChange=\{handleSelectionBubbleSizeChange\}/)
-  assert.match(editor, /new ResizeObserver\(\(\) => updateSelectionBubble\(\)\)/)
+  assert.match(editor, /new ResizeObserver\(\(\) => scheduleSelectionBubbleUpdate\(\)\)/)
+})
+
+test('CodeMirrorEditor coalesces high-frequency selection bubble updates through requestAnimationFrame', async () => {
+  const editor = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
+
+  assert.match(editor, /const scheduleSelectionBubbleUpdate = useCallback\(/)
+  assert.match(editor, /selectionBubbleRafRef\.current = requestAnimationFrame\(/)
+  assert.match(editor, /cancelAnimationFrame\(selectionBubbleRafRef\.current\)/)
+  assert.match(editor, /const handleScroll = \(\) => scheduleSelectionBubbleUpdate\(view\)/)
+  assert.match(editor, /const handleResize = \(\) => scheduleSelectionBubbleUpdate\(view\)/)
+  assert.match(editor, /scheduleSelectionBubbleUpdate\(view\)\s*\n\s*scheduleTableExitFocusRestore\(view\)/)
+})
+
+test('MarkdownPreview useMemo deps omit the i18n t function to avoid redundant HTML rebuilds', async () => {
+  const source = await readFile(
+    new URL('../src/components/Preview/MarkdownPreview.tsx', import.meta.url),
+    'utf8'
+  )
+
+  // previewHtml useMemo deps
+  assert.match(
+    source,
+    /\[documentPath, html, i18n\.language, isTauri, previewOrigin, resolvedExternalImages, resolvedLocalImages\]/
+  )
+  // mermaidLabels useMemo deps — only language, no t
+  assert.match(source, /\[i18n\.language\]\s*\)\s*\n\s*const getMermaidTheme/)
 })
 
 test('ThemePanel keeps AI connection settings but removes editable AI preference controls', async () => {

@@ -210,6 +210,32 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     [aiComposerOpen]
   )
 
+  const selectionBubbleRafRef = useRef<number | null>(null)
+  const selectionBubblePendingViewRef = useRef<EditorView | null | undefined>(undefined)
+
+  const scheduleSelectionBubbleUpdate = useCallback(
+    (viewOverride?: EditorView | null) => {
+      selectionBubblePendingViewRef.current = viewOverride
+      if (selectionBubbleRafRef.current !== null) return
+      selectionBubbleRafRef.current = requestAnimationFrame(() => {
+        selectionBubbleRafRef.current = null
+        const pendingView = selectionBubblePendingViewRef.current
+        selectionBubblePendingViewRef.current = undefined
+        updateSelectionBubble(pendingView)
+      })
+    },
+    [updateSelectionBubble]
+  )
+
+  useEffect(() => {
+    return () => {
+      if (selectionBubbleRafRef.current !== null) {
+        cancelAnimationFrame(selectionBubbleRafRef.current)
+        selectionBubbleRafRef.current = null
+      }
+    }
+  }, [])
+
   const handleSelectionBubbleSizeChange = useCallback(
     (nextSize: SelectionBubbleSize) => {
       const previousSize = selectionBubbleSizeRef.current
@@ -463,7 +489,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
           syncGhostTextState(view)
           syncProvenanceState(view)
           syncCursorBottomGap(view)
-          updateSelectionBubble(view)
+          scheduleSelectionBubbleUpdate(view)
           scheduleTableExitFocusRestore(view)
         },
       }),
@@ -1392,9 +1418,9 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     const view = viewRef.current
     if (!view) return
 
-    const handleScroll = () => updateSelectionBubble(view)
+    const handleScroll = () => scheduleSelectionBubbleUpdate(view)
     const handleBlur = () => hideSelectionBubble()
-    const handleResize = () => updateSelectionBubble(view)
+    const handleResize = () => scheduleSelectionBubbleUpdate(view)
 
     view.scrollDOM.addEventListener('scroll', handleScroll, { passive: true })
     view.dom.addEventListener('focusout', handleBlur)
@@ -1404,16 +1430,16 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       view.dom.removeEventListener('focusout', handleBlur)
       window.removeEventListener('resize', handleResize)
     }
-  }, [hideSelectionBubble, updateSelectionBubble])
+  }, [hideSelectionBubble, scheduleSelectionBubbleUpdate])
 
   useEffect(() => {
     const shell = shellRef.current
     if (!shell || typeof ResizeObserver !== 'function') return
 
-    const observer = new ResizeObserver(() => updateSelectionBubble())
+    const observer = new ResizeObserver(() => scheduleSelectionBubbleUpdate())
     observer.observe(shell)
     return () => observer.disconnect()
-  }, [updateSelectionBubble])
+  }, [scheduleSelectionBubbleUpdate])
 
   useEffect(() => {
     return () => {

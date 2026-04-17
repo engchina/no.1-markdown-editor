@@ -19,6 +19,21 @@ test('normalizeAIProviderConfig trims and validates openai-compatible settings',
   })
 })
 
+test('normalizeAIProviderConfig accepts oci-responses with empty project', () => {
+  const config = normalizeAIProviderConfig({
+    provider: 'oci-responses',
+    baseUrl: 'https://example.com/v1',
+    model: 'model-x',
+    project: '',
+    unstructuredStores: [],
+    structuredStores: [],
+    hostedAgentProfiles: [],
+  })
+
+  assert.equal(config.provider, 'oci-responses')
+  assert.equal(config.project, '')
+})
+
 test('normalizeAIProviderConfig rejects invalid base URLs', () => {
   assert.throws(
     () =>

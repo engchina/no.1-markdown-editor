@@ -24,7 +24,6 @@ import type {
   AIOracleStructuredStoreRegistration,
   AIOracleUnstructuredStoreRegistration,
   AIProviderConfig,
-  AIProviderKind,
   AIProviderState,
 } from '../../lib/ai/types.ts'
 
@@ -33,7 +32,6 @@ export default function AISettingsSection() {
   const [aiProviderState, setAiProviderState] = useState<AIProviderState | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
-  const [aiProviderKind, setAiProviderKind] = useState<AIProviderKind>('openai-compatible')
   const [aiBaseUrl, setAiBaseUrl] = useState('')
   const [aiModel, setAiModel] = useState('')
   const [aiProject, setAiProject] = useState('')
@@ -43,7 +41,6 @@ export default function AISettingsSection() {
   const [aiHostedAgentProfiles, setAiHostedAgentProfiles] = useState<AIOracleHostedAgentProfile[]>([])
   const [aiHostedAgentSecrets, setAiHostedAgentSecrets] = useState<Record<string, string>>({})
 
-  const canShowOracleSections = aiProviderKind === 'oci-responses'
   const connectionReady = isAIProviderConnectionReady(aiProviderState)
   const hostedAgentSecretStatus = aiProviderState?.hasHostedAgentClientSecretById ?? {}
 
@@ -75,7 +72,6 @@ export default function AISettingsSection() {
 
   function applyProviderStateToForm(state: AIProviderState) {
     const config = state.config ?? createDefaultAIProviderConfig()
-    setAiProviderKind(config.provider)
     setAiBaseUrl(config.baseUrl)
     setAiModel(config.model)
     setAiProject(config.project)
@@ -106,27 +102,19 @@ export default function AISettingsSection() {
     setAiError(null)
 
     try {
-      const nextConfig: AIProviderConfig =
-        aiProviderKind === 'openai-compatible'
-          ? {
-              provider: 'openai-compatible',
-              baseUrl: aiBaseUrl,
-              model: aiModel,
-              project: aiProject,
-            }
-          : {
-              provider: 'oci-responses',
-              baseUrl: aiBaseUrl,
-              model: aiModel,
-              project: aiProject,
-              unstructuredStores: aiUnstructuredStores,
-              structuredStores: aiStructuredStores.map((store) => ({
-                ...store,
-                defaultMode: 'sql-draft',
-                executionAgentProfileId: null,
-              })),
-              hostedAgentProfiles: aiHostedAgentProfiles,
-            }
+      const nextConfig: AIProviderConfig = {
+        provider: 'oci-responses',
+        baseUrl: aiBaseUrl,
+        model: aiModel,
+        project: aiProject,
+        unstructuredStores: aiUnstructuredStores,
+        structuredStores: aiStructuredStores.map((store) => ({
+          ...store,
+          defaultMode: 'sql-draft',
+          executionAgentProfileId: null,
+        })),
+        hostedAgentProfiles: aiHostedAgentProfiles,
+      }
 
       const savedConfig = await saveAIProviderConfig(nextConfig)
 
@@ -259,43 +247,13 @@ export default function AISettingsSection() {
       </div>
 
       <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: 'var(--border)' }}>
-        <div className="space-y-1">
-          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            {t('ai.connection.provider')}
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            {([
-              { value: 'openai-compatible', label: t('ai.connection.providerOption.openaiCompatible') },
-              { value: 'oci-responses', label: t('ai.connection.providerOption.ociResponses') },
-            ] as const).map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                data-ai-provider-option={option.value}
-                onClick={() => setAiProviderKind(option.value)}
-                className="rounded-lg border px-3 py-2 text-xs font-medium transition-colors"
-                style={{
-                  borderColor: aiProviderKind === option.value ? 'var(--accent)' : 'var(--border)',
-                  background:
-                    aiProviderKind === option.value
-                      ? 'color-mix(in srgb, var(--accent) 12%, var(--bg-primary))'
-                      : 'var(--bg-primary)',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <FormField label={t('ai.connection.baseUrl')}>
           <input
             value={aiBaseUrl}
             onChange={(event) => setAiBaseUrl(event.target.value)}
             className="rounded-lg border px-3 py-2 text-xs outline-none"
             style={inputStyle}
-            placeholder={aiProviderKind === 'oci-responses' ? 'https://.../openai/v1' : 'https://api.openai.com/v1'}
+            placeholder="https://.../openai/v1"
           />
         </FormField>
 
@@ -305,13 +263,13 @@ export default function AISettingsSection() {
             onChange={(event) => setAiModel(event.target.value)}
             className="rounded-lg border px-3 py-2 text-xs outline-none"
             style={inputStyle}
-            placeholder={aiProviderKind === 'oci-responses' ? 'meta.llama-4-maverick-17b-128e-instruct-fp8' : 'gpt-4.1-mini'}
+            placeholder="meta.llama-4-maverick-17b-128e-instruct-fp8"
           />
         </FormField>
 
         <FormField
           label={t('ai.connection.project')}
-          meta={aiProviderKind === 'oci-responses' ? t('ai.connection.required') : t('ai.connection.optional')}
+          meta={t('ai.connection.optional')}
         >
           <input
             value={aiProject}
@@ -336,34 +294,30 @@ export default function AISettingsSection() {
         </FormField>
       </div>
 
-      {canShowOracleSections ? (
-        <>
-          {renderUnstructuredSection({
-            t,
-            aiUnstructuredStores,
-            updateUnstructuredStore,
-            setAiUnstructuredStores,
-          })}
-          {renderStructuredSection({
-            t,
-            aiStructuredStores,
-            updateStructuredStore,
-            setAiStructuredStores,
-          })}
-          {renderHostedAgentSection({
-            t,
-            aiHostedAgentProfiles,
-            aiHostedAgentSecrets,
-            hostedAgentSecretStatus,
-            aiLoading,
-            updateHostedAgentProfile,
-            setAiHostedAgentProfiles,
-            setAiHostedAgentSecrets,
-            toggleHostedAgentContract,
-            clearHostedAgentSecret,
-          })}
-        </>
-      ) : null}
+      {renderUnstructuredSection({
+        t,
+        aiUnstructuredStores,
+        updateUnstructuredStore,
+        setAiUnstructuredStores,
+      })}
+      {renderStructuredSection({
+        t,
+        aiStructuredStores,
+        updateStructuredStore,
+        setAiStructuredStores,
+      })}
+      {renderHostedAgentSection({
+        t,
+        aiHostedAgentProfiles,
+        aiHostedAgentSecrets,
+        hostedAgentSecretStatus,
+        aiLoading,
+        updateHostedAgentProfile,
+        setAiHostedAgentProfiles,
+        setAiHostedAgentSecrets,
+        toggleHostedAgentContract,
+        clearHostedAgentSecret,
+      })}
 
       {aiError ? (
         <div className="text-[11px] leading-5" style={{ color: '#dc2626' }}>

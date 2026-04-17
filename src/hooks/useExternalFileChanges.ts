@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../store/editor'
 import { resolveExternalFileContentChange } from '../lib/externalFileChanges'
 import { ensureFsPathAccess, ensureFsPathAccessBatch } from '../lib/fsAccess'
-import { pushInfoNotice } from '../lib/notices'
+import { pushErrorNotice, pushInfoNotice } from '../lib/notices'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -89,6 +89,9 @@ export function useExternalFileChanges() {
         )
       } catch (error) {
         console.error('External file watch registration error:', error)
+        if (!disposed) {
+          pushErrorNotice('notices.externalFileWatchErrorTitle', 'notices.externalFileWatchErrorMessage')
+        }
       }
     })()
 

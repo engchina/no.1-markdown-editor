@@ -399,7 +399,7 @@ async fn route_ai_completion_request<R: Runtime>(
 
     let api_key = read_ai_provider_api_key()?;
 
-    if config.provider == "openai-compatible" {
+    if config.provider == "openai-compatible" || config.project.trim().is_empty() {
         return run_openai_chat_completion(app, &config, &api_key, &request, &request_id).await;
     }
 
@@ -878,9 +878,6 @@ fn normalize_ai_provider_config(config: AiProviderConfig) -> Result<AiProviderCo
         }),
         "oci-responses" => {
             let project = config.project.trim();
-            if project.is_empty() {
-                return Err("Oracle project is required for OCI Responses".to_string());
-            }
 
             let hosted_agent_profiles =
                 normalize_hosted_agent_profiles(config.hosted_agent_profiles)?;

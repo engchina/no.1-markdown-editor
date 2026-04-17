@@ -16,10 +16,13 @@ export const OCI_RESPONSES_PROVIDER = 'oci-responses' as const
 
 export function createDefaultAIProviderConfig(): AIProviderConfig {
   return {
-    provider: OPENAI_COMPATIBLE_PROVIDER,
+    provider: OCI_RESPONSES_PROVIDER,
     baseUrl: '',
     model: '',
     project: '',
+    unstructuredStores: [],
+    structuredStores: [],
+    hostedAgentProfiles: [],
   }
 }
 
@@ -79,9 +82,6 @@ export function isAIProviderConnectionReady(state: AIProviderState | null): bool
   if (!state?.config || state.hasApiKey !== true) return false
 
   if (!state.config.baseUrl || !state.config.model) return false
-  if (state.config.provider === OCI_RESPONSES_PROVIDER) {
-    return !!state.config.project.trim()
-  }
 
   return true
 }
@@ -139,7 +139,6 @@ export function normalizeOCIResponsesProviderConfig(
   const model = config.model.trim()
   if (!model) throw new Error('AI model is required.')
   const project = config.project.trim()
-  if (!project) throw new Error('Oracle project is required for OCI Responses.')
 
   const hostedAgentProfiles = normalizeHostedAgentProfiles(config.hostedAgentProfiles)
   const hostedAgentIds = new Set(hostedAgentProfiles.map((profile) => profile.id))
