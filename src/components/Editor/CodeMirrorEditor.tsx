@@ -61,6 +61,7 @@ import {
   type SelectionBubbleSize,
 } from '../../lib/ai/selectionBubble.ts'
 import { buildAIRequestMessages, normalizeAIDraftText } from '../../lib/ai/prompt.ts'
+import { isAIProviderConnectionReady } from '../../lib/ai/provider.ts'
 import { clipboardHasType, readClipboardStringBestEffort } from '../../lib/clipboard'
 import {
   buildMarkdownSafeClipboardPayload,
@@ -1203,12 +1204,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
       const runGhostText = async () => {
         const providerState = await loadAIProviderState()
-        const hasConnection =
-          !!providerState.config?.baseUrl &&
-          !!providerState.config?.model &&
-          providerState.hasApiKey === true
-
-        if (!hasConnection) {
+        if (!isAIProviderConnectionReady(providerState)) {
           pushInfoNotice('notices.aiProviderMissingTitle', 'notices.aiProviderMissingMessage')
           return
         }
@@ -1247,6 +1243,11 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
                 prompt,
                 context,
               }),
+              executionTargetKind: 'direct-provider',
+              invocationCapability: 'text-generation',
+              knowledgeSelection: { kind: 'none' },
+              threadId: null,
+              hostedAgentProfileId: null,
             },
             {
               onChunk: (chunk) => {

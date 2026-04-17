@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 
-test('AI Composer binds document font size to content text while keeping the dialog shell bounded', async () => {
+test('AI Composer binds document font size to content text while keeping the widened dialog shell bounded', async () => {
   const composer = await readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8')
 
   assert.match(composer, /const fontSize = useEditorStore\(\(state\) => state\.fontSize\)/)
@@ -10,7 +10,7 @@ test('AI Composer binds document font size to content text while keeping the dia
   assert.match(composer, /data-ai-composer-prompt="true"[\s\S]*style=\{\{\s*\.\.\.composerContentTypography\.text,/)
   assert.match(composer, /<AIDiffPreview[\s\S]*typography=\{composerContentTypography\}/)
   assert.match(composer, /<AIInsertionPreview[\s\S]*typography=\{composerContentTypography\}/)
-  assert.match(composer, /maxWidth: 'min\(620px, calc\(var\(--focus-column-max-width\) - 48px\), calc\(100vw - 2rem\)\)'/)
+  assert.match(composer, /maxWidth: 'min\(960px, calc\(100vw - 4rem\)\)'/)
   assert.doesNotMatch(composer, /data-ai-composer="true"[\s\S]{0,260}fontSize:/)
 })
 

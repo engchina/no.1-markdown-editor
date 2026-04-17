@@ -1,4 +1,5 @@
 import { loadAIProviderState, runAICompletion } from './client.ts'
+import { isAIProviderConnectionReady } from './provider.ts'
 import { resolveAIHistoryProviderRerankPolicy } from './providerHistoryBudget.ts'
 import type {
   AIContextPacket,
@@ -60,11 +61,7 @@ export async function rerankAIHistoryCandidatesWithProvider<T extends AIHistoryR
   if (visibleCandidates.length === 0) return { matches: [], providerModel: null, sentCount: 0 }
 
   const providerState = await loadAIProviderState()
-  if (
-    !providerState.config?.baseUrl ||
-    !providerState.config?.model ||
-    providerState.hasApiKey !== true
-  ) {
+  if (!isAIProviderConnectionReady(providerState)) {
     throw new Error('AI provider settings are incomplete.')
   }
 
@@ -84,6 +81,11 @@ export async function rerankAIHistoryCandidatesWithProvider<T extends AIHistoryR
     prompt: buildAIHistoryProviderRerankPrompt({ query, candidates: visibleCandidates, budget: args.budget }),
     context,
     messages,
+    executionTargetKind: 'direct-provider',
+    invocationCapability: 'text-generation',
+    knowledgeSelection: { kind: 'none' },
+    threadId: null,
+    hostedAgentProfileId: null,
   })
 
   const parsed = parseAIHistoryProviderRerankResponse(response.text)

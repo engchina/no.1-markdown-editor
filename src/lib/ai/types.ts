@@ -35,11 +35,22 @@ export type AIComposerSource =
   | 'selection-bubble'
   | 'command-palette'
   | 'slash-command'
-export type AIProviderKind = 'openai-compatible'
+export type AIProviderKind = 'openai-compatible' | 'oci-responses'
+export type AIExecutionTargetKind = 'direct-provider' | 'oracle-hosted-agent'
+export type AIInvocationCapability =
+  | 'text-generation'
+  | 'rag-unstructured'
+  | 'nl2sql-draft'
+  | 'structured-execution'
+export type AIKnowledgeType = 'none' | 'docs' | 'data'
+export type AIOracleStructuredStoreMode = 'sql-draft' | 'agent-answer'
+export type AIHostedAgentTransport = 'http-json' | 'sse'
+export type AIHostedAgentSupportedContract = 'chat-text' | 'structured-data-answer'
 export type AIStorageKind = 'keyring' | 'unsupported'
 export type AIExplicitContextKind = 'note' | 'search'
 export type AIPromptMentionKind = AIExplicitContextKind
 export type AIProvenanceKind = 'apply' | 'ghost-text' | 'new-note'
+export type AIDraftFormat = 'markdown' | 'sql' | 'text'
 export type AIPromptMentionErrorCode =
   | 'note-not-found'
   | 'search-empty-query'
@@ -110,6 +121,79 @@ export interface AIRequestMessage {
   content: string
 }
 
+export interface AIOracleUnstructuredStoreRegistration {
+  id: string
+  label: string
+  vectorStoreId: string
+  description: string
+  enabled: boolean
+  isDefault: boolean
+}
+
+export interface AIOracleStructuredStoreRegistration {
+  id: string
+  label: string
+  semanticStoreId: string
+  vectorStoreId?: string
+  storeOcid?: string
+  description: string
+  enabled: boolean
+  defaultMode: AIOracleStructuredStoreMode
+  executionAgentProfileId: string | null
+}
+
+export interface AIOracleHostedAgentProfile {
+  id: string
+  label: string
+  endpointUrl: string
+  invokePath: string
+  domainUrl: string
+  clientId: string
+  scope: string
+  audience: string
+  transport: AIHostedAgentTransport
+  supportedContracts: AIHostedAgentSupportedContract[]
+}
+
+export interface AIOpenAICompatibleProviderConfig {
+  provider: 'openai-compatible'
+  baseUrl: string
+  model: string
+  project: string
+}
+
+export interface AIOCIResponsesProviderConfig {
+  provider: 'oci-responses'
+  baseUrl: string
+  model: string
+  project: string
+  unstructuredStores: AIOracleUnstructuredStoreRegistration[]
+  structuredStores: AIOracleStructuredStoreRegistration[]
+  hostedAgentProfiles: AIOracleHostedAgentProfile[]
+}
+
+export type AIProviderConfig = AIOpenAICompatibleProviderConfig | AIOCIResponsesProviderConfig
+
+export interface AINoKnowledgeSelection {
+  kind: 'none'
+}
+
+export interface AIOracleUnstructuredKnowledgeSelection {
+  kind: 'oracle-unstructured-store'
+  registrationId: string
+}
+
+export interface AIOracleStructuredKnowledgeSelection {
+  kind: 'oracle-structured-store'
+  registrationId: string
+  mode: AIOracleStructuredStoreMode
+}
+
+export type AIKnowledgeSelection =
+  | AINoKnowledgeSelection
+  | AIOracleUnstructuredKnowledgeSelection
+  | AIOracleStructuredKnowledgeSelection
+
 export interface AIRunCompletionRequest {
   requestId: string
   intent: AIIntent
@@ -118,6 +202,11 @@ export interface AIRunCompletionRequest {
   prompt: string
   context: AIContextPacket
   messages: AIRequestMessage[]
+  executionTargetKind: AIExecutionTargetKind
+  invocationCapability: AIInvocationCapability
+  knowledgeSelection: AIKnowledgeSelection
+  threadId: string | null
+  hostedAgentProfileId: string | null
 }
 
 export interface AIRunCompletionResponse {
@@ -125,24 +214,23 @@ export interface AIRunCompletionResponse {
   finishReason: string | null
   model: string | null
   requestId: string | null
-}
-
-export interface AICompletionStreamChunk {
-  requestId: string
-  chunk: string
-}
-
-export interface AIProviderConfig {
-  provider: AIProviderKind
-  baseUrl: string
-  model: string
-  project: string
+  threadId: string | null
+  contentType: AIDraftFormat
+  explanationText: string | null
+  warningText: string | null
+  sourceLabel: string | null
 }
 
 export interface AIProviderState {
   config: AIProviderConfig | null
   hasApiKey: boolean
   storageKind: AIStorageKind
+  hasHostedAgentClientSecretById: Record<string, boolean>
+}
+
+export interface AICompletionStreamChunk {
+  requestId: string
+  chunk: string
 }
 
 export interface AIApplySnapshot {
@@ -163,9 +251,16 @@ export interface AIComposerState {
   outputTarget: AIOutputTarget
   prompt: string
   context: AIContextPacket | null
+  executionTargetKind: AIExecutionTargetKind
+  invocationCapability: AIInvocationCapability
+  knowledgeSelection: AIKnowledgeSelection
+  hostedAgentProfileId: string | null
   requestState: AIRequestState
   draftText: string
+  draftFormat: AIDraftFormat
   explanationText: string
+  warningText: string | null
+  sourceLabel: string | null
   diffBaseText: string | null
   threadId: string | null
   startedAt: number | null
@@ -210,6 +305,12 @@ export interface AIDocumentSessionHistoryEntry {
   status: AISessionHistoryStatus
   documentName: string
   attachmentCount: number
+  executionTargetKind?: AIExecutionTargetKind
+  knowledgeKind?: AIKnowledgeSelection['kind']
+  storeLabel?: string | null
+  structuredMode?: AIOracleStructuredStoreMode | null
+  generatedSqlPreview?: string | null
+  executionAgentLabel?: string | null
   workspaceExecution?: AIWorkspaceExecutionHistoryRecord | null
   createdAt: number
   updatedAt: number

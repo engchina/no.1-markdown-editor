@@ -37,6 +37,13 @@ test('AIComposer separates the form scroller from the bounded result panel', asy
   assert.match(composer, /data-ai-composer-scroll="form"/)
   assert.match(composer, /data-ai-result-panel="true"/)
   assert.match(composer, /data-ai-result-body="true"/)
+  assert.match(composer, /const promptRows = showResultPanel \? 3 : 4/)
+  assert.match(composer, /const promptMinHeight = showResultPanel \? '96px' : '124px'/)
+  assert.match(composer, /const resultPanelMinHeight = hasWorkspaceExecutionTasks \? '260px' : '220px'/)
+  assert.match(composer, /rows=\{promptRows\}/)
+  assert.match(composer, /minHeight: promptMinHeight/)
+  assert.match(composer, /className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border"/)
+  assert.match(composer, /className="min-h-0 flex-1 overflow-y-auto px-4 py-3"/)
 })
 
 test('AIComposer keeps AI connection setup in Settings and removes inline provider editing controls', async () => {
@@ -186,7 +193,8 @@ test('CodeMirrorEditor and AIComposer wire provenance markers into AI apply and 
   assert.match(provenance, /data-ai-provenance-mark/)
   assert.match(extensions, /\.cm-ai-provenance-range/)
   assert.match(extensions, /\.cm-ai-provenance-range': \{[\s\S]*background: 'transparent'/)
-  assert.match(extensions, /\.cm-ai-provenance-range': \{[\s\S]*textDecoration: 'underline'/)
+  assert.match(extensions, /\.cm-ai-provenance-range': \{[\s\S]*textDecoration: 'none'/)
+  assert.doesNotMatch(extensions, /\.cm-ai-provenance-range': \{[\s\S]*textDecorationStyle:/)
   assert.doesNotMatch(extensions, /\.cm-ai-provenance-range': \{[\s\S]*borderRadius: '6px'/)
 })
 

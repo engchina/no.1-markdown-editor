@@ -357,6 +357,7 @@ pub fn run() {
     let pending_open_paths = PendingOpenPaths(Mutex::new(collect_launch_paths()));
     let ai_in_flight_requests =
         ai::AiInFlightRequests(Mutex::new(std::collections::HashMap::new()));
+    let ai_oauth_token_cache = ai::AiOAuthTokenCache(Mutex::new(std::collections::HashMap::new()));
     let builder = tauri::Builder::default();
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
@@ -365,6 +366,7 @@ pub fn run() {
     builder
         .manage(pending_open_paths)
         .manage(ai_in_flight_requests)
+        .manage(ai_oauth_token_cache)
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("editor-navigation-guard")
                 .on_navigation(|_, url| is_allowed_editor_navigation(url))
@@ -378,6 +380,8 @@ pub fn run() {
             ai::ai_save_provider_config,
             ai::ai_store_provider_api_key,
             ai::ai_clear_provider_api_key,
+            ai::ai_store_hosted_agent_client_secret,
+            ai::ai_clear_hosted_agent_client_secret,
             ai::ai_run_completion,
             ai::ai_cancel_completion,
             read_file,

@@ -22,15 +22,20 @@ test('CodeMirrorEditor renders the selection bubble and listens for AI open/appl
 })
 
 test('ThemePanel keeps AI connection settings but removes editable AI preference controls', async () => {
-  const panel = await readFile(new URL('../src/components/ThemePanel/ThemePanel.tsx', import.meta.url), 'utf8')
+  const [panel, section] = await Promise.all([
+    readFile(new URL('../src/components/ThemePanel/ThemePanel.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/ThemePanel/AISettingsSection.tsx', import.meta.url), 'utf8'),
+  ])
 
-  assert.match(panel, /t\('ai\.connection\.baseUrl'\)/)
-  assert.match(panel, /t\('ai\.connection\.model'\)/)
-  assert.match(panel, /t\('ai\.connection\.apiKey'\)/)
-  assert.doesNotMatch(panel, /t\('ai\.preferences\.defaultWriteTarget'\)/)
-  assert.doesNotMatch(panel, /t\('ai\.preferences\.selectedTextRole'\)/)
-  assert.doesNotMatch(panel, /data-ai-history-provider-settings="true"/)
-  assert.doesNotMatch(panel, /t\('ai\.preferences\.historyProviderTitle'\)/)
-  assert.doesNotMatch(panel, /t\('ai\.preferences\.historyProviderEnabled'\)/)
-  assert.doesNotMatch(panel, /t\('ai\.preferences\.historyProviderBudget'\)/)
+  assert.match(panel, /import AISettingsSection from '\.\/AISettingsSection'/)
+  assert.match(panel, /<AISettingsSection \/>/)
+  assert.match(section, /t\('ai\.connection\.baseUrl'\)/)
+  assert.match(section, /t\('ai\.connection\.model'\)/)
+  assert.match(section, /t\('ai\.connection\.apiKey'\)/)
+  assert.doesNotMatch(section, /t\('ai\.preferences\.defaultWriteTarget'\)/)
+  assert.doesNotMatch(section, /t\('ai\.preferences\.selectedTextRole'\)/)
+  assert.doesNotMatch(section, /data-ai-history-provider-settings="true"/)
+  assert.doesNotMatch(section, /t\('ai\.preferences\.historyProviderTitle'\)/)
+  assert.doesNotMatch(section, /t\('ai\.preferences\.historyProviderEnabled'\)/)
+  assert.doesNotMatch(section, /t\('ai\.preferences\.historyProviderBudget'\)/)
 })

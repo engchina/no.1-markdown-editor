@@ -12,9 +12,11 @@ import type {
   AIComposerSource,
   AIComposerState,
   AIContextPacket,
+  AIDraftFormat,
   AIHistoryCollection,
   AIHistoryCollectionRetrievalPolicy,
   AIDocumentSessionHistoryEntry,
+  AIExecutionTargetKind,
   AIHistoryEntryRef,
   AIHistoryArchive,
   AIHistoryProviderRerankBudget,
@@ -24,7 +26,10 @@ import type {
   AIHistorySavedViewRetrievalPreset,
   AIHistorySavedViewStatusFilter,
   AIIntent,
+  AIInvocationCapability,
+  AIKnowledgeSelection,
   AIOutputTarget,
+  AIOracleStructuredStoreMode,
   AIProvenanceMark,
   AIRequestState,
   AIScope,
@@ -47,12 +52,19 @@ interface AIStoreState {
   setIntent: (intent: AIIntent) => void
   setScope: (scope: AIScope) => void
   setOutputTarget: (outputTarget: AIOutputTarget) => void
+  setExecutionTargetKind: (executionTargetKind: AIExecutionTargetKind) => void
+  setInvocationCapability: (invocationCapability: AIInvocationCapability) => void
+  setKnowledgeSelection: (knowledgeSelection: AIKnowledgeSelection) => void
+  setHostedAgentProfileId: (hostedAgentProfileId: string | null) => void
   setPrompt: (prompt: string) => void
   setContext: (context: AIContextPacket | null) => void
   setSource: (source: AIComposerSource) => void
   setDraftText: (draftText: string) => void
+  setDraftFormat: (draftFormat: AIDraftFormat) => void
   appendDraftText: (chunk: string) => void
   setExplanationText: (explanationText: string) => void
+  setWarningText: (warningText: string | null) => void
+  setSourceLabel: (sourceLabel: string | null) => void
   setDiffBaseText: (diffBaseText: string | null) => void
   setThreadId: (threadId: string | null) => void
   setSourceSnapshot: (sourceSnapshot: AIApplySnapshot | null) => void
@@ -78,6 +90,11 @@ interface AIStoreState {
     outputTarget: AIOutputTarget
     prompt: string
     attachmentCount: number
+    executionTargetKind?: AIExecutionTargetKind
+    knowledgeKind?: AIKnowledgeSelection['kind']
+    storeLabel?: string | null
+    structuredMode?: AIOracleStructuredStoreMode | null
+    executionAgentLabel?: string | null
     threadId?: string | null
   }) => { entryId: string; threadId: string }
   updateSessionHistory: (
@@ -87,7 +104,14 @@ interface AIStoreState {
     patch: Partial<
       Pick<
         AIDocumentSessionHistoryEntry,
-        'status' | 'resultPreview' | 'errorMessage' | 'updatedAt' | 'pinned' | 'workspaceExecution'
+        | 'status'
+        | 'resultPreview'
+        | 'errorMessage'
+        | 'updatedAt'
+        | 'pinned'
+        | 'workspaceExecution'
+        | 'generatedSqlPreview'
+        | 'executionAgentLabel'
       >
     >
   ) => void
@@ -406,6 +430,21 @@ function sanitizeSessionHistoryEntry(entry: unknown): AIDocumentSessionHistoryEn
     status: candidate.status as AIDocumentSessionHistoryEntry['status'],
     documentName: candidate.documentName,
     attachmentCount: typeof candidate.attachmentCount === 'number' ? candidate.attachmentCount : 0,
+    executionTargetKind:
+      candidate.executionTargetKind === 'oracle-hosted-agent' ? 'oracle-hosted-agent' : 'direct-provider',
+    knowledgeKind:
+      candidate.knowledgeKind === 'oracle-unstructured-store' || candidate.knowledgeKind === 'oracle-structured-store'
+        ? candidate.knowledgeKind
+        : 'none',
+    storeLabel: typeof candidate.storeLabel === 'string' ? candidate.storeLabel : null,
+    structuredMode:
+      candidate.structuredMode === 'agent-answer' || candidate.structuredMode === 'sql-draft'
+        ? candidate.structuredMode
+        : null,
+    generatedSqlPreview:
+      typeof candidate.generatedSqlPreview === 'string' ? candidate.generatedSqlPreview : null,
+    executionAgentLabel:
+      typeof candidate.executionAgentLabel === 'string' ? candidate.executionAgentLabel : null,
     workspaceExecution: sanitizeWorkspaceExecutionHistoryRecord(candidate.workspaceExecution),
     createdAt: candidate.createdAt,
     updatedAt: candidate.updatedAt,
@@ -742,11 +781,18 @@ export function createInitialAIComposerState(): AIComposerState {
     intent: 'ask',
     scope: 'current-block',
     outputTarget: 'chat-only',
+    executionTargetKind: 'direct-provider',
+    invocationCapability: 'text-generation',
+    knowledgeSelection: { kind: 'none' },
+    hostedAgentProfileId: null,
     prompt: '',
     context: null,
     requestState: 'idle',
     draftText: '',
+    draftFormat: 'markdown',
     explanationText: '',
+    warningText: null,
+    sourceLabel: null,
     diffBaseText: null,
     threadId: null,
     startedAt: null,
@@ -781,14 +827,27 @@ export const useAIStore = create<AIStoreState>()(
       setIntent: (intent) => set((state) => ({ composer: { ...state.composer, intent } })),
       setScope: (scope) => set((state) => ({ composer: { ...state.composer, scope } })),
       setOutputTarget: (outputTarget) => set((state) => ({ composer: { ...state.composer, outputTarget } })),
+      setExecutionTargetKind: (executionTargetKind) =>
+        set((state) => ({ composer: { ...state.composer, executionTargetKind } })),
+      setInvocationCapability: (invocationCapability) =>
+        set((state) => ({ composer: { ...state.composer, invocationCapability } })),
+      setKnowledgeSelection: (knowledgeSelection) =>
+        set((state) => ({ composer: { ...state.composer, knowledgeSelection } })),
+      setHostedAgentProfileId: (hostedAgentProfileId) =>
+        set((state) => ({ composer: { ...state.composer, hostedAgentProfileId } })),
       setPrompt: (prompt) => set((state) => ({ composer: { ...state.composer, prompt } })),
       setContext: (context) => set((state) => ({ composer: { ...state.composer, context } })),
       setSource: (source) => set((state) => ({ composer: { ...state.composer, source } })),
       setDraftText: (draftText) => set((state) => ({ composer: { ...state.composer, draftText } })),
+      setDraftFormat: (draftFormat) => set((state) => ({ composer: { ...state.composer, draftFormat } })),
       appendDraftText: (chunk) =>
         set((state) => ({ composer: { ...state.composer, draftText: `${state.composer.draftText}${chunk}` } })),
       setExplanationText: (explanationText) =>
         set((state) => ({ composer: { ...state.composer, explanationText } })),
+      setWarningText: (warningText) =>
+        set((state) => ({ composer: { ...state.composer, warningText } })),
+      setSourceLabel: (sourceLabel) =>
+        set((state) => ({ composer: { ...state.composer, sourceLabel } })),
       setDiffBaseText: (diffBaseText) => set((state) => ({ composer: { ...state.composer, diffBaseText } })),
       setThreadId: (threadId) => set((state) => ({ composer: { ...state.composer, threadId } })),
       setSourceSnapshot: (sourceSnapshot) => set((state) => ({ composer: { ...state.composer, sourceSnapshot } })),
@@ -808,7 +867,10 @@ export const useAIStore = create<AIStoreState>()(
             startedAt: Date.now(),
             errorMessage: null,
             draftText: '',
+            draftFormat: 'markdown',
             explanationText: '',
+            warningText: null,
+            sourceLabel: null,
           },
         })),
       finishRequest: () =>
@@ -833,7 +895,10 @@ export const useAIStore = create<AIStoreState>()(
             ...state.composer,
             requestState: 'idle',
             draftText: '',
+            draftFormat: 'markdown',
             explanationText: '',
+            warningText: null,
+            sourceLabel: null,
             diffBaseText: null,
             errorMessage: null,
             startedAt: null,
@@ -1006,6 +1071,12 @@ export const useAIStore = create<AIStoreState>()(
             status: 'streaming',
             documentName: args.documentName,
             attachmentCount: args.attachmentCount,
+            executionTargetKind: args.executionTargetKind ?? 'direct-provider',
+            knowledgeKind: args.knowledgeKind ?? 'none',
+            storeLabel: args.storeLabel ?? null,
+            structuredMode: args.structuredMode ?? null,
+            generatedSqlPreview: null,
+            executionAgentLabel: args.executionAgentLabel ?? null,
             createdAt,
             updatedAt: createdAt,
           }

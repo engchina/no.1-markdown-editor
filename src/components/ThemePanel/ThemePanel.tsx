@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { clearAIProviderApiKey, isAIDesktopAvailable, loadAIProviderState, saveAIProviderConfig, storeAIProviderApiKey } from '../../lib/ai/client.ts'
 import {
   FOCUS_WIDTH_CUSTOM_MAX,
   FOCUS_WIDTH_CUSTOM_MIN,
@@ -10,11 +9,10 @@ import {
   resolveFocusWidthPx,
   type FocusWidthMode,
 } from '../../lib/focusWidth'
-import { pushErrorNotice, pushInfoNotice, pushSuccessNotice } from '../../lib/notices'
 import { THEMES, applyTheme, getThemeById } from '../../themes'
 import { useAnchoredOverlayStyle } from '../../hooks/useAnchoredOverlayStyle'
 import { useEditorStore } from '../../store/editor'
-import type { AIProviderState } from '../../lib/ai/types.ts'
+import AISettingsSection from './AISettingsSection'
 
 interface Props {
   onClose: () => void
@@ -44,14 +42,7 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
     setSyntaxHighlightEngine,
   } = useEditorStore()
   const panelRef = useRef<HTMLDivElement>(null)
-  const [aiProviderState, setAiProviderState] = useState<AIProviderState | null>(null)
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiError, setAiError] = useState<string | null>(null)
-  const [aiBaseUrl, setAiBaseUrl] = useState('')
-  const [aiModel, setAiModel] = useState('')
-  const [aiProject, setAiProject] = useState('')
-  const [aiApiKey, setAiApiKey] = useState('')
-  const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align: 'right', width: 344 })
+  const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align: 'right', width: 420 })
   const resolvedThemeId = getThemeById(activeThemeId).id
   const resolvedFocusWidthPx = resolveFocusWidthPx(focusWidthMode, focusWidthCustomPx)
   const focusWidthPresets: Array<{
@@ -100,96 +91,9 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose, triggerRef])
 
-  useEffect(() => {
-    if (!isAIDesktopAvailable()) return
-
-    let cancelled = false
-    setAiLoading(true)
-    setAiError(null)
-
-    void loadAIProviderState()
-      .then((state) => {
-        if (cancelled) return
-        setAiProviderState(state)
-        setAiBaseUrl(state.config?.baseUrl ?? '')
-        setAiModel(state.config?.model ?? '')
-        setAiProject(state.config?.project ?? '')
-      })
-      .catch((error) => {
-        if (cancelled) return
-        setAiError(error instanceof Error ? error.message : String(error))
-      })
-      .finally(() => {
-        if (!cancelled) setAiLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   function selectTheme(id: string) {
     setActiveThemeId(id)
     applyTheme(getThemeById(id))
-  }
-
-  async function refreshAiProviderState() {
-    if (!isAIDesktopAvailable()) return
-    const state = await loadAIProviderState()
-    setAiProviderState(state)
-    setAiBaseUrl(state.config?.baseUrl ?? '')
-    setAiModel(state.config?.model ?? '')
-    setAiProject(state.config?.project ?? '')
-  }
-
-  async function saveAiConnection() {
-    if (!isAIDesktopAvailable()) return
-
-    setAiLoading(true)
-    setAiError(null)
-    try {
-      await saveAIProviderConfig({
-        provider: 'openai-compatible',
-        baseUrl: aiBaseUrl,
-        model: aiModel,
-        project: aiProject,
-      })
-      if (aiApiKey.trim()) {
-        await storeAIProviderApiKey(aiApiKey)
-        setAiApiKey('')
-      }
-      await refreshAiProviderState()
-      pushSuccessNotice('notices.aiConnectionSavedTitle', 'notices.aiConnectionSavedMessage')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      setAiError(message)
-      pushErrorNotice('notices.aiConnectionErrorTitle', 'notices.aiConnectionErrorMessage', {
-        values: { reason: message },
-      })
-    } finally {
-      setAiLoading(false)
-    }
-  }
-
-  async function clearAiApiKey() {
-    if (!isAIDesktopAvailable()) return
-
-    setAiLoading(true)
-    setAiError(null)
-    try {
-      await clearAIProviderApiKey()
-      await refreshAiProviderState()
-      setAiApiKey('')
-      pushInfoNotice('notices.aiApiKeyClearedTitle', 'notices.aiApiKeyClearedMessage')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      setAiError(message)
-      pushErrorNotice('notices.aiConnectionErrorTitle', 'notices.aiConnectionErrorMessage', {
-        values: { reason: message },
-      })
-    } finally {
-      setAiLoading(false)
-    }
   }
 
   if (typeof document === 'undefined' || overlayStyle === null) return null
@@ -397,128 +301,7 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
           </div>
         </div>
 
-        <div data-ai-settings="true">
-          <div className="flex items-center justify-between mb-2 gap-3">
-            <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-              {t('ai.connection.title')}
-            </p>
-            {isAIDesktopAvailable() && (
-              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                {aiProviderState?.hasApiKey ? t('ai.connection.ready') : t('ai.connection.notReady')}
-              </span>
-            )}
-          </div>
-
-          {!isAIDesktopAvailable() ? (
-            <div className="text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-              {t('ai.connection.desktopOnly')}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t('ai.connection.baseUrl')}</span>
-                <input
-                  value={aiBaseUrl}
-                  onChange={(event) => setAiBaseUrl(event.target.value)}
-                  className="rounded-lg border px-3 py-2 text-xs outline-none"
-                  style={{
-                    borderColor: 'var(--border)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                  }}
-                  placeholder="https://api.openai.com/v1"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t('ai.connection.model')}</span>
-                <input
-                  value={aiModel}
-                  onChange={(event) => setAiModel(event.target.value)}
-                  className="rounded-lg border px-3 py-2 text-xs outline-none"
-                  style={{
-                    borderColor: 'var(--border)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                  }}
-                  placeholder="gpt-4.1-mini"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="flex items-center justify-between gap-3 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                  <span>{t('ai.connection.project')}</span>
-                  <span>{t('ai.connection.optional')}</span>
-                </span>
-                <input
-                  value={aiProject}
-                  onChange={(event) => setAiProject(event.target.value)}
-                  className="rounded-lg border px-3 py-2 text-xs outline-none"
-                  style={{
-                    borderColor: 'var(--border)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                  }}
-                  placeholder={t('ai.connection.projectPlaceholder')}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t('ai.connection.apiKey')}</span>
-                <input
-                  type="password"
-                  value={aiApiKey}
-                  onChange={(event) => setAiApiKey(event.target.value)}
-                  className="rounded-lg border px-3 py-2 text-xs outline-none"
-                  style={{
-                    borderColor: 'var(--border)',
-                    background: 'var(--bg-primary)',
-                    color: 'var(--text-primary)',
-                  }}
-                  placeholder={
-                    aiProviderState?.hasApiKey
-                      ? t('ai.connection.apiKeyStored')
-                      : t('ai.connection.apiKeyPlaceholder')
-                  }
-                />
-              </label>
-
-              {aiError && (
-                <div className="text-[11px] leading-5" style={{ color: '#dc2626' }}>
-                  {aiError}
-                </div>
-              )}
-
-              {aiLoading && (
-                <div className="text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-                  {t('ai.loadingShort')}
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void saveAiConnection()}
-                  className="rounded-lg px-3 py-2 text-xs font-medium transition-colors"
-                  style={{ background: 'var(--accent)', color: 'white' }}
-                  disabled={aiLoading}
-                >
-                  {t('ai.connection.save')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void clearAiApiKey()}
-                  className="rounded-lg border px-3 py-2 text-xs transition-colors"
-                  style={{
-                    borderColor: 'var(--border)',
-                    color: 'var(--text-secondary)',
-                    background: 'transparent',
-                  }}
-                  disabled={aiLoading || !aiProviderState?.hasApiKey}
-                >
-                  {t('ai.connection.clearKey')}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <AISettingsSection />
       </div>
     </div>,
     document.body

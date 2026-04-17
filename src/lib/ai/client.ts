@@ -32,13 +32,53 @@ export async function loadAIProviderState(): Promise<AIProviderState> {
   if (isAIBrowserMockEnabled()) {
     return {
       config: {
-        provider: 'openai-compatible',
-        baseUrl: 'https://mock.invalid/v1',
+        provider: 'oci-responses',
+        baseUrl: 'https://mock.invalid/openai/v1',
         model: 'mock-ai-model',
-        project: '',
+        project: 'ocid1.project.oc1..mock',
+        unstructuredStores: [
+          {
+            id: 'docs-default',
+            label: 'Product Docs',
+            vectorStoreId: 'vs_mock_docs',
+            description: 'Mock unstructured knowledge base',
+            enabled: true,
+            isDefault: true,
+          },
+        ],
+        structuredStores: [
+          {
+            id: 'data-default',
+            label: 'Analytics Schema',
+            semanticStoreId: 'semantic_mock_analytics',
+            vectorStoreId: 'vs_mock_data',
+            storeOcid: 'ocid1.generativeaivectorstore.oc1..mock',
+            description: 'Mock semantic store',
+            enabled: true,
+            defaultMode: 'sql-draft',
+            executionAgentProfileId: 'hosted-agent-default',
+          },
+        ],
+        hostedAgentProfiles: [
+          {
+            id: 'hosted-agent-default',
+            label: 'Analytics Agent',
+            endpointUrl: 'https://mock.invalid/hosted-agent',
+            invokePath: 'chat',
+            domainUrl: 'https://mock.identity.oraclecloud.com',
+            clientId: 'mock-client-id',
+            scope: 'urn:opc:resource:consumer::all',
+            audience: '',
+            transport: 'http-json',
+            supportedContracts: ['chat-text', 'structured-data-answer'],
+          },
+        ],
       },
       hasApiKey: true,
       storageKind: 'unsupported',
+      hasHostedAgentClientSecretById: {
+        'hosted-agent-default': true,
+      },
     }
   }
 
@@ -70,6 +110,27 @@ export async function clearAIProviderApiKey(): Promise<void> {
 
   assertTauriAIAvailable()
   await invoke('ai_clear_provider_api_key')
+}
+
+export async function storeAIHostedAgentClientSecret(profileId: string, clientSecret: string): Promise<void> {
+  if (isAIBrowserMockEnabled()) {
+    void profileId
+    void clientSecret
+    return
+  }
+
+  assertTauriAIAvailable()
+  await invoke('ai_store_hosted_agent_client_secret', { profileId, clientSecret })
+}
+
+export async function clearAIHostedAgentClientSecret(profileId: string): Promise<void> {
+  if (isAIBrowserMockEnabled()) {
+    void profileId
+    return
+  }
+
+  assertTauriAIAvailable()
+  await invoke('ai_clear_hosted_agent_client_secret', { profileId })
 }
 
 export async function runAICompletion(
@@ -134,8 +195,8 @@ function runBrowserMockCompletion(
   options: AIRunCompletionOptions
 ): Promise<AIRunCompletionResponse> {
   return new Promise((resolve, reject) => {
-    const text = buildBrowserMockText(request)
-    const chunks = buildBrowserMockChunks(text)
+    const response = buildBrowserMockResponse(request)
+    const chunks = buildBrowserMockChunks(response.text)
     let chunkIndex = 0
     const pendingRequest = {
       reject,
@@ -157,9 +218,7 @@ function runBrowserMockCompletion(
 
         mockRequests.delete(request.requestId)
         resolve({
-          text,
-          finishReason: 'stop',
-          model: 'mock-ai-model',
+          ...response,
           requestId: request.requestId,
         })
       }, 220)
@@ -170,42 +229,149 @@ function runBrowserMockCompletion(
   })
 }
 
-function buildBrowserMockText(request: AIRunCompletionRequest): string {
+function buildBrowserMockResponse(request: AIRunCompletionRequest): Omit<AIRunCompletionResponse, 'requestId'> {
   const prompt = request.prompt.toLowerCase()
   if (prompt.includes('[ai-history-ranking]')) {
-    return buildBrowserMockHistoryRerankText(request.prompt)
+    return {
+      text: buildBrowserMockHistoryRerankText(request.prompt),
+      finishReason: 'stop',
+      model: 'mock-ai-model',
+      threadId: request.threadId,
+      contentType: 'text',
+      explanationText: null,
+      warningText: null,
+      sourceLabel: null,
+    }
   }
+
+  if (request.knowledgeSelection.kind === 'oracle-structured-store' && request.knowledgeSelection.mode === 'sql-draft') {
+    return {
+      text: [
+        'SELECT customer_name, total_amount',
+        'FROM sales_orders',
+        'WHERE order_status = \'OPEN\'',
+        'ORDER BY total_amount DESC',
+        'FETCH FIRST 10 ROWS ONLY;',
+      ].join('\n'),
+      finishReason: 'stop',
+      model: 'mock-ai-model',
+      threadId: request.threadId,
+      contentType: 'sql',
+      explanationText: 'Drafted from the selected semantic store using the current natural-language request.',
+      warningText: 'Review table names and predicates before running this SQL against production data.',
+      sourceLabel: 'Analytics Schema',
+    }
+  }
+
+  if (request.executionTargetKind === 'oracle-hosted-agent') {
+    return {
+      text: 'Hosted analytics agent answered the structured query and summarized the result set.',
+      finishReason: 'stop',
+      model: 'mock-hosted-agent',
+      threadId: request.threadId ?? `thread-${Date.now().toString(36)}`,
+      contentType: 'markdown',
+      explanationText: 'Returned by the configured Oracle hosted agent profile.',
+      warningText: null,
+      sourceLabel: 'Analytics Agent',
+    }
+  }
+
   if (prompt.includes('ai-workspace-task') || prompt.includes('workspace execution plan')) {
     const primaryTarget =
       request.context.explicitContextAttachments?.find((attachment) => attachment.kind === 'note')?.label ??
       request.context.fileName
 
-    return [
-      '<!-- ai-workspace-summary -->',
-      '- Coordinate the attached note context into a single workspace pass.',
-      '- Draft one update for an existing note and one follow-up note for review.',
-      '<!-- /ai-workspace-summary -->',
-      '',
-      `<!-- ai-workspace-task action="update-note" target="${primaryTarget}" title="${primaryTarget} Draft" -->`,
-      `# ${stripMarkdownExtension(primaryTarget)} Update`,
-      '',
-      '- Align the key checklist items across the attached notes.',
-      '- Preserve the document structure while tightening the wording.',
-      '<!-- /ai-workspace-task -->',
-      '',
-      '<!-- ai-workspace-task action="create-note" target="release-checklist.md" title="release-checklist.md" -->',
-      '# Release Checklist',
-      '',
-      '- Verify the coordinated workspace changes.',
-      '- Confirm follow-up owners and next review date.',
-      '<!-- /ai-workspace-task -->',
-    ].join('\n')
+    return {
+      text: [
+        '<!-- ai-workspace-summary -->',
+        '- Coordinate the attached note context into a single workspace pass.',
+        '- Draft one update for an existing note and one follow-up note for review.',
+        '<!-- /ai-workspace-summary -->',
+        '',
+        `<!-- ai-workspace-task action="update-note" target="${primaryTarget}" title="${primaryTarget} Draft" -->`,
+        `# ${stripMarkdownExtension(primaryTarget)} Update`,
+        '',
+        '- Align the key checklist items across the attached notes.',
+        '- Preserve the document structure while tightening the wording.',
+        '<!-- /ai-workspace-task -->',
+        '',
+        '<!-- ai-workspace-task action="create-note" target="release-checklist.md" title="release-checklist.md" -->',
+        '# Release Checklist',
+        '',
+        '- Verify the coordinated workspace changes.',
+        '- Confirm follow-up owners and next review date.',
+        '<!-- /ai-workspace-task -->',
+      ].join('\n'),
+      finishReason: 'stop',
+      model: 'mock-ai-model',
+      threadId: request.threadId,
+      contentType: 'markdown',
+      explanationText: null,
+      warningText: null,
+      sourceLabel: null,
+    }
   }
-  if (prompt.includes('translate')) return 'Translated replacement sentence.'
-  if (prompt.includes('continue')) return 'Mock continuation paragraph.'
-  if (prompt.includes('summarize')) return 'Mock summary of the selected content.'
-  if (request.outputTarget === 'chat-only') return 'Mock AI answer.'
-  return 'Mock AI draft.'
+
+  if (request.knowledgeSelection.kind === 'oracle-unstructured-store') {
+    return {
+      text: 'Grounded answer using the selected Oracle document store.',
+      finishReason: 'stop',
+      model: 'mock-ai-model',
+      threadId: request.threadId,
+      contentType: request.outputTarget === 'chat-only' ? 'text' : 'markdown',
+      explanationText: 'Generated with file search over the selected unstructured store.',
+      warningText: null,
+      sourceLabel: 'Product Docs',
+    }
+  }
+
+  if (prompt.includes('translate')) {
+    return {
+      text: 'Translated replacement sentence.',
+      finishReason: 'stop',
+      model: 'mock-ai-model',
+      threadId: request.threadId,
+      contentType: 'markdown',
+      explanationText: null,
+      warningText: null,
+      sourceLabel: null,
+    }
+  }
+  if (prompt.includes('continue')) {
+    return {
+      text: 'Mock continuation paragraph.',
+      finishReason: 'stop',
+      model: 'mock-ai-model',
+      threadId: request.threadId,
+      contentType: 'markdown',
+      explanationText: null,
+      warningText: null,
+      sourceLabel: null,
+    }
+  }
+  if (prompt.includes('summarize')) {
+    return {
+      text: 'Mock summary of the selected content.',
+      finishReason: 'stop',
+      model: 'mock-ai-model',
+      threadId: request.threadId,
+      contentType: request.outputTarget === 'chat-only' ? 'text' : 'markdown',
+      explanationText: null,
+      warningText: null,
+      sourceLabel: null,
+    }
+  }
+
+  return {
+    text: request.outputTarget === 'chat-only' ? 'Mock AI answer.' : 'Mock AI draft.',
+    finishReason: 'stop',
+    model: 'mock-ai-model',
+    threadId: request.threadId,
+    contentType: request.outputTarget === 'chat-only' ? 'text' : 'markdown',
+    explanationText: null,
+    warningText: null,
+    sourceLabel: null,
+  }
 }
 
 function buildBrowserMockHistoryRerankText(prompt: string): string {
@@ -226,7 +392,8 @@ function buildBrowserMockHistoryRerankText(prompt: string): string {
       .map((candidate, index) => {
         const id = typeof candidate.id === 'string' ? candidate.id : ''
         if (!id) return null
-        const haystack = `${candidate.prompt ?? ''} ${candidate.resultPreview ?? ''} ${candidate.documentName ?? ''}`.toLowerCase()
+        const haystack =
+          `${candidate.prompt ?? ''} ${candidate.resultPreview ?? ''} ${candidate.documentName ?? ''}`.toLowerCase()
         const overlap = query
           .split(/\s+/u)
           .filter((token) => token.length > 1 && haystack.includes(token)).length
@@ -264,5 +431,5 @@ function buildBrowserMockChunks(text: string): string[] {
 }
 
 function stripMarkdownExtension(value: string): string {
-  return value.replace(/\.(md|markdown|mdx|txt)$/iu, '')
+  return value.replace(/\.md$/iu, '')
 }

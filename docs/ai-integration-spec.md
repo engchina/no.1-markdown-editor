@@ -342,14 +342,16 @@ Do not start polishing sidebar/thread UI before contracts, apply semantics, and 
 ### T9. Settings
 
 - [x] Add AI settings surface.
-- [x] Add provider config fields:
+- [x] Add direct provider config fields:
+  - provider kind
   - base URL
   - model
+  - project
   - API key
-- [x] Add default output target preference.
-- [x] Add default selection role preference if needed.
-- [x] Add privacy copy explaining what context is sent.
-- [x] Add desktop-only fallback messaging if secure storage is unavailable in web mode.
+- [x] Add Oracle unstructured store registrations.
+- [x] Add Oracle structured store registrations.
+- [x] Add Oracle hosted agent profiles with secure client-secret storage.
+- [x] Keep desktop-only fallback messaging if secure storage is unavailable in web mode.
 
 ### T10. Prompt And Markdown Safety
 
@@ -362,6 +364,13 @@ Do not start polishing sidebar/thread UI before contracts, apply semantics, and 
 - [x] Strip useless wrappers like redundant fenced `markdown` blocks when safe.
 - [x] Preserve links, tables, code fences, Mermaid, math, headings, and front matter.
 - [x] Add language-aware translation prompts for `zh`, `en`, `ja`.
+
+### T12. Oracle Knowledge And Agent Routing
+
+- [x] Route Oracle unstructured knowledge through `Responses API + file_search`.
+- [x] Route Oracle structured SQL draft generation through `GenerateSqlFromNl`.
+- [x] Route Oracle structured execute-and-answer through hosted agent profiles.
+- [x] Keep SQL draft results in a dedicated SQL-oriented preview instead of treating them as normal Markdown text.
 
 ### T11. i18n
 

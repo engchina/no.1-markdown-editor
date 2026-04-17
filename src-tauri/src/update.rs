@@ -59,10 +59,10 @@ pub async fn check_for_app_update<R: tauri::Runtime>(
     let latest_release = fetch_latest_release().await?;
     let latest_version = normalize_version(&latest_release.tag_name)?;
 
-    let current_semver =
-        Version::parse(&current_version).map_err(|error| format!("Invalid current version: {error}"))?;
-    let latest_semver =
-        Version::parse(&latest_version).map_err(|error| format!("Invalid latest version: {error}"))?;
+    let current_semver = Version::parse(&current_version)
+        .map_err(|error| format!("Invalid current version: {error}"))?;
+    let latest_semver = Version::parse(&latest_version)
+        .map_err(|error| format!("Invalid latest version: {error}"))?;
 
     let selected_asset = select_best_asset(
         &latest_release.assets,
@@ -151,11 +151,7 @@ fn current_update_architecture() -> UpdateArchitecture {
     {
         UpdateArchitecture::X86
     }
-    #[cfg(not(any(
-        target_arch = "x86_64",
-        target_arch = "aarch64",
-        target_arch = "x86"
-    )))]
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "x86")))]
     {
         UpdateArchitecture::Other
     }
@@ -229,9 +225,15 @@ fn mentions_other_platform(name: &str, platform: UpdatePlatform) -> bool {
     let linux_tokens = ["linux", "appimage", ".deb", ".rpm"];
 
     match platform {
-        UpdatePlatform::Windows => contains_any(name, &mac_tokens) || contains_any(name, &linux_tokens),
-        UpdatePlatform::Macos => contains_any(name, &windows_tokens) || contains_any(name, &linux_tokens),
-        UpdatePlatform::Linux => contains_any(name, &windows_tokens) || contains_any(name, &mac_tokens),
+        UpdatePlatform::Windows => {
+            contains_any(name, &mac_tokens) || contains_any(name, &linux_tokens)
+        }
+        UpdatePlatform::Macos => {
+            contains_any(name, &windows_tokens) || contains_any(name, &linux_tokens)
+        }
+        UpdatePlatform::Linux => {
+            contains_any(name, &windows_tokens) || contains_any(name, &mac_tokens)
+        }
     }
 }
 
@@ -279,7 +281,9 @@ fn architecture_match_score(name: &str, architecture: UpdateArchitecture) -> Opt
 fn mentions_any_architecture(name: &str) -> bool {
     contains_any(
         name,
-        &["x86_64", "x64", "amd64", "arm64", "aarch64", "i686", "ia32", "x86"],
+        &[
+            "x86_64", "x64", "amd64", "arm64", "aarch64", "i686", "ia32", "x86",
+        ],
     )
 }
 
@@ -321,13 +325,23 @@ mod tests {
     #[test]
     fn windows_prefers_msi_and_matching_architecture() {
         let assets = vec![
-            asset("No1MarkdownEditor_0.13.0_arm64.exe", "https://example.com/arm64.exe"),
-            asset("No1MarkdownEditor_0.13.0_x64.exe", "https://example.com/x64.exe"),
-            asset("No1MarkdownEditor_0.13.0_x64.msi", "https://example.com/x64.msi"),
+            asset(
+                "No1MarkdownEditor_0.13.0_arm64.exe",
+                "https://example.com/arm64.exe",
+            ),
+            asset(
+                "No1MarkdownEditor_0.13.0_x64.exe",
+                "https://example.com/x64.exe",
+            ),
+            asset(
+                "No1MarkdownEditor_0.13.0_x64.msi",
+                "https://example.com/x64.msi",
+            ),
         ];
 
-        let selected = select_best_asset(&assets, UpdatePlatform::Windows, UpdateArchitecture::X86_64)
-            .expect("expected a windows installer");
+        let selected =
+            select_best_asset(&assets, UpdatePlatform::Windows, UpdateArchitecture::X86_64)
+                .expect("expected a windows installer");
 
         assert_eq!(selected.name, "No1MarkdownEditor_0.13.0_x64.msi");
     }
@@ -335,52 +349,85 @@ mod tests {
     #[test]
     fn macos_prefers_dmg() {
         let assets = vec![
-            asset("No1MarkdownEditor_0.13.0_windows_x64.msi", "https://example.com/windows.msi"),
-            asset("No1MarkdownEditor_0.13.0_macos_universal.dmg", "https://example.com/macos.dmg"),
+            asset(
+                "No1MarkdownEditor_0.13.0_windows_x64.msi",
+                "https://example.com/windows.msi",
+            ),
+            asset(
+                "No1MarkdownEditor_0.13.0_macos_universal.dmg",
+                "https://example.com/macos.dmg",
+            ),
         ];
 
-        let selected = select_best_asset(&assets, UpdatePlatform::Macos, UpdateArchitecture::AArch64)
-            .expect("expected a macOS installer");
+        let selected =
+            select_best_asset(&assets, UpdatePlatform::Macos, UpdateArchitecture::AArch64)
+                .expect("expected a macOS installer");
 
-        assert_eq!(selected.name, "No1MarkdownEditor_0.13.0_macos_universal.dmg");
+        assert_eq!(
+            selected.name,
+            "No1MarkdownEditor_0.13.0_macos_universal.dmg"
+        );
     }
 
     #[test]
     fn linux_prefers_appimage_then_deb_then_rpm() {
         let assets = vec![
-            asset("No1MarkdownEditor_0.13.0_linux_x86_64.rpm", "https://example.com/linux.rpm"),
-            asset("No1MarkdownEditor_0.13.0_linux_x86_64.deb", "https://example.com/linux.deb"),
+            asset(
+                "No1MarkdownEditor_0.13.0_linux_x86_64.rpm",
+                "https://example.com/linux.rpm",
+            ),
+            asset(
+                "No1MarkdownEditor_0.13.0_linux_x86_64.deb",
+                "https://example.com/linux.deb",
+            ),
             asset(
                 "No1MarkdownEditor_0.13.0_linux_x86_64.AppImage",
                 "https://example.com/linux.appimage",
             ),
         ];
 
-        let selected = select_best_asset(&assets, UpdatePlatform::Linux, UpdateArchitecture::X86_64)
-            .expect("expected a linux installer");
+        let selected =
+            select_best_asset(&assets, UpdatePlatform::Linux, UpdateArchitecture::X86_64)
+                .expect("expected a linux installer");
 
-        assert_eq!(selected.name, "No1MarkdownEditor_0.13.0_linux_x86_64.AppImage");
+        assert_eq!(
+            selected.name,
+            "No1MarkdownEditor_0.13.0_linux_x86_64.AppImage"
+        );
     }
 
     #[test]
     fn unsupported_assets_fall_back_to_release_page() {
         let assets = vec![
-            asset("No1MarkdownEditor_0.13.0_source.zip", "https://example.com/source.zip"),
-            asset("No1MarkdownEditor_0.13.0_checksums.txt", "https://example.com/checksums.txt"),
+            asset(
+                "No1MarkdownEditor_0.13.0_source.zip",
+                "https://example.com/source.zip",
+            ),
+            asset(
+                "No1MarkdownEditor_0.13.0_checksums.txt",
+                "https://example.com/checksums.txt",
+            ),
         ];
 
-        let selected = select_best_asset(&assets, UpdatePlatform::Windows, UpdateArchitecture::X86_64);
+        let selected =
+            select_best_asset(&assets, UpdatePlatform::Windows, UpdateArchitecture::X86_64);
         assert!(selected.is_none());
     }
 
     #[test]
     fn explicit_architecture_mismatch_is_rejected() {
         assert_eq!(
-            architecture_match_score("No1MarkdownEditor_0.13.0_arm64.dmg", UpdateArchitecture::X86_64),
+            architecture_match_score(
+                "No1MarkdownEditor_0.13.0_arm64.dmg",
+                UpdateArchitecture::X86_64
+            ),
             None
         );
         assert_eq!(
-            architecture_match_score("No1MarkdownEditor_0.13.0_x64.msi", UpdateArchitecture::X86_64),
+            architecture_match_score(
+                "No1MarkdownEditor_0.13.0_x64.msi",
+                UpdateArchitecture::X86_64
+            ),
             Some(2)
         );
     }

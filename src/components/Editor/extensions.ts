@@ -80,10 +80,7 @@ export const lightTheme = EditorView.theme(
       background: 'transparent',
       borderRadius: '0',
       borderBottom: 'none',
-      textDecoration: 'underline',
-      textDecorationStyle: 'dashed',
-      textDecorationColor: 'color-mix(in srgb, var(--accent) 34%, var(--border))',
-      textUnderlineOffset: '0.18em',
+      textDecoration: 'none',
     },
   },
   { dark: false }

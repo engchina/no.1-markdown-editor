@@ -12,6 +12,10 @@ test('AI rust backend normalizes timeout, auth, rate limit, and malformed respon
   assert.match(rust, /AI service returned a malformed response/)
   assert.match(rust, /"stream": true/)
   assert.match(rust, /AI_COMPLETION_STREAM_EVENT/)
+  assert.match(rust, /"tool_choice"/)
+  assert.match(rust, /file_search_call\.results/)
+  assert.match(rust, /must call the file_search tool before answering/)
+  assert.match(rust, /Selected document store did not execute retrieval/)
 })
 
 test('AIComposer avoids desktop provider loading in web mode and shows desktop-only fallback messaging', async () => {
@@ -30,6 +34,6 @@ test('AI client listens for streamed completion chunks and browser mock emits ch
   assert.match(client, /AI_COMPLETION_STREAM_EVENT = 'ai:completion-stream'/)
   assert.match(client, /currentWindow\.listen<AICompletionStreamChunk>\(/)
   assert.match(client, /options\.onChunk\?\.\(payload\.chunk\)/)
-  assert.match(client, /const chunks = buildBrowserMockChunks\(text\)/)
+  assert.match(client, /const chunks = buildBrowserMockChunks\(response\.text\)/)
   assert.match(client, /options\.onChunk\?\.\(nextChunk\)/)
 })
