@@ -78,6 +78,14 @@ test('table cell text helpers preserve boundary spaces for inline editors', () =
   assert.equal(encodeMarkdownTableCellText('a b'), 'a b')
 })
 
+test('table cell text helpers round-trip <br /> markup as newline characters', () => {
+  assert.equal(decodeMarkdownTableCellText('line one<br />line two'), 'line one\nline two')
+  assert.equal(decodeMarkdownTableCellText('a<br/>b<br>c'), 'a\nb\nc')
+  assert.equal(encodeMarkdownTableCellText('line one\nline two'), 'line one<br />line two')
+  assert.equal(encodeMarkdownTableCellText('a\nb\nc'), 'a<br />b<br />c')
+  assert.equal(encodeMarkdownTableCellText(' a\nb '), '&nbsp;a<br />b&nbsp;')
+})
+
 test('table cell offset helpers keep encoded boundary spaces aligned with the inline editor selection', () => {
   const raw = '&nbsp;left \\| right&nbsp;'
   const display = ' left | right '
@@ -118,7 +126,7 @@ test('table cell navigation moves across the header and body grid', () => {
   })
 })
 
-test('table key actions resolve Typora-style enter, backspace, tab, shift-tab, ctrl-enter, and shift-enter behavior', () => {
+test('table key actions resolve Typora-style enter, backspace, tab, shift-tab, ctrl-enter, shift-enter, and navigation behavior', () => {
   const markdown = [
     '| Left | Right |',
     '| --- | ---: |',
@@ -153,13 +161,47 @@ test('table key actions resolve Typora-style enter, backspace, tab, shift-tab, c
   })
   assert.deepEqual(resolveTableKeyAction(table, { section: 'body', rowIndex: 1, columnIndex: 1 }, 'enter'), {
     kind: 'exit-table',
+    direction: 'after',
   })
   assert.deepEqual(resolveTableKeyAction(table, { section: 'body', rowIndex: 1, columnIndex: 1 }, 'arrow-down'), {
     kind: 'exit-table',
+    direction: 'after',
   })
   assert.deepEqual(resolveTableKeyAction(table, { section: 'body', rowIndex: 0, columnIndex: 1 }, 'shift-enter'), {
     kind: 'insert-inline-break',
     insertText: '<br />',
+  })
+  assert.deepEqual(resolveTableKeyAction(table, { section: 'body', rowIndex: 0, columnIndex: 0 }, 'arrow-left'), {
+    kind: 'focus-cell',
+    location: { section: 'head', rowIndex: 0, columnIndex: 1 },
+    selectionBehavior: 'end',
+  })
+  assert.deepEqual(resolveTableKeyAction(table, { section: 'head', rowIndex: 0, columnIndex: 0 }, 'arrow-left'), {
+    kind: 'noop',
+  })
+  assert.deepEqual(resolveTableKeyAction(table, { section: 'body', rowIndex: 0, columnIndex: 0 }, 'arrow-right'), {
+    kind: 'focus-cell',
+    location: { section: 'body', rowIndex: 0, columnIndex: 1 },
+    selectionBehavior: 'start',
+  })
+  assert.deepEqual(resolveTableKeyAction(table, { section: 'body', rowIndex: 1, columnIndex: 1 }, 'arrow-right'), {
+    kind: 'noop',
+  })
+  assert.deepEqual(resolveTableKeyAction(table, { section: 'body', rowIndex: 0, columnIndex: 0 }, 'delete'), {
+    kind: 'focus-cell',
+    location: { section: 'body', rowIndex: 0, columnIndex: 1 },
+    selectionBehavior: 'start',
+  })
+  assert.deepEqual(resolveTableKeyAction(table, { section: 'body', rowIndex: 1, columnIndex: 1 }, 'delete'), {
+    kind: 'noop',
+  })
+  assert.deepEqual(resolveTableKeyAction(table, { section: 'body', rowIndex: 0, columnIndex: 0 }, 'escape'), {
+    kind: 'exit-table',
+    direction: 'after',
+  })
+  assert.deepEqual(resolveTableKeyAction(table, { section: 'head', rowIndex: 0, columnIndex: 1 }, 'escape'), {
+    kind: 'exit-table',
+    direction: 'after',
   })
 })
 
@@ -196,15 +238,7 @@ test('table row insertion plans target the next body row slot for tab boundaries
   )
   assert.deepEqual(
     resolveTableKeyAction(table, { section: 'head', rowIndex: 0, columnIndex: 0 }, 'shift-tab'),
-    {
-      kind: 'insert-body-row-below',
-      plan: {
-        insertFrom: table.rows[0].from,
-        insertText: '|  |  |\n',
-        focusAnchor: table.rows[0].from + 1,
-        focusLocation: { section: 'body', rowIndex: 0, columnIndex: 0 },
-      },
-    }
+    { kind: 'exit-table', direction: 'before' }
   )
   assert.deepEqual(
     resolveTableKeyAction(table, { section: 'body', rowIndex: 0, columnIndex: 0 }, 'ctrl-enter'),
@@ -260,11 +294,16 @@ test('blank-line selection detection only matches the immediate empty line below
 
 test('wysiwyg table integration keeps the table rendered while exposing an inline cell editor', async () => {
   const source = await readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8')
+  const tableSource = await readFile(new URL('../src/components/Editor/wysiwygTable.ts', import.meta.url), 'utf8')
 
   assert.match(source, /class TableWidget extends WidgetType/u)
   assert.match(source, /wrapper\.className = 'cm-wysiwyg-table'/u)
   assert.match(source, /wrapper\.dataset\.tableEditStart = String\(table\.editAnchor\)/u)
   assert.match(source, /new TableWidget\(table, activeTableCellForTable\)/u)
+  assert.match(source, /function createTableToolbarDom\(\): HTMLDivElement \{/u)
+  assert.match(source, /function syncTableToolbarDom\(/u)
+  assert.match(source, /function applyTableToolbarAction\(/u)
+  assert.match(source, /toolbar\.className = 'cm-wysiwyg-table__toolbar'/u)
   assert.match(source, /element\.dataset\.tableColumnKind = columnKind/u)
   assert.match(source, /element\.dataset\.tableEditStart = String\(cell\.editAnchor\)/u)
   assert.match(source, /input\.dataset\.tableEditStart = String\(cell\.editAnchor\)/u)
@@ -273,16 +312,19 @@ test('wysiwyg table integration keeps the table rendered while exposing an inlin
   assert.match(source, /function readRenderedTableColumnWidths\(target: HTMLElement \| null\): readonly number\[\] \| null/u)
   assert.match(source, /syncTableColumnWidthColGroup\(/u)
   assert.match(source, /input\.className = 'cm-wysiwyg-table__input'/u)
-  assert.match(source, /input\.type = 'text'/u)
+  assert.match(source, /document\.createElement\('textarea'\)/u)
   assert.match(source, /decodeMarkdownTableCellText\(cell\.text\)/u)
   assert.match(source, /encodeMarkdownTableCellText\(input\.value\)/u)
   assert.match(source, /ensureTableInputKeydownBinding\(input\)/u)
   assert.match(source, /input\.addEventListener\('keydown', handleNativeTableInputKeydown\)/u)
+  assert.match(source, /input\.addEventListener\('paste', handleNativeTableInputPaste\)/u)
+  assert.match(source, /function sanitizeTableCellPasteText\(text: string\): string \{[\s\S]*?replace\(\/\\r\\n\?\/g, '\\n'\)[\s\S]*?replace\(\/\\t\+\/g, ' '\)/u)
   assert.match(source, /const view = EditorView\.findFromDOM\(input\)/u)
   assert.match(source, /event\.stopPropagation\(\)/u)
   assert.match(source, /isPlainBackspaceForEmptyTableCell\(event, input\)/u)
   assert.match(source, /applyTableKeyCommand\(view, input, 'backspace'\)/u)
-  assert.match(source, /const command = resolveTableKeyCommand\(event\)/u)
+  assert.match(source, /const command = resolveTableKeyCommand\(event, input\)/u)
+  assert.match(source, /if \(event\.shiftKey\) return 'shift-enter'/u)
   assert.match(source, /const action = resolveTableKeyAction\(resolved\.table, resolved\.location, command\)/u)
   assert.match(source, /case 'insert-body-row-below':[\s\S]*?insertTableBodyRowBelow/u)
   assert.match(source, /case 'insert-inline-break':[\s\S]*?insertInlineBreakInTableCell/u)
@@ -294,9 +336,13 @@ test('wysiwyg table integration keeps the table rendered while exposing an inlin
   assert.match(source, /queueFocusTableCellInput\(view, nextActiveTableCell\)/u)
   assert.match(source, /function queueFocusTableCellInput\([\s\S]*?const focusInput = \(\) => \{[\s\S]*?input\.focus\(\{ preventScroll: true \}\)[\s\S]*?setTimeout\(focusInput, 0\)[\s\S]*?requestAnimationFrame\(focusInput\)[\s\S]*?requestAnimationFrame\(\(\) => requestAnimationFrame\(focusInput\)\)/u)
   assert.match(source, /function resolveTableColumnKind\(table: MarkdownTableBlock, columnIndex: number\): 'text' \| 'numeric'/u)
-  assert.ok(source.includes("function isCompactNumericCell(value: string): boolean {"))
-  assert.ok(source.includes("(?:[$€£¥₹]\\s*)?"))
+  assert.match(source, /const NUMERIC_CELL_RE = /u)
+  assert.ok(source.includes('(?:[$€£¥₹]\\s*)?'))
+  assert.match(source, /function isCompactNumericCell\(value: string\): boolean \{[\s\S]*?return NUMERIC_CELL_RE\.test\(value\)/u)
   assert.match(source, /function activateTable\(view: EditorView, target: EventTarget \| null\): boolean \{/u)
+  assert.match(source, /paste\(event, view\) \{[\s\S]*?handleDocumentClipboardTablePaste\(event, view\)/u)
+  assert.match(source, /function handleDocumentClipboardTablePaste\(event: ClipboardEvent, view: EditorView\): boolean \{/u)
+  assert.match(source, /convertClipboardToMarkdownTable\(\{/u)
   assert.match(source, /const wysiwygTableDecorationField = StateField\.define<WysiwygTableDecorationState>\(/u)
   assert.match(source, /EditorView\.decorations\.from\(field, \(value\) => value\.decorations\)/u)
   assert.match(source, /export const wysiwygTableDecorations = \[wysiwygTableDecorationField, wysiwygGutterClassField\]/u)
@@ -320,6 +366,9 @@ test('wysiwyg table integration keeps the table rendered while exposing an inlin
   assert.ok(source.includes(`'.cm-wysiwyg-table__head-cell[data-table-column-kind="numeric"], .cm-wysiwyg-table__cell[data-table-column-kind="numeric"]': {`))
   assert.ok(source.includes(`width: '1%'`))
   assert.ok(source.includes(`whiteSpace: 'nowrap'`))
+  assert.match(tableSource, /const TABLE_NAVIGATION_ROWS_CACHE = new WeakMap/u)
+  assert.match(tableSource, /function getTableNavigationRows\(table: MarkdownTableBlock\): readonly MarkdownTableRow\[\] \{/u)
+  assert.match(tableSource, /const rows = getTableNavigationRows\(table\)/u)
 })
 
 test('wysiwyg table exit path restores editor focus after moving below the table', async () => {

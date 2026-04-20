@@ -53,7 +53,16 @@ import {
   type WysiwygTableCellSelectionBehavior,
   type WysiwygTableKeyCommand,
   type WysiwygTableRowInsertionPlan,
+  resolveInsertTableRow,
+  resolveInsertTableColumn,
+  resolveDeleteTableRow,
+  resolveDeleteTableColumn,
+  resolveSetTableColumnAlignment,
+  type TableStructuralEditPlan,
 } from './wysiwygTable.ts'
+import { convertClipboardToMarkdownTable } from './tablePasteConverter.ts'
+import type { TableAlignment } from './tableBlockRanges.ts'
+import i18n from '../../i18n/index.ts'
 
 // ── Widgets ────────────────────────────────────────────────────────────────
 
@@ -167,6 +176,172 @@ class TableWidget extends WidgetType {
 
 const ACTIVE_TABLE_COLUMN_WIDTH_SNAPSHOTS = new Map<number, readonly number[]>()
 const TABLE_EDITING_CLASS = 'cm-wysiwyg-table-editing'
+const NUMERIC_CELL_RE = /^[+\-]?(?:[$€£¥₹]\s*)?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?%?$/u
+
+type TableToolbarAction =
+  | { kind: 'insert-row'; position: 'above' | 'below' }
+  | { kind: 'insert-column'; side: 'left' | 'right' }
+  | { kind: 'delete-row' }
+  | { kind: 'delete-column' }
+  | { kind: 'set-alignment'; alignment: TableAlignment }
+
+interface TableToolbarButtonSpec {
+  actionId: string
+  labelKey: string
+  glyph: string
+  action: TableToolbarAction
+  alignment?: TableAlignment
+}
+
+const TABLE_TOOLBAR_BUTTONS: readonly TableToolbarButtonSpec[] = [
+  { actionId: 'insert-row-above', labelKey: 'wysiwygTable.insertRowAbove', glyph: '⬆︎＋', action: { kind: 'insert-row', position: 'above' } },
+  { actionId: 'insert-row-below', labelKey: 'wysiwygTable.insertRowBelow', glyph: '⬇︎＋', action: { kind: 'insert-row', position: 'below' } },
+  { actionId: 'insert-column-left', labelKey: 'wysiwygTable.insertColumnLeft', glyph: '⬅︎＋', action: { kind: 'insert-column', side: 'left' } },
+  { actionId: 'insert-column-right', labelKey: 'wysiwygTable.insertColumnRight', glyph: '➡︎＋', action: { kind: 'insert-column', side: 'right' } },
+  { actionId: 'delete-row', labelKey: 'wysiwygTable.deleteRow', glyph: '−▭', action: { kind: 'delete-row' } },
+  { actionId: 'delete-column', labelKey: 'wysiwygTable.deleteColumn', glyph: '−▯', action: { kind: 'delete-column' } },
+  { actionId: 'align-left', labelKey: 'wysiwygTable.alignLeft', glyph: '⟸', action: { kind: 'set-alignment', alignment: 'left' }, alignment: 'left' },
+  { actionId: 'align-center', labelKey: 'wysiwygTable.alignCenter', glyph: '⇔', action: { kind: 'set-alignment', alignment: 'center' }, alignment: 'center' },
+  { actionId: 'align-right', labelKey: 'wysiwygTable.alignRight', glyph: '⟹', action: { kind: 'set-alignment', alignment: 'right' }, alignment: 'right' },
+  { actionId: 'align-default', labelKey: 'wysiwygTable.alignDefault', glyph: '⇠⇢', action: { kind: 'set-alignment', alignment: null }, alignment: null },
+]
+
+function createTableToolbarDom(): HTMLDivElement {
+  const toolbar = document.createElement('div')
+  toolbar.className = 'cm-wysiwyg-table__toolbar'
+  toolbar.setAttribute('role', 'toolbar')
+  toolbar.dataset.wysiwygTableToolbar = 'true'
+
+  TABLE_TOOLBAR_BUTTONS.forEach((spec) => {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = `cm-wysiwyg-table__toolbar-button cm-wysiwyg-table__toolbar-button--${spec.actionId}`
+    button.dataset.wysiwygTableAction = spec.actionId
+    button.textContent = spec.glyph
+    button.addEventListener('mousedown', preventTableToolbarBlur)
+    button.addEventListener('click', handleTableToolbarClick)
+    toolbar.appendChild(button)
+  })
+
+  return toolbar
+}
+
+function syncTableToolbarDom(
+  toolbar: HTMLDivElement,
+  table: MarkdownTableBlock,
+  activeCell: ActiveWysiwygTableCell | null
+): void {
+  toolbar.hidden = activeCell === null
+  toolbar.setAttribute('aria-label', i18n.t('wysiwygTable.toolbarLabel'))
+  toolbar.dataset.tableFrom = String(table.from)
+
+  const columnCount = table.header.cells.length
+  const canDeleteColumn = columnCount > 2
+  const canDeleteRow = activeCell !== null && activeCell.section === 'body' && table.rows.length > 0
+  const activeColumnAlignment = activeCell ? table.alignments[activeCell.columnIndex] ?? null : null
+
+  const children = toolbar.children
+  TABLE_TOOLBAR_BUTTONS.forEach((spec, index) => {
+    const button = children[index]
+    if (!(button instanceof HTMLButtonElement)) return
+
+    const label = i18n.t(spec.labelKey)
+    button.title = label
+    button.setAttribute('aria-label', label)
+
+    let disabled = false
+    if (spec.action.kind === 'delete-row') disabled = !canDeleteRow
+    else if (spec.action.kind === 'delete-column') disabled = !canDeleteColumn
+
+    button.disabled = disabled
+    button.toggleAttribute('aria-pressed', spec.alignment !== undefined && activeColumnAlignment === spec.alignment)
+  })
+}
+
+function preventTableToolbarBlur(event: MouseEvent): void {
+  event.preventDefault()
+}
+
+function handleTableToolbarClick(event: MouseEvent): void {
+  const button = event.currentTarget
+  if (!(button instanceof HTMLButtonElement) || button.disabled) return
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  const actionId = button.dataset.wysiwygTableAction
+  const spec = TABLE_TOOLBAR_BUTTONS.find((entry) => entry.actionId === actionId)
+  if (!spec) return
+
+  const editorRoot = button.closest<HTMLElement>('.cm-editor')
+  const view = editorRoot ? EditorView.findFromDOM(editorRoot) : null
+  if (!view) return
+
+  applyTableToolbarAction(view, button, spec.action)
+}
+
+function applyTableToolbarAction(
+  view: EditorView,
+  button: HTMLButtonElement,
+  action: TableToolbarAction
+): void {
+  const plugin = getWysiwygPluginState(view)
+  if (!plugin) return
+
+  const activeCell = plugin.activeTableCell
+  if (!activeCell) return
+
+  const table = plugin.tables.find((entry) => entry.from === activeCell.tableFrom)
+  if (!table) return
+
+  const location: MarkdownTableCellLocation = {
+    section: activeCell.section,
+    rowIndex: activeCell.rowIndex,
+    columnIndex: activeCell.columnIndex,
+  }
+
+  let plan: TableStructuralEditPlan | null = null
+  switch (action.kind) {
+    case 'insert-row':
+      plan = resolveInsertTableRow(table, location, action.position)
+      break
+    case 'insert-column':
+      plan = resolveInsertTableColumn(table, location, action.side)
+      break
+    case 'delete-row':
+      plan = resolveDeleteTableRow(table, location)
+      break
+    case 'delete-column':
+      plan = resolveDeleteTableColumn(table, location)
+      break
+    case 'set-alignment':
+      plan = resolveSetTableColumnAlignment(table, location.columnIndex, action.alignment)
+      break
+  }
+
+  if (!plan) return
+
+  const nextActiveTableCell = buildActiveTableCell(table.from, plan.focusLocation, 0, 0)
+
+  const focusedInput = button.closest<HTMLElement>('.cm-wysiwyg-table')?.querySelector<HTMLTextAreaElement>('.cm-wysiwyg-table__input')
+  focusedInput?.blur()
+
+  view.dispatch({
+    changes: { from: plan.from, to: plan.to, insert: plan.insert },
+    selection: { anchor: plan.from + plan.insert.length },
+    userEvent: 'input',
+    scrollIntoView: true,
+  })
+  queueActivateTableCellInput(view, nextActiveTableCell)
+}
+
+function pruneTableColumnWidthSnapshots(tables: readonly MarkdownTableBlock[]): void {
+  if (ACTIVE_TABLE_COLUMN_WIDTH_SNAPSHOTS.size === 0) return
+  const alive = new Set(tables.map((table) => table.from))
+  for (const key of ACTIVE_TABLE_COLUMN_WIDTH_SNAPSHOTS.keys()) {
+    if (!alive.has(key)) ACTIVE_TABLE_COLUMN_WIDTH_SNAPSHOTS.delete(key)
+  }
+}
 
 function readRenderedTableColumnWidths(target: HTMLElement | null): readonly number[] | null {
   const grid = target?.closest<HTMLTableElement>('.cm-wysiwyg-table__grid')
@@ -227,9 +402,17 @@ function syncTableWidgetDom(
   wrapper.dataset.tableFrom = String(table.from)
   wrapper.setAttribute('aria-label', 'Edit table')
 
-  let surface = wrapper.firstElementChild
-  if (!(surface instanceof HTMLDivElement) || !surface.classList.contains('cm-wysiwyg-table__surface')) {
+  let toolbar = wrapper.firstElementChild
+  if (!(toolbar instanceof HTMLDivElement) || !toolbar.classList.contains('cm-wysiwyg-table__toolbar')) {
     wrapper.replaceChildren()
+    toolbar = createTableToolbarDom()
+    wrapper.appendChild(toolbar)
+  }
+  syncTableToolbarDom(toolbar as HTMLDivElement, table, activeCell)
+
+  let surface = toolbar.nextElementSibling
+  if (!(surface instanceof HTMLDivElement) || !surface.classList.contains('cm-wysiwyg-table__surface')) {
+    while (toolbar.nextSibling) wrapper.removeChild(toolbar.nextSibling)
     surface = document.createElement('div')
     surface.className = 'cm-wysiwyg-table__surface'
     wrapper.appendChild(surface)
@@ -370,12 +553,14 @@ function syncTableEditorInput(
   location: MarkdownTableCellLocation,
   activeCell: ActiveWysiwygTableCell
 ): void {
-  let input = element.firstElementChild as HTMLInputElement | null
-  if (!(input instanceof HTMLInputElement) || !input.classList.contains('cm-wysiwyg-table__input')) {
+  let input = element.firstElementChild as HTMLTextAreaElement | null
+  if (!(input instanceof HTMLTextAreaElement) || !input.classList.contains('cm-wysiwyg-table__input')) {
     element.replaceChildren()
-    input = document.createElement('input')
+    input = document.createElement('textarea')
     input.className = 'cm-wysiwyg-table__input'
-    input.type = 'text'
+    input.rows = 1
+    input.spellcheck = false
+    input.wrap = 'soft'
     element.appendChild(input)
   }
 
@@ -393,10 +578,16 @@ function syncTableEditorInput(
   input.setAttribute('aria-label', `Edit table cell ${location.rowIndex + 1}:${location.columnIndex + 1}`)
   ensureTableInputKeydownBinding(input)
   syncTextInputSelection(input, activeCell.selectionStart, activeCell.selectionEnd)
+  syncTableInputAutoHeight(input)
+}
+
+function syncTableInputAutoHeight(input: HTMLTextAreaElement): void {
+  input.style.height = 'auto'
+  input.style.height = `${input.scrollHeight}px`
 }
 
 function syncTextInputSelection(
-  input: HTMLInputElement,
+  input: HTMLTextAreaElement,
   selectionStart: number,
   selectionEnd: number
 ): void {
@@ -412,15 +603,46 @@ function syncTextInputSelection(
   }
 }
 
-function ensureTableInputKeydownBinding(input: HTMLInputElement): void {
+function ensureTableInputKeydownBinding(input: HTMLTextAreaElement): void {
   if (input.dataset.tableKeydownBound === 'true') return
   input.dataset.tableKeydownBound = 'true'
   input.addEventListener('keydown', handleNativeTableInputKeydown)
+  input.addEventListener('paste', handleNativeTableInputPaste)
+}
+
+function handleNativeTableInputPaste(event: ClipboardEvent): void {
+  const input = event.currentTarget
+  if (!(input instanceof HTMLTextAreaElement)) return
+
+  const clipboardText = event.clipboardData?.getData('text/plain')
+  if (typeof clipboardText !== 'string' || clipboardText.length === 0) return
+
+  event.preventDefault()
+  const sanitized = sanitizeTableCellPasteText(clipboardText)
+  const selectionStart = input.selectionStart ?? input.value.length
+  const selectionEnd = input.selectionEnd ?? input.value.length
+  const nextValue =
+    `${input.value.slice(0, selectionStart)}${sanitized}${input.value.slice(selectionEnd)}`
+  const nextCaret = selectionStart + sanitized.length
+
+  input.value = nextValue
+  try {
+    input.setSelectionRange(nextCaret, nextCaret)
+  } catch {
+    // Selection restoration may fail on stale inputs; safe to ignore.
+  }
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function sanitizeTableCellPasteText(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/\t+/g, ' ')
 }
 
 function handleNativeTableInputKeydown(event: KeyboardEvent): void {
   const input = event.currentTarget
-  if (!(input instanceof HTMLInputElement)) return
+  if (!(input instanceof HTMLTextAreaElement)) return
 
   const editorRoot = input.closest<HTMLElement>('.cm-editor')
   const view = EditorView.findFromDOM(input) ??
@@ -1260,6 +1482,7 @@ class WysiwygPluginValue {
       this.fencedCodeBlocks = collectFencedCodeBlocks(update.state.doc.toString())
       this.mathBlocks = collectMathBlocks(update.state.doc.toString(), this.fencedCodeBlocks)
       this.tables = collectMarkdownTableBlocks(update.state.doc.toString(), [...this.fencedCodeBlocks, ...this.mathBlocks])
+      pruneTableColumnWidthSnapshots(this.tables)
     }
 
     const previousActiveTableCell = this.activeTableCell
@@ -1346,8 +1569,8 @@ function getWysiwygPluginState(view: EditorView): WysiwygPluginValue | null {
   return view.plugin(wysiwygPlugin)
 }
 
-function getTableCellInputFromTarget(target: EventTarget | null, view: EditorView): HTMLInputElement | null {
-  const input = (target as HTMLElement | null)?.closest<HTMLInputElement>('.cm-wysiwyg-table__input')
+function getTableCellInputFromTarget(target: EventTarget | null, view: EditorView): HTMLTextAreaElement | null {
+  const input = (target as HTMLElement | null)?.closest<HTMLTextAreaElement>('.cm-wysiwyg-table__input')
   if (!input || !view.dom.contains(input)) return null
   return input
 }
@@ -1385,7 +1608,7 @@ function resolveTableCellTargetFromElement(
 
 function resolveActiveTableCellFromInput(
   view: EditorView,
-  input: HTMLInputElement
+  input: HTMLTextAreaElement
 ): ActiveWysiwygTableCell | null {
   const resolved = resolveTableCellTargetFromElement(view, input)
   if (!resolved) return null
@@ -1413,7 +1636,7 @@ function resolveEditorSelectionForTableCell(
 function findTableCellInput(
   view: EditorView,
   activeCell: ActiveWysiwygTableCell
-): HTMLInputElement | null {
+): HTMLTextAreaElement | null {
   const selector =
     `.cm-wysiwyg-table__input` +
     `[data-table-from="${activeCell.tableFrom}"]` +
@@ -1421,7 +1644,7 @@ function findTableCellInput(
     `[data-table-row-index="${activeCell.rowIndex}"]` +
     `[data-table-column-index="${activeCell.columnIndex}"]`
 
-  const input = view.dom.querySelector<HTMLInputElement>(selector)
+  const input = view.dom.querySelector<HTMLTextAreaElement>(selector)
   return input ?? null
 }
 
@@ -1560,7 +1783,7 @@ function activateTable(view: EditorView, target: EventTarget | null): boolean {
   return true
 }
 
-function syncTableInputSelection(view: EditorView, input: HTMLInputElement): boolean {
+function syncTableInputSelection(view: EditorView, input: HTMLTextAreaElement): boolean {
   const resolved = resolveTableCellTargetFromElement(view, input)
   const plugin = getWysiwygPluginState(view)
   if (!resolved || !plugin) return false
@@ -1593,7 +1816,7 @@ function syncTableInputSelection(view: EditorView, input: HTMLInputElement): boo
   return true
 }
 
-function applyTableInputChange(view: EditorView, input: HTMLInputElement): boolean {
+function applyTableInputChange(view: EditorView, input: HTMLTextAreaElement): boolean {
   const resolved = resolveTableCellTargetFromElement(view, input)
   const plugin = getWysiwygPluginState(view)
   if (!resolved || !plugin) return false
@@ -1632,6 +1855,7 @@ function applyTableInputChange(view: EditorView, input: HTMLInputElement): boole
   if (hasContentChange) {
     queueFocusTableCellInput(view, nextActiveTableCell)
   }
+  syncTableInputAutoHeight(input)
   return true
 }
 
@@ -1650,7 +1874,7 @@ function buildActiveTableCell(
 }
 
 function resolveTableCellSelection(
-  input: HTMLInputElement,
+  input: HTMLTextAreaElement,
   displayText: string,
   selectionBehavior: WysiwygTableCellSelectionBehavior
 ): Pick<ActiveWysiwygTableCell, 'selectionStart' | 'selectionEnd'> {
@@ -1660,27 +1884,28 @@ function resolveTableCellSelection(
     case 'end':
       return { selectionStart: displayText.length, selectionEnd: displayText.length }
     case 'preserve': {
-      const currentSelectionStart = input.selectionStart ?? input.value.length
-      const currentSelectionEnd = input.selectionEnd ?? input.value.length
-      return {
-        selectionStart: Math.min(currentSelectionStart, displayText.length),
-        selectionEnd: Math.min(currentSelectionEnd, displayText.length),
-      }
+      const currentCaret = input.selectionStart ?? input.value.length
+      const clamped = Math.min(currentCaret, displayText.length)
+      return { selectionStart: clamped, selectionEnd: clamped }
     }
   }
 }
 
-function resolveTableKeyCommand(event: KeyboardEvent): WysiwygTableKeyCommand | null {
+function resolveTableKeyCommand(event: KeyboardEvent, input: HTMLTextAreaElement): WysiwygTableKeyCommand | null {
+  if (event.key === 'Escape' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+    return 'escape'
+  }
+
   if (event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey) {
     return event.shiftKey ? 'shift-tab' : 'tab'
   }
 
   if (event.key === 'ArrowUp' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
-    return 'arrow-up'
+    return isCaretOnFirstTextareaLine(input) ? 'arrow-up' : null
   }
 
   if (event.key === 'ArrowDown' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
-    return 'arrow-down'
+    return isCaretOnLastTextareaLine(input) ? 'arrow-down' : null
   }
 
   if (event.key !== 'Enter' || event.metaKey) return null
@@ -1689,7 +1914,19 @@ function resolveTableKeyCommand(event: KeyboardEvent): WysiwygTableKeyCommand | 
   return 'enter'
 }
 
-function isPlainBackspaceForEmptyTableCell(event: KeyboardEvent, input: HTMLInputElement): boolean {
+function isCaretOnFirstTextareaLine(input: HTMLTextAreaElement): boolean {
+  const caret = input.selectionStart ?? 0
+  if ((input.selectionEnd ?? caret) !== caret) return false
+  return input.value.slice(0, caret).indexOf('\n') === -1
+}
+
+function isCaretOnLastTextareaLine(input: HTMLTextAreaElement): boolean {
+  const caret = input.selectionEnd ?? input.value.length
+  if ((input.selectionStart ?? caret) !== caret) return false
+  return input.value.slice(caret).indexOf('\n') === -1
+}
+
+function isPlainBackspaceForEmptyTableCell(event: KeyboardEvent, input: HTMLTextAreaElement): boolean {
   return event.key === 'Backspace' &&
     input.value.length === 0 &&
     !event.altKey &&
@@ -1698,9 +1935,35 @@ function isPlainBackspaceForEmptyTableCell(event: KeyboardEvent, input: HTMLInpu
     !event.shiftKey
 }
 
+function isPlainDeleteForEmptyTableCell(event: KeyboardEvent, input: HTMLTextAreaElement): boolean {
+  return event.key === 'Delete' &&
+    input.value.length === 0 &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey
+}
+
+function isArrowLeftAtTableCellStart(event: KeyboardEvent, input: HTMLTextAreaElement): boolean {
+  if (event.key !== 'ArrowLeft') return false
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false
+  const selectionStart = input.selectionStart ?? 0
+  const selectionEnd = input.selectionEnd ?? 0
+  return selectionStart === 0 && selectionEnd === 0
+}
+
+function isArrowRightAtTableCellEnd(event: KeyboardEvent, input: HTMLTextAreaElement): boolean {
+  if (event.key !== 'ArrowRight') return false
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false
+  const valueLength = input.value.length
+  const selectionStart = input.selectionStart ?? valueLength
+  const selectionEnd = input.selectionEnd ?? valueLength
+  return selectionStart === valueLength && selectionEnd === valueLength
+}
+
 function focusTableCellFromKeyboardAction(
   view: EditorView,
-  input: HTMLInputElement,
+  input: HTMLTextAreaElement,
   resolved: ResolvedTableCellTarget,
   location: MarkdownTableCellLocation,
   selectionBehavior: WysiwygTableCellSelectionBehavior
@@ -1734,7 +1997,7 @@ function focusTableCellFromKeyboardAction(
 
 function insertTableBodyRowBelow(
   view: EditorView,
-  input: HTMLInputElement,
+  input: HTMLTextAreaElement,
   resolved: ResolvedTableCellTarget,
   plan: WysiwygTableRowInsertionPlan
 ): boolean {
@@ -1753,7 +2016,7 @@ function insertTableBodyRowBelow(
 
 function insertInlineBreakInTableCell(
   view: EditorView,
-  input: HTMLInputElement,
+  input: HTMLTextAreaElement,
   resolved: ResolvedTableCellTarget,
   insertText: string
 ): boolean {
@@ -1762,11 +2025,14 @@ function insertInlineBreakInTableCell(
   const nextDisplayText =
     `${resolved.displayText.slice(0, selectionStart)}${insertText}${resolved.displayText.slice(selectionEnd)}`
   const nextSelectionOffset = selectionStart + insertText.length
+  const nextEncodedText = encodeMarkdownTableCellText(nextDisplayText)
+  const nextSelectionRawOffset = resolveEncodedTableCellOffset(nextDisplayText, nextSelectionOffset)
+  const nextFocusedSelectionOffset = resolveDecodedTableCellOffset(nextEncodedText, nextSelectionRawOffset)
   const nextActiveTableCell = buildActiveTableCell(
     resolved.table.from,
     resolved.location,
-    nextSelectionOffset,
-    nextSelectionOffset
+    nextFocusedSelectionOffset,
+    nextFocusedSelectionOffset
   )
 
   input.blur()
@@ -1774,7 +2040,7 @@ function insertInlineBreakInTableCell(
     changes: {
       from: resolved.cell.editAnchor,
       to: resolved.cell.editHead,
-      insert: encodeMarkdownTableCellText(nextDisplayText),
+      insert: nextEncodedText,
     },
     selection: resolveEditorSelectionForTableCell(
       resolved.cell,
@@ -1790,13 +2056,35 @@ function insertInlineBreakInTableCell(
 
 function exitTableFromKeyboardAction(
   view: EditorView,
-  input: HTMLInputElement,
-  resolved: ResolvedTableCellTarget
+  input: HTMLTextAreaElement,
+  resolved: ResolvedTableCellTarget,
+  direction: 'before' | 'after'
 ): boolean {
   const doc = view.state.doc
-  const tableClosingLine = doc.lineAt(resolved.table.to)
 
   input.blur()
+
+  if (direction === 'before') {
+    const tableOpeningLine = doc.lineAt(resolved.table.from)
+    if (tableOpeningLine.number === 1) {
+      view.dispatch({
+        changes: { from: 0, insert: '\n' },
+        selection: { anchor: 0 },
+        userEvent: 'input',
+        scrollIntoView: true,
+      })
+      return true
+    }
+
+    view.dispatch({
+      selection: { anchor: Math.max(resolved.table.from - 1, 0) },
+      userEvent: 'select',
+      scrollIntoView: true,
+    })
+    return true
+  }
+
+  const tableClosingLine = doc.lineAt(resolved.table.to)
   if (tableClosingLine.number === doc.lines && !hasTerminalBlankLine(doc)) {
     view.dispatch({
       changes: { from: doc.length, insert: '\n' },
@@ -1817,7 +2105,7 @@ function exitTableFromKeyboardAction(
 
 function applyTableKeyCommand(
   view: EditorView,
-  input: HTMLInputElement,
+  input: HTMLTextAreaElement,
   command: WysiwygTableKeyCommand
 ): boolean {
   const resolved = resolveTableCellTargetFromElement(view, input)
@@ -1836,14 +2124,14 @@ function applyTableKeyCommand(
     case 'noop':
       return true
     case 'exit-table':
-      return exitTableFromKeyboardAction(view, input, resolved)
+      return exitTableFromKeyboardAction(view, input, resolved, action.direction)
   }
 }
 
 function handleTableInputKeydown(
   event: KeyboardEvent,
   view: EditorView,
-  input: HTMLInputElement
+  input: HTMLTextAreaElement
 ): boolean {
   if (event.isComposing) return false
 
@@ -1861,7 +2149,19 @@ function handleTableInputKeydown(
     return applyTableKeyCommand(view, input, 'backspace')
   }
 
-  const command = resolveTableKeyCommand(event)
+  if (isPlainDeleteForEmptyTableCell(event, input)) {
+    return applyTableKeyCommand(view, input, 'delete')
+  }
+
+  if (isArrowLeftAtTableCellStart(event, input)) {
+    return applyTableKeyCommand(view, input, 'arrow-left')
+  }
+
+  if (isArrowRightAtTableCellEnd(event, input)) {
+    return applyTableKeyCommand(view, input, 'arrow-right')
+  }
+
+  const command = resolveTableKeyCommand(event, input)
   if (!command) return false
   return applyTableKeyCommand(view, input, command)
 }
@@ -1874,7 +2174,7 @@ function resolveTableColumnKind(table: MarkdownTableBlock, columnIndex: number):
 }
 
 function isCompactNumericCell(value: string): boolean {
-  return /^[+\-]?(?:[$€£¥₹]\s*)?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?%?$/u.test(value)
+  return NUMERIC_CELL_RE.test(value)
 }
 
 function activateMathTarget(view: EditorView, target: EventTarget | null): boolean {
@@ -1957,9 +2257,53 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
         event.preventDefault()
         return true
       },
+      paste(event, view) {
+        if (getTableCellInputFromTarget(event.target, view)) return false
+        return handleDocumentClipboardTablePaste(event, view)
+      },
     },
   }
 )
+
+function handleDocumentClipboardTablePaste(event: ClipboardEvent, view: EditorView): boolean {
+  const clipboard = event.clipboardData
+  if (!clipboard) return false
+
+  const markdownTable = convertClipboardToMarkdownTable({
+    text: clipboard.getData('text/plain'),
+    html: clipboard.getData('text/html'),
+  })
+  if (!markdownTable) return false
+
+  const selection = view.state.selection.main
+  const plugin = getWysiwygPluginState(view)
+  if (plugin && isSelectionInsideAnyTable(plugin.tables, selection.from, selection.to)) {
+    return false
+  }
+
+  const line = view.state.doc.lineAt(selection.from)
+  const needsLeadingNewline = selection.from === line.from ? false : true
+  const followingText = view.state.doc.sliceString(selection.to, Math.min(selection.to + 1, view.state.doc.length))
+  const needsTrailingNewline = followingText !== '\n' && selection.to !== view.state.doc.length
+  const insert = `${needsLeadingNewline ? '\n\n' : ''}${markdownTable}${needsTrailingNewline ? '\n\n' : '\n'}`
+
+  event.preventDefault()
+  view.dispatch({
+    changes: { from: selection.from, to: selection.to, insert },
+    selection: { anchor: selection.from + insert.length },
+    userEvent: 'input.paste',
+    scrollIntoView: true,
+  })
+  return true
+}
+
+function isSelectionInsideAnyTable(
+  tables: readonly MarkdownTableBlock[],
+  from: number,
+  to: number
+): boolean {
+  return tables.some((table) => from >= table.from && to <= table.to)
+}
 
 export const wysiwygTableDecorations = [wysiwygTableDecorationField, wysiwygGutterClassField]
 
@@ -2103,6 +2447,45 @@ export const wysiwygTheme = EditorView.baseTheme({
     boxShadow: 'none',
     pointerEvents: 'auto',
   },
+  '.cm-wysiwyg-table__toolbar': {
+    margin: '0 32px 6px',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '4px',
+    pointerEvents: 'auto',
+  },
+  '.cm-wysiwyg-table__toolbar[hidden]': {
+    display: 'none',
+  },
+  '.cm-wysiwyg-table__toolbar-button': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '28px',
+    height: '24px',
+    padding: '0 6px',
+    fontSize: '12px',
+    lineHeight: '1',
+    color: 'var(--text-secondary, inherit)',
+    background: 'var(--surface-raised, transparent)',
+    border: '1px solid var(--border, #ccc)',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    userSelect: 'none',
+  },
+  '.cm-wysiwyg-table__toolbar-button:hover:not(:disabled)': {
+    background: 'var(--surface-hover, rgba(0,0,0,0.04))',
+    color: 'var(--text-primary, inherit)',
+  },
+  '.cm-wysiwyg-table__toolbar-button:disabled': {
+    opacity: '0.4',
+    cursor: 'not-allowed',
+  },
+  '.cm-wysiwyg-table__toolbar-button[aria-pressed="true"]': {
+    background: 'var(--accent-soft, rgba(80,120,220,0.15))',
+    color: 'var(--accent, inherit)',
+    borderColor: 'var(--accent, currentColor)',
+  },
   '.cm-wysiwyg-table__grid': {
     borderCollapse: 'collapse',
     width: '100%',
@@ -2187,6 +2570,10 @@ export const wysiwygTheme = EditorView.baseTheme({
     textAlign: 'inherit',
     boxSizing: 'border-box',
     boxShadow: 'none',
+    resize: 'none',
+    overflow: 'hidden',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
   },
   '.cm-wysiwyg-table__input::selection': {
     backgroundColor: 'var(--editor-selection)',

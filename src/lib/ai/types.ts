@@ -145,12 +145,13 @@ export interface AIOracleStructuredStoreRegistration {
 export interface AIOracleHostedAgentProfile {
   id: string
   label: string
-  endpointUrl: string
-  invokePath: string
+  ociRegion: string
+  hostedApplicationOcid: string
+  apiVersion: string
+  apiAction: string
   domainUrl: string
   clientId: string
   scope: string
-  audience: string
   transport: AIHostedAgentTransport
   supportedContracts: AIHostedAgentSupportedContract[]
 }

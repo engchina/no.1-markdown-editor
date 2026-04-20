@@ -68,15 +68,18 @@ pub struct AiOracleStructuredStoreRegistration {
 pub struct AiOracleHostedAgentProfile {
     pub id: String,
     pub label: String,
-    pub endpoint_url: String,
     #[serde(default)]
-    pub invoke_path: String,
+    pub oci_region: String,
+    #[serde(default)]
+    pub hosted_application_ocid: String,
+    #[serde(default)]
+    pub api_version: String,
+    #[serde(default)]
+    pub api_action: String,
     pub domain_url: String,
     pub client_id: String,
     #[serde(default)]
     pub scope: String,
-    #[serde(default)]
-    pub audience: String,
     pub transport: String,
     #[serde(default)]
     pub supported_contracts: Vec<String>,
@@ -580,7 +583,18 @@ async fn run_hosted_agent_completion<R: Runtime>(
         &client_secret,
     )
     .await?;
-    let invoke_url = build_ai_hosted_agent_invoke_url(&profile.endpoint_url, &profile.invoke_path)?;
+    let access_token_aud = decode_jwt_claim(&access_token, "aud");
+    let access_token_scope = decode_jwt_claim(&access_token, "scope");
+    let invoke_url = build_ai_hosted_agent_invoke_url(profile)?;
+    let invoke_url_string = invoke_url.to_string();
+    eprintln!(
+        "[ai:hosted-agent] invoke request url={} access_token_len={} profile_id={} token_aud={:?} token_scope={:?}",
+        invoke_url_string,
+        access_token.len(),
+        profile.id,
+        access_token_aud,
+        access_token_scope
+    );
     let message = build_hosted_agent_message(request);
     let thread_id = request
         .thread_id
@@ -609,11 +623,19 @@ async fn run_hosted_agent_completion<R: Runtime>(
                     error.is_connect(),
                     &error.to_string(),
                 )
-            })?
-            .error_for_status()
-            .map_err(|error| {
-                normalize_ai_status_error_message(error.status(), &error.to_string())
             })?;
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(normalize_hosted_agent_invoke_status_error(
+                profile,
+                Some(status),
+                &invoke_url_string,
+                &body,
+                access_token_aud.as_ref(),
+                access_token_scope.as_ref(),
+            ));
+        }
 
         let (mut stream_response, _) =
             read_ai_streaming_completion_response(app, request_id, response).await?;
@@ -625,7 +647,7 @@ async fn run_hosted_agent_completion<R: Runtime>(
         return ensure_ai_response_contains_text(stream_response);
     }
 
-    let response_body = builder
+    let response = builder
         .header(ACCEPT, "application/json")
         .send()
         .await
@@ -635,12 +657,27 @@ async fn run_hosted_agent_completion<R: Runtime>(
                 error.is_connect(),
                 &error.to_string(),
             )
-        })?
-        .error_for_status()
-        .map_err(|error| normalize_ai_status_error_message(error.status(), &error.to_string()))?
+        })?;
+    let response_status = response.status();
+    let response_body = response
         .text()
         .await
         .map_err(|_| "Hosted agent returned an unreadable response".to_string())?;
+    if !response_status.is_success() {
+        eprintln!(
+            "[ai:hosted-agent] invoke failed. status={} body={}",
+            response_status,
+            preview_ai_response_body(&response_body, 500)
+        );
+        return Err(normalize_hosted_agent_invoke_status_error(
+            profile,
+            Some(response_status),
+            &invoke_url_string,
+            &response_body,
+            access_token_aud.as_ref(),
+            access_token_scope.as_ref(),
+        ));
+    }
     let response_json: Value = serde_json::from_str(&response_body)
         .map_err(|_| "Hosted agent returned a malformed response".to_string())?;
 
@@ -676,11 +713,10 @@ async fn resolve_hosted_agent_access_token(
     client_secret: &str,
 ) -> Result<String, String> {
     let cache_key = format!(
-        "{}|{}|{}|{}",
+        "{}|{}|{}",
         profile.domain_url.trim(),
         profile.client_id.trim(),
-        profile.scope.trim(),
-        profile.audience.trim()
+        profile.scope.trim()
     );
     let now_unix = unix_timestamp_now();
 
@@ -697,12 +733,16 @@ async fn resolve_hosted_agent_access_token(
     }
 
     let token_url = build_ai_hosted_agent_token_url(&profile.domain_url)?;
-    let mut form = vec![("grant_type".to_string(), "client_credentials".to_string())];
-    if !profile.scope.trim().is_empty() {
-        form.push(("scope".to_string(), profile.scope.trim().to_string()));
-    }
-    if !profile.audience.trim().is_empty() {
-        form.push(("audience".to_string(), profile.audience.trim().to_string()));
+    let client_id_trimmed = profile.client_id.trim();
+    let client_secret_trimmed = client_secret.trim();
+    let scope_trimmed = profile.scope.trim();
+    let mut form: Vec<(&str, &str)> = vec![
+        ("grant_type", "client_credentials"),
+        ("client_id", client_id_trimmed),
+        ("client_secret", client_secret_trimmed),
+    ];
+    if !scope_trimmed.is_empty() {
+        form.push(("scope", scope_trimmed));
     }
     let form_body = form
         .iter()
@@ -715,11 +755,16 @@ async fn resolve_hosted_agent_access_token(
         })
         .collect::<Vec<_>>()
         .join("&");
-
-    let token_body = build_default_http_client()?
+    eprintln!(
+        "[ai:hosted-agent] token request url={} client_id_len={} client_secret_len={} scope={:?}",
+        token_url,
+        client_id_trimmed.len(),
+        client_secret_trimmed.len(),
+        scope_trimmed
+    );
+    let client = build_default_http_client()?;
+    let response = client
         .post(token_url)
-        .basic_auth(profile.client_id.trim(), Some(client_secret))
-        .header(USER_AGENT, AI_PROVIDER_USER_AGENT)
         .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(form_body)
         .send()
@@ -730,14 +775,32 @@ async fn resolve_hosted_agent_access_token(
                 error.is_connect(),
                 &error.to_string(),
             )
-        })?
-        .error_for_status()
-        .map_err(|error| normalize_ai_status_error_message(error.status(), &error.to_string()))?
+        })?;
+    let token_status = response.status();
+    let token_content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+        .unwrap_or_default();
+    let token_body = response
         .text()
         .await
         .map_err(|_| "Hosted agent token endpoint returned an unreadable response".to_string())?;
-    let token_response: AiOAuthTokenResponse = serde_json::from_str(&token_body)
-        .map_err(|_| "Hosted agent token endpoint returned a malformed response".to_string())?;
+    if !token_status.is_success() {
+        return Err(normalize_hosted_agent_token_status_error(
+            token_status,
+            &token_content_type,
+            &token_body,
+        ));
+    }
+    let token_response = extract_hosted_agent_oauth_token_response(&token_body)?;
+
+    eprintln!(
+        "[ai:hosted-agent] token acquired. jwt_aud={:?} jwt_scope={:?}",
+        decode_jwt_claim(&token_response.access_token, "aud"),
+        decode_jwt_claim(&token_response.access_token, "scope")
+    );
 
     let expires_in = token_response.expires_in.unwrap_or(300);
     let cached = CachedOAuthToken {
@@ -752,6 +815,134 @@ async fn resolve_hosted_agent_access_token(
         .insert(cache_key, cached);
 
     Ok(token_response.access_token)
+}
+
+fn extract_hosted_agent_oauth_token_response(body: &str) -> Result<AiOAuthTokenResponse, String> {
+    let normalized_body = body.trim().trim_start_matches('\u{feff}');
+    let response_json: Value = serde_json::from_str(normalized_body).map_err(|_| {
+        format!(
+            "Hosted agent token endpoint returned non-JSON content. body={}",
+            preview_ai_response_body(body, 240)
+        )
+    })?;
+    let response_object = response_json.as_object().ok_or_else(|| {
+        format!(
+            "Hosted agent token endpoint returned JSON, but not an object. body={}",
+            preview_ai_response_body(body, 240)
+        )
+    })?;
+
+    if let Some(error) = response_object.get("error").and_then(Value::as_str) {
+        let description = response_object
+            .get("error_description")
+            .and_then(Value::as_str)
+            .or_else(|| {
+                response_object
+                    .get("errorDescription")
+                    .and_then(Value::as_str)
+            })
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("No error description was provided");
+        return Err(format!(
+            "Hosted agent token endpoint returned an OAuth error: {error}. {description}"
+        ));
+    }
+
+    let access_token = response_object
+        .get("access_token")
+        .and_then(Value::as_str)
+        .or_else(|| response_object.get("accessToken").and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            format!(
+                "Hosted agent token endpoint returned JSON without access_token. body={}",
+                preview_ai_response_body(body, 240)
+            )
+        })?
+        .to_string();
+    let expires_in = response_object
+        .get("expires_in")
+        .or_else(|| response_object.get("expiresIn"))
+        .and_then(parse_json_u64);
+
+    Ok(AiOAuthTokenResponse {
+        access_token,
+        expires_in,
+    })
+}
+
+fn normalize_hosted_agent_token_status_error(
+    status: StatusCode,
+    content_type: &str,
+    body: &str,
+) -> String {
+    let detail = extract_oauth_error_summary(body).unwrap_or_else(|| {
+        format!(
+            "content_type={} body={}",
+            if content_type.trim().is_empty() {
+                "<unknown>"
+            } else {
+                content_type.trim()
+            },
+            preview_ai_response_body(body, 240)
+        )
+    });
+
+    match status.as_u16() {
+        400 => format!("Hosted agent token request was rejected. {detail}"),
+        401 | 403 => format!(
+            "Hosted agent authentication failed. Check client ID, client secret, and scope. {detail}"
+        ),
+        404 => format!("Hosted agent token endpoint was not found. {detail}"),
+        500..=599 => format!("Hosted agent token service is temporarily unavailable. {detail}"),
+        code => format!("Hosted agent token request returned an error ({code}). {detail}"),
+    }
+}
+
+fn extract_oauth_error_summary(body: &str) -> Option<String> {
+    let normalized_body = body.trim().trim_start_matches('\u{feff}');
+    let response_json: Value = serde_json::from_str(normalized_body).ok()?;
+    let response_object = response_json.as_object()?;
+    let error = response_object.get("error").and_then(Value::as_str)?.trim();
+    if error.is_empty() {
+        return None;
+    }
+
+    let description = response_object
+        .get("error_description")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            response_object
+                .get("errorDescription")
+                .and_then(Value::as_str)
+        })
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    Some(match description {
+        Some(description) => format!("oauth_error={error} description={description}"),
+        None => format!("oauth_error={error}"),
+    })
+}
+
+fn parse_json_u64(value: &Value) -> Option<u64> {
+    match value {
+        Value::Number(number) => number.as_u64(),
+        Value::String(text) => text.trim().parse::<u64>().ok(),
+        _ => None,
+    }
+}
+
+fn preview_ai_response_body(body: &str, limit: usize) -> String {
+    let compact = body.trim().replace('\r', "\\r").replace('\n', "\\n");
+    if compact.chars().count() <= limit {
+        return compact;
+    }
+
+    let preview = compact.chars().take(limit).collect::<String>();
+    format!("{preview}...(truncated)")
 }
 
 fn read_ai_provider_config<R: Runtime>(
@@ -972,21 +1163,28 @@ fn normalize_hosted_agent_profiles(
         .into_iter()
         .enumerate()
         .map(|(index, profile)| {
+            let oci_region = profile.oci_region.trim().to_string();
+            let hosted_application_ocid = profile.hosted_application_ocid.trim().to_string();
+            if oci_region.is_empty() {
+                return Err("Hosted agent OCI region is required".to_string());
+            }
+            if hosted_application_ocid.is_empty() {
+                return Err("Hosted agent application OCID is required".to_string());
+            }
+
             Ok(AiOracleHostedAgentProfile {
                 id: normalize_config_id(&profile.id, "hosted-agent", index),
                 label: profile.label.trim().to_string(),
-                endpoint_url: normalize_http_url(
-                    profile.endpoint_url.trim(),
-                    "Hosted agent endpoint URL must be a valid HTTP or HTTPS URL",
-                )?,
-                invoke_path: profile.invoke_path.trim().trim_matches('/').to_string(),
+                oci_region,
+                hosted_application_ocid,
+                api_version: normalize_hosted_agent_api_version(&profile.api_version),
+                api_action: normalize_hosted_agent_api_action(&profile.api_action),
                 domain_url: normalize_http_url(
                     profile.domain_url.trim(),
                     "Hosted agent domain URL must be a valid HTTP or HTTPS URL",
                 )?,
                 client_id: profile.client_id.trim().to_string(),
                 scope: profile.scope.trim().to_string(),
-                audience: profile.audience.trim().to_string(),
                 transport: if profile.transport == "sse" {
                     "sse".to_string()
                 } else {
@@ -1045,6 +1243,24 @@ fn normalize_http_url(input: &str, invalid_message: &str) -> Result<String, Stri
     Ok(base_url.to_string().trim_end_matches('/').to_string())
 }
 
+fn normalize_hosted_agent_api_version(input: &str) -> String {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        "20251112".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn normalize_hosted_agent_api_action(input: &str) -> String {
+    let trimmed = input.trim().trim_matches('/');
+    if trimmed.is_empty() {
+        "chat".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 fn build_ai_chat_completions_url(base_url: &str) -> Result<reqwest::Url, String> {
     let parsed = normalize_url_with_trailing_slash(base_url)?;
     parsed
@@ -1094,17 +1310,23 @@ fn build_ai_inference_root_url(base_url: &str) -> Result<reqwest::Url, String> {
 }
 
 fn build_ai_hosted_agent_invoke_url(
-    endpoint_url: &str,
-    invoke_path: &str,
+    profile: &AiOracleHostedAgentProfile,
 ) -> Result<reqwest::Url, String> {
-    let parsed = normalize_url_with_trailing_slash(endpoint_url)?;
-    let relative = if invoke_path.trim().is_empty() {
-        "actions/invoke".to_string()
-    } else {
-        format!("actions/invoke/{}", invoke_path.trim().trim_matches('/'))
-    };
-    parsed
-        .join(&relative)
+    let region = profile.oci_region.trim();
+    let hosted_application_ocid = profile.hosted_application_ocid.trim();
+    if region.is_empty() {
+        return Err("Hosted agent OCI region is required".to_string());
+    }
+    if hosted_application_ocid.is_empty() {
+        return Err("Hosted agent application OCID is required".to_string());
+    }
+
+    let api_version = normalize_hosted_agent_api_version(&profile.api_version);
+    let api_action = normalize_hosted_agent_api_action(&profile.api_action);
+    let url = format!(
+        "https://application.generativeai.{region}.oci.oraclecloud.com/{api_version}/hostedApplications/{hosted_application_ocid}/actions/invoke/{api_action}"
+    );
+    reqwest::Url::parse(&url)
         .map_err(|error| format!("Failed to build hosted agent invoke URL: {error}"))
 }
 
@@ -1125,6 +1347,14 @@ fn normalize_url_with_trailing_slash(base_url: &str) -> Result<reqwest::Url, Str
     }
 
     reqwest::Url::parse(&normalized).map_err(|_| "AI base URL must be a valid URL".to_string())
+}
+
+fn decode_jwt_claim(token: &str, claim: &str) -> Option<Value> {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    let payload_b64 = token.split('.').nth(1)?;
+    let payload_bytes = URL_SAFE_NO_PAD.decode(payload_b64.trim_end_matches('=')).ok()?;
+    let payload: Value = serde_json::from_slice(&payload_bytes).ok()?;
+    payload.get(claim).cloned()
 }
 
 fn url_encode_component(input: &str) -> String {
@@ -1176,6 +1406,94 @@ fn normalize_ai_status_error_message(status: Option<StatusCode>, fallback: &str)
         Some(code) => format!("AI request returned an error ({code})"),
         None => format!("AI request returned an error: {fallback}"),
     }
+}
+
+fn normalize_hosted_agent_invoke_status_error(
+    profile: &AiOracleHostedAgentProfile,
+    status: Option<StatusCode>,
+    invoke_url: &str,
+    fallback: &str,
+    token_aud: Option<&Value>,
+    token_scope: Option<&Value>,
+) -> String {
+    let detail = summarize_hosted_agent_response_detail(fallback);
+    let auth_context = summarize_hosted_agent_auth_context(profile, token_aud, token_scope);
+    let audience_hint = if detail.to_ascii_lowercase().contains("audience mismatch") {
+        "The token audience does not match the configured Hosted Application OCID."
+    } else {
+        ""
+    };
+    match status.map(|status| status.as_u16()) {
+        Some(400) => format!("Hosted agent request was rejected by the provider. {detail}"),
+        Some(401 | 403) => format!(
+            "Hosted agent authentication failed. Check token scope, agent permissions, client secret, and Hosted Application OCID. {auth_context} {detail} {audience_hint}"
+        ),
+        Some(404) => format!(
+            "Hosted agent endpoint was not found. Check OCI region, API version, hosted application OCID, and API action. url={invoke_url} {detail}"
+        ),
+        Some(429) => "Hosted agent rate limit reached. Try again in a moment".to_string(),
+        Some(500..=599) => format!("Hosted agent service is temporarily unavailable. Try again later. {detail}"),
+        Some(code) => format!("Hosted agent request returned an error ({code}). {detail}"),
+        None => format!("Hosted agent request returned an error: {fallback}"),
+    }
+}
+
+fn summarize_hosted_agent_auth_context(
+    profile: &AiOracleHostedAgentProfile,
+    token_aud: Option<&Value>,
+    token_scope: Option<&Value>,
+) -> String {
+    format!(
+        "profile_id={} profile_label={} hosted_application_ocid={} configured_scope={} token_aud={} token_scope={}.",
+        profile.id,
+        summarize_hosted_agent_setting(&profile.label),
+        summarize_hosted_agent_setting(&profile.hosted_application_ocid),
+        summarize_hosted_agent_setting(&profile.scope),
+        summarize_hosted_agent_claim(token_aud),
+        summarize_hosted_agent_claim(token_scope),
+    )
+}
+
+fn summarize_hosted_agent_setting(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        "<empty>".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn summarize_hosted_agent_claim(value: Option<&Value>) -> String {
+    match value {
+        Some(Value::String(string)) => summarize_hosted_agent_setting(string),
+        Some(other) => other.to_string(),
+        None => "<missing>".to_string(),
+    }
+}
+
+fn summarize_hosted_agent_response_detail(body: &str) -> String {
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
+        let code = value
+            .get("code")
+            .and_then(Value::as_str)
+            .or_else(|| value.get("error").and_then(Value::as_str));
+        let message = value
+            .get("message")
+            .and_then(Value::as_str)
+            .or_else(|| value.get("error_description").and_then(Value::as_str));
+        match (code, message) {
+            (Some(code), Some(message)) => return format!("{code}: {message}"),
+            (Some(code), None) => return code.to_string(),
+            (None, Some(message)) => return message.to_string(),
+            _ => {}
+        }
+    }
+    let snippet: String = trimmed.chars().take(500).collect();
+    snippet
 }
 
 fn register_in_flight_request(
@@ -2290,16 +2608,20 @@ mod tests {
     use super::extract_ai_completion_response;
     use super::extract_ai_stream_chunk;
     use super::extract_ai_stream_finish_reason;
+    use super::extract_hosted_agent_oauth_token_response;
     use super::extract_nl2sql_sql_text;
     use super::finalize_document_store_response;
     use super::normalize_ai_provider_config;
     use super::normalize_ai_send_error_message;
     use super::normalize_ai_sse_buffer;
     use super::normalize_ai_status_error_message;
+    use super::normalize_hosted_agent_invoke_status_error;
+    use super::normalize_hosted_agent_token_status_error;
     use super::take_next_ai_sse_event;
     use super::AiFileSearchCallObservation;
     use super::AiFileSearchObservation;
     use super::AiKnowledgeSelection;
+    use super::AiOracleHostedAgentProfile;
     use super::AiOracleUnstructuredStoreRegistration;
     use super::AiProviderConfig;
     use super::AiRequestMessage;
@@ -2397,6 +2719,82 @@ mod tests {
     }
 
     #[test]
+    fn normalize_ai_provider_config_normalizes_hosted_agent_profile_defaults() {
+        let config = normalize_ai_provider_config(AiProviderConfig {
+            provider: "oci-responses".to_string(),
+            base_url: "https://example.com/openai/v1".to_string(),
+            model: "gpt-test".to_string(),
+            project: "".to_string(),
+            unstructured_stores: vec![],
+            structured_stores: vec![],
+            hosted_agent_profiles: vec![AiOracleHostedAgentProfile {
+                id: "hosted-agent-1".to_string(),
+                label: "Travel Agent".to_string(),
+                oci_region: " us-chicago-1 ".to_string(),
+                hosted_application_ocid:
+                    " ocid1.generativeaihostedapplication.oc1.us-chicago-1.amaaaaaatest "
+                        .to_string(),
+                api_version: "".to_string(),
+                api_action: "".to_string(),
+                domain_url: "https://idcs.example.com".to_string(),
+                client_id: " client-id ".to_string(),
+                scope: " https://k8scloud.site/invoke ".to_string(),
+                transport: "http-json".to_string(),
+                supported_contracts: vec!["chat-text".to_string()],
+            }],
+        })
+        .expect("normalize provider config");
+
+        let profile = config
+            .hosted_agent_profiles
+            .first()
+            .expect("hosted agent profile");
+        assert_eq!(profile.oci_region, "us-chicago-1");
+        assert_eq!(
+            profile.hosted_application_ocid,
+            "ocid1.generativeaihostedapplication.oc1.us-chicago-1.amaaaaaatest"
+        );
+        assert_eq!(profile.api_version, "20251112");
+        assert_eq!(profile.api_action, "chat");
+        assert_eq!(profile.client_id, "client-id");
+        assert_eq!(profile.scope, "https://k8scloud.site/invoke");
+    }
+
+    #[test]
+    fn normalize_ai_provider_config_preserves_custom_api_action() {
+        let config = normalize_ai_provider_config(AiProviderConfig {
+            provider: "oci-responses".to_string(),
+            base_url: "https://example.com/openai/v1".to_string(),
+            model: "gpt-test".to_string(),
+            project: "".to_string(),
+            unstructured_stores: vec![],
+            structured_stores: vec![],
+            hosted_agent_profiles: vec![AiOracleHostedAgentProfile {
+                id: "hosted-agent-1".to_string(),
+                label: "Travel Agent".to_string(),
+                oci_region: "us-chicago-1".to_string(),
+                hosted_application_ocid:
+                    "ocid1.generativeaihostedapplication.oc1.us-chicago-1.amaaaaaatest"
+                        .to_string(),
+                api_version: "20251112".to_string(),
+                api_action: " /completion/ ".to_string(),
+                domain_url: "https://idcs.example.com".to_string(),
+                client_id: "client-id".to_string(),
+                scope: "scope".to_string(),
+                transport: "http-json".to_string(),
+                supported_contracts: vec!["chat-text".to_string()],
+            }],
+        })
+        .expect("normalize provider config");
+
+        let profile = config
+            .hosted_agent_profiles
+            .first()
+            .expect("hosted agent profile");
+        assert_eq!(profile.api_action, "completion");
+    }
+
+    #[test]
     fn build_ai_chat_completions_url_appends_chat_completions_path() {
         let url =
             build_ai_chat_completions_url("https://example.com/v1").expect("build completion url");
@@ -2421,13 +2819,89 @@ mod tests {
     }
 
     #[test]
-    fn build_ai_hosted_agent_invoke_url_supports_optional_invoke_path() {
-        let url = build_ai_hosted_agent_invoke_url("https://agent.example.com/base", "chat")
-            .expect("build hosted invoke url");
+    fn build_ai_hosted_agent_invoke_url_uses_region_ocid_and_action() {
+        let url = build_ai_hosted_agent_invoke_url(&AiOracleHostedAgentProfile {
+            id: "hosted-agent-1".to_string(),
+            label: "Travel Agent".to_string(),
+            oci_region: "us-chicago-1".to_string(),
+            hosted_application_ocid:
+                "ocid1.generativeaihostedapplication.oc1.us-chicago-1.amaaaaaatest".to_string(),
+            api_version: "20251112".to_string(),
+            api_action: "chat".to_string(),
+            domain_url: "https://idcs.example.com".to_string(),
+            client_id: "client-id".to_string(),
+            scope: "scope".to_string(),
+            transport: "http-json".to_string(),
+            supported_contracts: vec!["chat-text".to_string()],
+        })
+        .expect("build oci hosted invoke url");
         assert_eq!(
             url.as_str(),
-            "https://agent.example.com/base/actions/invoke/chat"
+            "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.oc1.us-chicago-1.amaaaaaatest/actions/invoke/chat"
         );
+    }
+
+    #[test]
+    fn normalize_hosted_agent_invoke_status_error_explains_oci_404() {
+        let message = normalize_hosted_agent_invoke_status_error(
+            &AiOracleHostedAgentProfile {
+                id: "hosted-agent-1".to_string(),
+                label: "Travel Agent".to_string(),
+                oci_region: "us-chicago-1".to_string(),
+                hosted_application_ocid:
+                    "ocid1.generativeaihostedapplication.oc1.us-chicago-1.amaaaaaatest"
+                        .to_string(),
+                api_version: "20251112".to_string(),
+                api_action: "chat".to_string(),
+                domain_url: "https://idcs.example.com".to_string(),
+                client_id: "client-id".to_string(),
+                scope: "scope".to_string(),
+                transport: "http-json".to_string(),
+                supported_contracts: vec!["chat-text".to_string()],
+            },
+            Some(StatusCode::NOT_FOUND),
+            "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.oc1.us-chicago-1.amaaaaaatest/actions/invoke/chat",
+            "not found",
+            None,
+            None,
+        );
+
+        assert!(message.contains("Hosted agent endpoint was not found"));
+        assert!(message.contains("OCI region"));
+        assert!(message.contains("hosted application OCID"));
+        assert!(message.contains("API action"));
+    }
+
+    #[test]
+    fn normalize_hosted_agent_invoke_status_error_surfaces_audience_mismatch_context() {
+        let message = normalize_hosted_agent_invoke_status_error(
+            &AiOracleHostedAgentProfile {
+                id: "hosted-agent-1".to_string(),
+                label: "Travel Agent".to_string(),
+                oci_region: "us-chicago-1".to_string(),
+                hosted_application_ocid:
+                    "ocid1.generativeaihostedapplication.oc1.us-chicago-1.amaaaaaatest"
+                        .to_string(),
+                api_version: "20251112".to_string(),
+                api_action: "chat".to_string(),
+                domain_url: "https://idcs.example.com".to_string(),
+                client_id: "client-id".to_string(),
+                scope: "https://k8scloud.site/invoke".to_string(),
+                transport: "http-json".to_string(),
+                supported_contracts: vec!["chat-text".to_string()],
+            },
+            Some(StatusCode::UNAUTHORIZED),
+            "https://application.generativeai.us-chicago-1.oci.oraclecloud.com/20251112/hostedApplications/ocid1.generativeaihostedapplication.oc1.us-chicago-1.amaaaaaatest/actions/invoke/chat",
+            "invalid_token: audience mismatch",
+            Some(&Value::String("https://k8scloud.site/".to_string())),
+            Some(&Value::String("invoke".to_string())),
+        );
+
+        assert!(message.contains("Hosted Application OCID"));
+        assert!(message.contains("hosted_application_ocid=ocid1.generativeaihostedapplication"));
+        assert!(message.contains("token_aud=https://k8scloud.site/"));
+        assert!(message.contains("configured_scope=https://k8scloud.site/invoke"));
+        assert!(message.contains("token audience does not match"));
     }
 
     #[test]
@@ -2657,6 +3131,51 @@ mod tests {
             normalize_ai_status_error_message(Some(StatusCode::BAD_GATEWAY), "bad gateway"),
             "AI service is temporarily unavailable. Try again later"
         );
+    }
+
+    #[test]
+    fn extract_hosted_agent_oauth_token_response_supports_string_expires_in() {
+        let token = extract_hosted_agent_oauth_token_response(
+            r#"{"access_token":"token-123","expires_in":"3600"}"#,
+        )
+        .expect("parse oauth token");
+
+        assert_eq!(token.access_token, "token-123");
+        assert_eq!(token.expires_in, Some(3600));
+    }
+
+    #[test]
+    fn extract_hosted_agent_oauth_token_response_surfaces_oauth_errors() {
+        let error = extract_hosted_agent_oauth_token_response(
+            r#"{"error":"invalid_client","error_description":"Client authentication failed"}"#,
+        )
+        .expect_err("oauth error");
+
+        assert!(error.contains("invalid_client"));
+        assert!(error.contains("Client authentication failed"));
+    }
+
+    #[test]
+    fn extract_hosted_agent_oauth_token_response_includes_body_preview_for_non_json() {
+        let error =
+            extract_hosted_agent_oauth_token_response("<html><body>Sign in required</body></html>")
+                .expect_err("non json error");
+
+        assert!(error.contains("non-JSON content"));
+        assert!(error.contains("Sign in required"));
+    }
+
+    #[test]
+    fn normalize_hosted_agent_token_status_error_includes_oauth_error_details() {
+        let message = normalize_hosted_agent_token_status_error(
+            StatusCode::UNAUTHORIZED,
+            "application/json",
+            r#"{"error":"invalid_client","error_description":"Bad client secret"}"#,
+        );
+
+        assert!(message.contains("Hosted agent authentication failed"));
+        assert!(message.contains("invalid_client"));
+        assert!(message.contains("Bad client secret"));
     }
 
     #[test]

@@ -10,7 +10,7 @@ import {
   loadAIProviderState,
   runAICompletion,
 } from '../../lib/ai/client.ts'
-import { dispatchEditorAIApply } from '../../lib/ai/events.ts'
+import { AI_PROVIDER_STATE_CHANGED_EVENT, dispatchEditorAIApply } from '../../lib/ai/events.ts'
 import { diffTextByLine } from '../../lib/lineDiff.ts'
 import { pushErrorNotice, pushInfoNotice, pushSuccessNotice } from '../../lib/notices'
 import { buildAIComposerContextPacket } from '../../lib/ai/context.ts'
@@ -502,25 +502,41 @@ export default function AIComposer() {
     }
 
     let cancelled = false
-    setConnectionLoading(true)
-    setConnectionError(null)
+    let loadVersion = 0
 
-    void loadAIProviderState()
-      .then((state) => {
-        if (cancelled) return
-        setProviderState(state)
-      })
-      .catch((error) => {
-        if (cancelled) return
-        const message = error instanceof Error ? error.message : String(error)
-        setConnectionError(message)
-      })
-      .finally(() => {
-        if (!cancelled) setConnectionLoading(false)
-      })
+    const refreshProviderState = () => {
+      const currentLoadVersion = loadVersion + 1
+      loadVersion = currentLoadVersion
+      setConnectionLoading(true)
+      setConnectionError(null)
+
+      void loadAIProviderState()
+        .then((state) => {
+          if (cancelled || currentLoadVersion !== loadVersion) return
+          setProviderState(state)
+        })
+        .catch((error) => {
+          if (cancelled || currentLoadVersion !== loadVersion) return
+          const message = error instanceof Error ? error.message : String(error)
+          setConnectionError(message)
+        })
+        .finally(() => {
+          if (!cancelled && currentLoadVersion === loadVersion) {
+            setConnectionLoading(false)
+          }
+        })
+    }
+
+    const handleProviderStateChanged = () => {
+      refreshProviderState()
+    }
+
+    refreshProviderState()
+    document.addEventListener(AI_PROVIDER_STATE_CHANGED_EVENT, handleProviderStateChanged)
 
     return () => {
       cancelled = true
+      document.removeEventListener(AI_PROVIDER_STATE_CHANGED_EVENT, handleProviderStateChanged)
     }
   }, [desktopOnlyMode])
 

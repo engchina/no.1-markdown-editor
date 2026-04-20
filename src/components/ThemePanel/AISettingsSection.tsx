@@ -14,10 +14,13 @@ import {
   createDefaultAIOracleHostedAgentProfile,
   createDefaultAIOracleStructuredStoreRegistration,
   createDefaultAIOracleUnstructuredStoreRegistration,
+  buildHostedAgentInvokeUrlPreview,
+  buildHostedAgentTokenUrlPreview,
   createDefaultAIProviderConfig,
   isAIProviderConnectionReady,
   isOCIResponsesProviderConfig,
 } from '../../lib/ai/provider.ts'
+import { dispatchAIProviderStateChanged } from '../../lib/ai/events.ts'
 import type {
   AIHostedAgentSupportedContract,
   AIOracleHostedAgentProfile,
@@ -131,6 +134,7 @@ export default function AISettingsSection() {
       }
 
       await refreshAiProviderState()
+      dispatchAIProviderStateChanged()
       pushSuccessNotice('notices.aiConnectionSavedTitle', 'notices.aiConnectionSavedMessage')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -151,6 +155,7 @@ export default function AISettingsSection() {
     try {
       await clearAIProviderApiKey()
       await refreshAiProviderState()
+      dispatchAIProviderStateChanged()
       setAiApiKey('')
       pushInfoNotice('notices.aiApiKeyClearedTitle', 'notices.aiApiKeyClearedMessage')
     } catch (error) {
@@ -172,6 +177,7 @@ export default function AISettingsSection() {
     try {
       await clearAIHostedAgentClientSecret(profileId)
       await refreshAiProviderState()
+      dispatchAIProviderStateChanged()
       setAiHostedAgentSecrets((current) => ({ ...current, [profileId]: '' }))
       pushInfoNotice('notices.aiApiKeyClearedTitle', 'notices.aiApiKeyClearedMessage')
     } catch (error) {
@@ -576,155 +582,197 @@ function renderHostedAgentSection({
       addLabel={t('ai.connection.addHostedAgentProfile')}
       onAdd={() => setAiHostedAgentProfiles((current) => [...current, createDefaultAIOracleHostedAgentProfile()])}
     >
-      {aiHostedAgentProfiles.map((profile) => (
-        <div key={profile.id} className="grid gap-2 rounded-xl border px-3 py-3" style={cardStyle}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-              {profile.label || t('ai.connection.hostedAgentFallback', { id: profile.id })}
-            </div>
-            <button
-              type="button"
-              onClick={() => setAiHostedAgentProfiles((current) => current.filter((item) => item.id !== profile.id))}
-              className="text-[11px]"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              {t('ai.connection.removeItem')}
-            </button>
-          </div>
-          <FormField label={t('ai.connection.label')}>
-            <input
-              value={profile.label}
-              onChange={(event) => updateHostedAgentProfile(profile.id, (current) => ({ ...current, label: event.target.value }))}
-              className="rounded-lg border px-3 py-2 text-xs outline-none"
-              style={inputStyle}
-            />
-          </FormField>
-          <FormField label={t('ai.connection.endpointUrl')}>
-            <input
-              value={profile.endpointUrl}
-              onChange={(event) =>
-                updateHostedAgentProfile(profile.id, (current) => ({ ...current, endpointUrl: event.target.value }))
-              }
-              className="rounded-lg border px-3 py-2 text-xs outline-none"
-              style={inputStyle}
-            />
-          </FormField>
-          <FormField label={t('ai.connection.invokePath')}>
-            <input
-              value={profile.invokePath}
-              onChange={(event) =>
-                updateHostedAgentProfile(profile.id, (current) => ({ ...current, invokePath: event.target.value }))
-              }
-              className="rounded-lg border px-3 py-2 text-xs outline-none"
-              style={inputStyle}
-            />
-          </FormField>
-          <FormField label={t('ai.connection.domainUrl')}>
-            <input
-              value={profile.domainUrl}
-              onChange={(event) =>
-                updateHostedAgentProfile(profile.id, (current) => ({ ...current, domainUrl: event.target.value }))
-              }
-              className="rounded-lg border px-3 py-2 text-xs outline-none"
-              style={inputStyle}
-            />
-          </FormField>
-          <FormField label={t('ai.connection.clientId')}>
-            <input
-              value={profile.clientId}
-              onChange={(event) =>
-                updateHostedAgentProfile(profile.id, (current) => ({ ...current, clientId: event.target.value }))
-              }
-              className="rounded-lg border px-3 py-2 text-xs outline-none"
-              style={inputStyle}
-            />
-          </FormField>
-          <FormField label={t('ai.connection.scope')}>
-            <input
-              value={profile.scope}
-              onChange={(event) =>
-                updateHostedAgentProfile(profile.id, (current) => ({ ...current, scope: event.target.value }))
-              }
-              className="rounded-lg border px-3 py-2 text-xs outline-none"
-              style={inputStyle}
-            />
-          </FormField>
-          <FormField label={t('ai.connection.audience')}>
-            <input
-              value={profile.audience}
-              onChange={(event) =>
-                updateHostedAgentProfile(profile.id, (current) => ({ ...current, audience: event.target.value }))
-              }
-              className="rounded-lg border px-3 py-2 text-xs outline-none"
-              style={inputStyle}
-            />
-          </FormField>
-          <FormField label={t('ai.connection.transport')}>
-            <select
-              value={profile.transport}
-              onChange={(event) =>
-                updateHostedAgentProfile(profile.id, (current) => ({
-                  ...current,
-                  transport: event.target.value === 'sse' ? 'sse' : 'http-json',
-                }))
-              }
-              className="rounded-lg border px-3 py-2 text-xs outline-none"
-              style={inputStyle}
-            >
-              <option value="http-json">HTTP JSON</option>
-              <option value="sse">SSE</option>
-            </select>
-          </FormField>
-          <FormField label={t('ai.connection.supportedContracts')}>
-            <div className="flex flex-wrap gap-3 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-              {([
-                { key: 'chat-text', label: t('ai.connection.contract.chatText') },
-                { key: 'structured-data-answer', label: t('ai.connection.contract.structuredDataAnswer') },
-              ] as const).map((contract) => (
-                <label key={contract.key} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={profile.supportedContracts.includes(contract.key)}
-                    onChange={() => toggleHostedAgentContract(profile.id, contract.key)}
-                  />
-                  <span>{contract.label}</span>
-                </label>
-              ))}
-            </div>
-          </FormField>
-          <FormField label={t('ai.connection.clientSecret')}>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={aiHostedAgentSecrets[profile.id] ?? ''}
-                onChange={(event) =>
-                  setAiHostedAgentSecrets((current) => ({ ...current, [profile.id]: event.target.value }))
-                }
-                className="flex-1 rounded-lg border px-3 py-2 text-xs outline-none"
-                style={inputStyle}
-                placeholder={
-                  hostedAgentSecretStatus[profile.id]
-                    ? t('ai.connection.apiKeyStored')
-                    : t('ai.connection.apiKeyPlaceholder')
-                }
-              />
+      {aiHostedAgentProfiles.map((profile) => {
+        const resolvedTokenUrl = buildHostedAgentTokenUrlPreview(profile.domainUrl)
+        const resolvedInvokeUrl = buildHostedAgentInvokeUrlPreview(profile)
+
+        return (
+          <div key={profile.id} className="grid gap-2 rounded-xl border px-3 py-3" style={cardStyle}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                {profile.label || t('ai.connection.hostedAgentFallback', { id: profile.id })}
+              </div>
               <button
                 type="button"
-                onClick={() => void clearHostedAgentSecret(profile.id)}
-                className="rounded-lg border px-3 py-2 text-xs transition-colors"
-                style={{
-                  borderColor: 'var(--border)',
-                  color: 'var(--text-secondary)',
-                  background: 'transparent',
-                }}
-                disabled={aiLoading || !hostedAgentSecretStatus[profile.id]}
+                onClick={() => setAiHostedAgentProfiles((current) => current.filter((item) => item.id !== profile.id))}
+                className="text-[11px]"
+                style={{ color: 'var(--text-muted)' }}
               >
-                {t('ai.connection.clearKey')}
+                {t('ai.connection.removeItem')}
               </button>
             </div>
-          </FormField>
-        </div>
-      ))}
+            <FormField label={t('ai.connection.label')}>
+              <input
+                value={profile.label}
+                onChange={(event) => updateHostedAgentProfile(profile.id, (current) => ({ ...current, label: event.target.value }))}
+                className="rounded-lg border px-3 py-2 text-xs outline-none"
+                style={inputStyle}
+              />
+            </FormField>
+            <FormField label={t('ai.connection.ociRegion')}>
+              <input
+                value={profile.ociRegion}
+                onChange={(event) =>
+                  updateHostedAgentProfile(profile.id, (current) => ({ ...current, ociRegion: event.target.value }))
+                }
+                className="rounded-lg border px-3 py-2 text-xs outline-none"
+                style={inputStyle}
+                placeholder="us-chicago-1"
+              />
+            </FormField>
+            <FormField label={t('ai.connection.hostedApplicationOcid')}>
+              <input
+                value={profile.hostedApplicationOcid}
+                onChange={(event) =>
+                  updateHostedAgentProfile(profile.id, (current) => ({
+                    ...current,
+                    hostedApplicationOcid: event.target.value,
+                  }))
+                }
+                className={`${technicalInputClassName} rounded-lg border px-3 py-2 text-xs outline-none`}
+                style={inputStyle}
+                placeholder="ocid1.generativeaihostedapplication..."
+                spellCheck={false}
+                title={profile.hostedApplicationOcid}
+              />
+            </FormField>
+            <FormField label={t('ai.connection.apiVersion')} meta={t('ai.connection.optional')}>
+              <input
+                value={profile.apiVersion}
+                onChange={(event) =>
+                  updateHostedAgentProfile(profile.id, (current) => ({ ...current, apiVersion: event.target.value }))
+                }
+                className={`${technicalInputClassName} rounded-lg border px-3 py-2 text-xs outline-none`}
+                style={inputStyle}
+                placeholder="20251112"
+                spellCheck={false}
+              />
+            </FormField>
+            <FormField label={t('ai.connection.apiAction')}>
+              <input
+                value={profile.apiAction}
+                onChange={(event) =>
+                  updateHostedAgentProfile(profile.id, (current) => ({ ...current, apiAction: event.target.value }))
+                }
+                className={`${technicalInputClassName} rounded-lg border px-3 py-2 text-xs outline-none`}
+                style={inputStyle}
+                placeholder="chat"
+                spellCheck={false}
+              />
+            </FormField>
+            <FormField label={t('ai.connection.domainUrl')}>
+              <input
+                value={profile.domainUrl}
+                onChange={(event) =>
+                  updateHostedAgentProfile(profile.id, (current) => ({ ...current, domainUrl: event.target.value }))
+                }
+                className={`${technicalInputClassName} rounded-lg border px-3 py-2 text-xs outline-none`}
+                style={inputStyle}
+                spellCheck={false}
+                title={profile.domainUrl}
+              />
+            </FormField>
+            <FormField label={t('ai.connection.clientId')}>
+              <input
+                value={profile.clientId}
+                onChange={(event) =>
+                  updateHostedAgentProfile(profile.id, (current) => ({ ...current, clientId: event.target.value }))
+                }
+                className={`${technicalInputClassName} rounded-lg border px-3 py-2 text-xs outline-none`}
+                style={inputStyle}
+                spellCheck={false}
+                title={profile.clientId}
+              />
+            </FormField>
+            <FormField label={t('ai.connection.scope')}>
+              <input
+                value={profile.scope}
+                onChange={(event) =>
+                  updateHostedAgentProfile(profile.id, (current) => ({ ...current, scope: event.target.value }))
+                }
+                className={`${technicalInputClassName} rounded-lg border px-3 py-2 text-xs outline-none`}
+                style={inputStyle}
+                spellCheck={false}
+                title={profile.scope}
+              />
+            </FormField>
+            {resolvedTokenUrl || resolvedInvokeUrl ? (
+              <div className="grid gap-2 rounded-lg border px-3 py-2 text-[11px]" style={derivedUrlCardStyle}>
+                {resolvedTokenUrl ? (
+                  <ResolvedUrlPreview label={t('ai.connection.resolvedTokenUrl')} value={resolvedTokenUrl} />
+                ) : null}
+                {resolvedInvokeUrl ? (
+                  <ResolvedUrlPreview label={t('ai.connection.resolvedInvokeUrl')} value={resolvedInvokeUrl} />
+                ) : null}
+              </div>
+            ) : null}
+            <FormField label={t('ai.connection.transport')}>
+              <select
+                value={profile.transport}
+                onChange={(event) =>
+                  updateHostedAgentProfile(profile.id, (current) => ({
+                    ...current,
+                    transport: event.target.value === 'sse' ? 'sse' : 'http-json',
+                  }))
+                }
+                className="rounded-lg border px-3 py-2 text-xs outline-none"
+                style={inputStyle}
+              >
+                <option value="http-json">HTTP JSON</option>
+                <option value="sse">SSE</option>
+              </select>
+            </FormField>
+            <FormField label={t('ai.connection.supportedContracts')}>
+              <div className="flex flex-wrap gap-3 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                {([
+                  { key: 'chat-text', label: t('ai.connection.contract.chatText') },
+                  { key: 'structured-data-answer', label: t('ai.connection.contract.structuredDataAnswer') },
+                ] as const).map((contract) => (
+                  <label key={contract.key} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={profile.supportedContracts.includes(contract.key)}
+                      onChange={() => toggleHostedAgentContract(profile.id, contract.key)}
+                    />
+                    <span>{contract.label}</span>
+                  </label>
+                ))}
+              </div>
+            </FormField>
+            <FormField label={t('ai.connection.clientSecret')}>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={aiHostedAgentSecrets[profile.id] ?? ''}
+                  onChange={(event) =>
+                    setAiHostedAgentSecrets((current) => ({ ...current, [profile.id]: event.target.value }))
+                  }
+                  className="flex-1 rounded-lg border px-3 py-2 text-xs outline-none"
+                  style={inputStyle}
+                  placeholder={
+                    hostedAgentSecretStatus[profile.id]
+                      ? t('ai.connection.apiKeyStored')
+                      : t('ai.connection.apiKeyPlaceholder')
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => void clearHostedAgentSecret(profile.id)}
+                  className="rounded-lg border px-3 py-2 text-xs transition-colors"
+                  style={{
+                    borderColor: 'var(--border)',
+                    color: 'var(--text-secondary)',
+                    background: 'transparent',
+                  }}
+                  disabled={aiLoading || !hostedAgentSecretStatus[profile.id]}
+                >
+                  {t('ai.connection.clearKey')}
+                </button>
+              </div>
+            </FormField>
+          </div>
+        )
+      })}
     </StoreSection>
   )
 }
@@ -780,13 +828,42 @@ function FormField({
   )
 }
 
+function ResolvedUrlPreview({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--text-muted)' }}>
+        {label}
+      </div>
+      <code
+        className="block overflow-x-auto whitespace-nowrap rounded-md px-2 py-1.5"
+        style={derivedUrlValueStyle}
+        title={value}
+      >
+        {value}
+      </code>
+    </div>
+  )
+}
+
 const inputStyle = {
   borderColor: 'var(--border)',
   background: 'var(--bg-primary)',
   color: 'var(--text-primary)',
 } as const
 
+const technicalInputClassName = 'font-mono'
+
 const cardStyle = {
   borderColor: 'color-mix(in srgb, var(--border) 86%, transparent)',
   background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
+} as const
+
+const derivedUrlCardStyle = {
+  borderColor: 'color-mix(in srgb, var(--border) 82%, transparent)',
+  background: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)',
+} as const
+
+const derivedUrlValueStyle = {
+  background: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)',
+  color: 'var(--text-primary)',
 } as const

@@ -8,7 +8,26 @@
       "Bash(grep -n \"\\\\\\\\\\\\\\\\r\\\\|carriage\\\\|CRLF\\\\|splitLines\\\\|Text\\\\.of\" node_modules/@codemirror/state/dist/index.js)",
       "Bash(node -e ':*)",
       "Bash(node --test tests/editor-paste-event.test.ts tests/editor-insertion.test.ts)",
-      "Bash(node --test tests/wysiwyg-tables.test.ts)"
+      "Bash(node --test tests/wysiwyg-tables.test.ts)",
+      "Bash(git -C /e/workspace/no.1-markdown-editor-v2 log --oneline -20)",
+      "Bash(node --test tests/ai-ui-wiring.test.ts tests/ai-store.test.ts tests/ai-flow-wiring.test.ts tests/ai-completion-gates.test.ts tests/external-file-changes.test.ts)",
+      "Bash(node --test tests/ai-ui-wiring.test.ts tests/ai-store.test.ts tests/desktop-file-open.test.ts tests/external-file-watch-error.test.ts)",
+      "Bash(node scripts/run-tests.mjs)",
+      "Bash(grep -r \"project.*trim\\\\|project\\\\\\\\.trim\\(\\)\" /e/workspace/no.1-markdown-editor-v2/src/lib/ai --include=\"*.ts\" -n)",
+      "Bash(node --test --experimental-strip-types tests/ai-provider.test.ts tests/ai-ui-wiring.test.ts)",
+      "Bash(cargo check *)",
+      "Bash(npx tsx *)",
+      "Bash(node -e \"const j=require\\('./src/i18n/locales/en.json'\\); console.log\\(Object.keys\\(j\\)\\)\")",
+      "Bash(wait)",
+      "Read(//c/Users/thinkpad/.claude/projects/e--workspace-no-1-markdown-editor-v2/**)",
+      "Bash(grep -aoE \"scope[^\\\\\"]{0,80}\" \"C:/Users/thinkpad/.claude/projects/e--workspace-no-1-markdown-editor-v2/1ce3f5b2-fba1-4f88-b08e-45f53b042a1b.jsonl\")",
+      "Bash(grep -aoE \"requests\\\\.post[^\\\\\"]{0,500}\" \"C:/Users/thinkpad/.claude/projects/e--workspace-no-1-markdown-editor-v2/1ce3f5b2-fba1-4f88-b08e-45f53b042a1b.jsonl\")",
+      "Bash(grep -aoE \"client_credentials[^\\\\\"]{0,400}\" \"C:/Users/thinkpad/.claude/projects/e--workspace-no-1-markdown-editor-v2/1ce3f5b2-fba1-4f88-b08e-45f53b042a1b.jsonl\")",
+      "Bash(grep -aoE \"def [a-z_]+[^\\\\\"]{0,1000}\" \"C:/Users/thinkpad/.claude/projects/e--workspace-no-1-markdown-editor-v2/1ce3f5b2-fba1-4f88-b08e-45f53b042a1b.jsonl\")",
+      "Bash(grep -aoE \"_get_access_token[^\\\\\"]{0,2000}\" \"C:/Users/thinkpad/.claude/projects/e--workspace-no-1-markdown-editor-v2/1ce3f5b2-fba1-4f88-b08e-45f53b042a1b.jsonl\")",
+      "Bash(grep -aoE \"token_url = f[^\\\\\"]{0,3000}\" \"C:/Users/thinkpad/.claude/projects/e--workspace-no-1-markdown-editor-v2/1ce3f5b2-fba1-4f88-b08e-45f53b042a1b.jsonl\")",
+      "Bash(python3 -c ' *)",
+      "Bash(cargo build *)"
     ]
   }
 }

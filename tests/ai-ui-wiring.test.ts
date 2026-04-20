@@ -68,3 +68,19 @@ test('ThemePanel keeps AI connection settings but removes editable AI preference
   assert.doesNotMatch(section, /t\('ai\.preferences\.historyProviderEnabled'\)/)
   assert.doesNotMatch(section, /t\('ai\.preferences\.historyProviderBudget'\)/)
 })
+
+test('AI settings surface resolved hosted-agent URLs and notify the composer when provider state changes', async () => {
+  const [section, composer] = await Promise.all([
+    readFile(new URL('../src/components/ThemePanel/AISettingsSection.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(section, /dispatchAIProviderStateChanged\(\)/)
+  assert.match(section, /buildHostedAgentTokenUrlPreview\(profile\.domainUrl\)/)
+  assert.match(section, /buildHostedAgentInvokeUrlPreview\(profile\)/)
+  assert.match(section, /t\('ai\.connection\.resolvedTokenUrl'\)/)
+  assert.match(section, /t\('ai\.connection\.resolvedInvokeUrl'\)/)
+  assert.match(composer, /AI_PROVIDER_STATE_CHANGED_EVENT/)
+  assert.match(composer, /document\.addEventListener\(AI_PROVIDER_STATE_CHANGED_EVENT, handleProviderStateChanged\)/)
+  assert.match(composer, /document\.removeEventListener\(AI_PROVIDER_STATE_CHANGED_EVENT, handleProviderStateChanged\)/)
+})

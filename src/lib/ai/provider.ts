@@ -55,12 +55,13 @@ export function createDefaultAIOracleHostedAgentProfile(): AIOracleHostedAgentPr
   return {
     id: createAIConfigId('hosted-agent'),
     label: '',
-    endpointUrl: '',
-    invokePath: '',
+    ociRegion: '',
+    hostedApplicationOcid: '',
+    apiVersion: '20251112',
+    apiAction: 'chat',
     domainUrl: '',
     clientId: '',
     scope: '',
-    audience: '',
     transport: 'http-json',
     supportedContracts: ['chat-text'],
   }
@@ -177,6 +178,29 @@ export function findHostedAgentProfile(
   return config.hostedAgentProfiles.find((profile) => profile.id === hostedAgentProfileId) ?? null
 }
 
+export function buildHostedAgentTokenUrlPreview(domainUrl: string): string {
+  const trimmed = domainUrl.trim()
+  if (!trimmed) return ''
+
+  try {
+    return `${normalizeBaseUrl(trimmed)}/oauth2/v1/token`
+  } catch {
+    return ''
+  }
+}
+
+export function buildHostedAgentInvokeUrlPreview(
+  profile: Pick<AIOracleHostedAgentProfile, 'ociRegion' | 'hostedApplicationOcid' | 'apiVersion' | 'apiAction'>
+): string {
+  const region = profile.ociRegion?.trim() ?? ''
+  const hostedApplicationOcid = profile.hostedApplicationOcid?.trim() ?? ''
+  if (!region || !hostedApplicationOcid) return ''
+
+  const apiVersion = normalizeHostedAgentApiVersion(profile.apiVersion)
+  const apiAction = normalizeHostedAgentApiAction(profile.apiAction)
+  return `https://application.generativeai.${region}.oci.oraclecloud.com/${apiVersion}/hostedApplications/${hostedApplicationOcid}/actions/invoke/${apiAction}`
+}
+
 function normalizeUnstructuredStoreRegistrations(
   stores: readonly AIOracleUnstructuredStoreRegistration[] | undefined
 ): AIOracleUnstructuredStoreRegistration[] {
@@ -219,12 +243,13 @@ function normalizeHostedAgentProfiles(
   return (profiles ?? []).map((profile, index) => ({
     id: normalizeConfigId(profile.id, 'hosted-agent', index),
     label: profile.label.trim(),
-    endpointUrl: normalizeBaseUrl(profile.endpointUrl),
-    invokePath: normalizeHostedAgentInvokePath(profile.invokePath),
+    ociRegion: normalizeHostedAgentOciRegion(profile),
+    hostedApplicationOcid: normalizeHostedAgentApplicationOcid(profile),
+    apiVersion: normalizeHostedAgentApiVersion(profile.apiVersion),
+    apiAction: normalizeHostedAgentApiAction(profile.apiAction),
     domainUrl: normalizeBaseUrl(profile.domainUrl),
     clientId: profile.clientId.trim(),
     scope: profile.scope.trim(),
-    audience: profile.audience.trim(),
     transport: profile.transport === 'sse' ? 'sse' : 'http-json',
     supportedContracts: normalizeHostedAgentSupportedContracts(profile.supportedContracts),
   }))
@@ -248,9 +273,30 @@ function normalizeStructuredStoreMode(mode: AIOracleStructuredStoreMode | undefi
   return mode === 'agent-answer' ? 'agent-answer' : 'sql-draft'
 }
 
-function normalizeHostedAgentInvokePath(input: string): string {
-  const trimmed = input.trim().replace(/^\/+/u, '').replace(/\/+$/u, '')
+function normalizeHostedAgentOciRegion(profile: AIOracleHostedAgentProfile): string {
+  const trimmed = profile.ociRegion?.trim() ?? ''
+  if (!trimmed) {
+    throw new Error('Hosted agent OCI region is required.')
+  }
   return trimmed
+}
+
+function normalizeHostedAgentApplicationOcid(profile: AIOracleHostedAgentProfile): string {
+  const trimmed = profile.hostedApplicationOcid?.trim() ?? ''
+  if (!trimmed) {
+    throw new Error('Hosted agent application OCID is required.')
+  }
+  return trimmed
+}
+
+function normalizeHostedAgentApiAction(input: string | undefined): string {
+  const trimmed = input?.trim().replace(/^\/+/u, '').replace(/\/+$/u, '') ?? ''
+  return trimmed || 'chat'
+}
+
+function normalizeHostedAgentApiVersion(input: string | undefined): string {
+  const trimmed = input?.trim()
+  return trimmed || '20251112'
 }
 
 function normalizeConfigId(input: string | undefined, prefix: string, index: number): string {

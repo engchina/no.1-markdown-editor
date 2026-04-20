@@ -36,6 +36,13 @@ const TABLE_FIRST_CELL_BACKSPACE_MARKDOWN = [
   '| alpha | beta |',
   'after table',
 ].join('\n')
+const TABLE_DELETE_MARKDOWN = [
+  '| Left | Right |',
+  '| --- | ---: |',
+  '|  | beta |',
+  '| gamma | delta |',
+  'after table',
+].join('\n')
 const ORDINARY_INSERTION = ' ordinary smoke'
 const PASTE_INSERTION = ' paste smoke'
 const AI_INSERTION = ' ai smoke'
@@ -238,7 +245,7 @@ async function readEditorSnapshot(page) {
     const editor = document.querySelector('.cm-editor')
     const activeElement = document.activeElement
     const activeTableInput =
-      activeElement instanceof HTMLInputElement &&
+      activeElement instanceof HTMLTextAreaElement &&
         activeElement.classList.contains('cm-wysiwyg-table__input')
         ? activeElement
         : null
@@ -984,6 +991,68 @@ async function runWysiwygTableKeyboardScenario(page, diagnostics) {
 
   await resetEditor(page, {
     content: TABLE_KEYBOARD_MARKDOWN,
+    name: 'wysiwyg-table-arrow-right.md',
+    wysiwygMode: true,
+  })
+  await waitForCondition(
+    async () => (await readEditorSnapshot(page))?.hasWysiwygTable === true,
+    'WYSIWYG table ArrowRight rendered table'
+  )
+
+  await activateTableCell(page, { section: 'body', rowIndex: 0, columnIndex: 1 })
+  await waitForActiveTableInputState(page, {
+    section: 'body',
+    rowIndex: 0,
+    columnIndex: 1,
+    value: 'beta',
+    selectionStart: 4,
+    selectionEnd: 4,
+  }, 'WYSIWYG table ArrowRight line-end positioning')
+  await page.keyboard.press('ArrowRight')
+  await waitForActiveTableInputState(page, {
+    section: 'body',
+    rowIndex: 1,
+    columnIndex: 0,
+    value: 'gamma',
+    selectionStart: 0,
+    selectionEnd: 0,
+  }, 'WYSIWYG table ArrowRight boundary navigation')
+  diagnostics.wysiwygTableArrowRightNavigation = await readEditorSnapshot(page)
+  assert.equal(diagnostics.wysiwygTableArrowRightNavigation?.docText, TABLE_KEYBOARD_MARKDOWN)
+
+  await resetEditor(page, {
+    content: TABLE_DELETE_MARKDOWN,
+    name: 'wysiwyg-table-delete.md',
+    wysiwygMode: true,
+  })
+  await waitForCondition(
+    async () => (await readEditorSnapshot(page))?.hasWysiwygTable === true,
+    'WYSIWYG table Delete rendered table'
+  )
+
+  await activateTableCell(page, { section: 'body', rowIndex: 0, columnIndex: 0 })
+  await waitForActiveTableInputState(page, {
+    section: 'body',
+    rowIndex: 0,
+    columnIndex: 0,
+    value: '',
+    selectionStart: 0,
+    selectionEnd: 0,
+  }, 'WYSIWYG table Delete empty-cell positioning')
+  await page.keyboard.press('Delete')
+  await waitForActiveTableInputState(page, {
+    section: 'body',
+    rowIndex: 0,
+    columnIndex: 1,
+    value: 'beta',
+    selectionStart: 0,
+    selectionEnd: 0,
+  }, 'WYSIWYG table Delete empty-cell navigation')
+  diagnostics.wysiwygTableDeleteNavigation = await readEditorSnapshot(page)
+  assert.equal(diagnostics.wysiwygTableDeleteNavigation?.docText, TABLE_DELETE_MARKDOWN)
+
+  await resetEditor(page, {
+    content: TABLE_KEYBOARD_MARKDOWN,
     name: 'wysiwyg-table-tab-insert-row.md',
     wysiwygMode: true,
   })
@@ -1017,35 +1086,32 @@ async function runWysiwygTableKeyboardScenario(page, diagnostics) {
 
   await resetEditor(page, {
     content: TABLE_KEYBOARD_MARKDOWN,
-    name: 'wysiwyg-table-shift-tab-insert-row.md',
+    name: 'wysiwyg-table-shift-tab-exit-before.md',
     wysiwygMode: true,
   })
   await waitForCondition(
     async () => (await readEditorSnapshot(page))?.hasWysiwygTable === true,
-    'WYSIWYG table Shift+Tab row insertion rendered table'
+    'WYSIWYG table Shift+Tab exit-before rendered table'
   )
 
   await activateTableCell(page, { section: 'head', rowIndex: 0, columnIndex: 0 })
   await page.keyboard.press('Shift+Tab')
-  await waitForActiveTableInputState(page, {
-    section: 'body',
-    rowIndex: 0,
-    columnIndex: 0,
-    value: '',
-    selectionStart: 0,
-    selectionEnd: 0,
-  }, 'WYSIWYG table Shift+Tab row insertion')
-  diagnostics.wysiwygTableShiftTabInsertRow = await readEditorSnapshot(page)
+  await waitForCondition(async () => {
+    const snapshot = await readEditorSnapshot(page)
+    return (
+      !!snapshot &&
+      snapshot.docText === `\n${TABLE_KEYBOARD_MARKDOWN}` &&
+      snapshot.lineNumber === 1 &&
+      snapshot.lineText === '' &&
+      snapshot.column === 1 &&
+      snapshot.hasTableInputFocus === false &&
+      snapshot.activeIsInEditor === true
+    )
+  }, 'WYSIWYG table Shift+Tab exit before table')
+  diagnostics.wysiwygTableShiftTabExitBefore = await readEditorSnapshot(page)
   assert.equal(
-    diagnostics.wysiwygTableShiftTabInsertRow?.docText,
-    [
-      '| Left | Right |',
-      '| --- | ---: |',
-      '|  |  |',
-      '| alpha | beta |',
-      '| gamma | delta |',
-      'after table',
-    ].join('\n')
+    diagnostics.wysiwygTableShiftTabExitBefore?.docText,
+    `\n${TABLE_KEYBOARD_MARKDOWN}`
   )
 
   await resetEditor(page, {
@@ -1097,9 +1163,9 @@ async function runWysiwygTableKeyboardScenario(page, diagnostics) {
     section: 'body',
     rowIndex: 0,
     columnIndex: 0,
-    value: 'alpha<br />',
-    selectionStart: 11,
-    selectionEnd: 11,
+    value: 'alpha\n',
+    selectionStart: 6,
+    selectionEnd: 6,
   }, 'WYSIWYG table Shift+Enter inline break')
   diagnostics.wysiwygTableShiftEnter = await readEditorSnapshot(page)
   assert.equal(
@@ -1121,6 +1187,31 @@ async function runWysiwygTableKeyboardScenario(page, diagnostics) {
     /alpha<span class="cm-wysiwyg-table__line-break-marker">&lt;br \/&gt;<\/span>/u,
     'WYSIWYG table Shift+Enter should render a visible line-break placeholder'
   )
+
+  await resetEditor(page, {
+    content: TABLE_KEYBOARD_MARKDOWN,
+    name: 'wysiwyg-table-escape.md',
+    wysiwygMode: true,
+  })
+  await waitForCondition(
+    async () => (await readEditorSnapshot(page))?.hasWysiwygTable === true,
+    'WYSIWYG table Escape rendered table'
+  )
+
+  await activateTableCell(page, { section: 'body', rowIndex: 0, columnIndex: 0 })
+  await page.keyboard.press('Escape')
+  await waitForCondition(async () => {
+    const snapshot = await readEditorSnapshot(page)
+    return (
+      !!snapshot &&
+      snapshot.docText === TABLE_KEYBOARD_MARKDOWN &&
+      snapshot.lineText === 'after table' &&
+      snapshot.column === 1 &&
+      snapshot.hasTableInputFocus === false &&
+      snapshot.activeIsInEditor === true
+    )
+  }, 'WYSIWYG table Escape should exit to the next physical line')
+  diagnostics.wysiwygTableEscapeExit = await readEditorSnapshot(page)
 }
 
 async function main() {
