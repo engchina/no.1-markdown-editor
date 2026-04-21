@@ -206,6 +206,18 @@ test('renderMarkdown preserves footnotes while rendering superscript in surround
   assert.match(html, /Footnote 3<sup>2<\/sup>/)
 })
 
+test('renderMarkdown keeps semantic task list html for preview checkbox styling', async () => {
+  const html = await renderMarkdown([
+    '- [ ] Draft release notes',
+    '- [x] Ship 0.17.2',
+  ].join('\n'))
+
+  assert.match(html, /class="contains-task-list"/)
+  assert.match(html, /class="task-list-item"/)
+  assert.match(html, /<input[^>]*type="checkbox"[^>]*disabled[^>]*>/)
+  assert.match(html, /<input[^>]*type="checkbox"[^>]*checked[^>]*disabled[^>]*>/)
+})
+
 test('renderMarkdown keeps linked remote images from pasted web content', async () => {
   const markdown = '[![img](https://example.com/assets/hero.png)](https://example.com/assets/hero.png)'
   const html = await renderMarkdown(markdown)

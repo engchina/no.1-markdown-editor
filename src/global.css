@@ -743,6 +743,21 @@ a:focus-visible {
   margin-bottom: 0.5em;
 }
 
+.markdown-preview ul.contains-task-list,
+.markdown-preview ul.contains-task-list ul.contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.markdown-preview li.task-list-item {
+  list-style: none;
+}
+
+.markdown-preview li.task-list-item > input[type="checkbox"] {
+  margin-right: 0.5em;
+  vertical-align: middle;
+}
+
 .markdown-preview li>ul,
 .markdown-preview li>ol {
   margin-top: 0.5em;
@@ -828,10 +843,52 @@ a:focus-visible {
 }
 
 .markdown-preview input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
   margin-right: 8px;
+  vertical-align: middle;
+  cursor: pointer;
+  border: 2px solid color-mix(in srgb, var(--text-muted) 60%, transparent);
+  border-radius: 4px;
+  background-color: transparent;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(-1px);
 }
 
-/* KaTeX math */
+.markdown-preview input[type="checkbox"]:hover {
+  border-color: var(--accent);
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.markdown-preview input[type="checkbox"]:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.markdown-preview input[type="checkbox"]::after {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 8px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: scale(0.5) rotate(45deg);
+  opacity: 0;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  margin-bottom: 2px;
+}
+
+.markdown-preview input[type="checkbox"]:checked::after {
+  opacity: 1;
+  transform: scale(1) rotate(45deg);
+}
+
 .markdown-preview .katex-display {
   overflow-x: auto;
   padding: 8px 0;

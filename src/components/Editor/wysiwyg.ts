@@ -712,13 +712,19 @@ class CheckboxWidget extends WidgetType {
     this.label = label
   }
   toDOM() {
-    const el = document.createElement('input')
-    el.type = 'checkbox'
-    el.checked = this.checked
-    el.className = 'cm-wysiwyg-checkbox'
+    const el = document.createElement('span')
+    el.className = `cm-wysiwyg-checkbox ${this.checked ? 'is-checked' : ''}`
     el.dataset.checkboxFrom = String(this.from)
     el.setAttribute('aria-label', this.label || 'Task')
-    el.style.cssText = 'cursor: pointer; margin-right: 4px; vertical-align: middle;'
+    el.setAttribute('role', 'checkbox')
+    el.setAttribute('aria-checked', String(this.checked))
+    
+    // Create inner SVG checkmark
+    el.innerHTML = `
+      <svg viewBox="0 0 14 14" width="12" height="12" class="checkmark">
+        <path d="M2.5 7L6 10.5L11.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    `
     return el
   }
   ignoreEvent() { return false }
@@ -746,6 +752,30 @@ class BlockquoteSpacerWidget extends WidgetType {
   ignoreEvent() { return true }
 
   eq(other: BlockquoteSpacerWidget) {
+    return this.depth === other.depth
+  }
+}
+
+class ListBulletWidget extends WidgetType {
+  private readonly depth: number
+
+  constructor(depth: number) {
+    super()
+    this.depth = depth
+  }
+
+  toDOM() {
+    const el = document.createElement('span')
+    el.className = 'cm-wysiwyg-bullet-simple'
+    if (this.depth === 0) el.textContent = '•'
+    else if (this.depth === 1) el.textContent = '◦'
+    else el.textContent = '▪'
+    return el
+  }
+
+  ignoreEvent() { return true }
+
+  eq(other: ListBulletWidget) {
     return this.depth === other.depth
   }
 }
@@ -987,21 +1017,75 @@ export function buildWysiwygDecorations(
         continue
       }
 
-      // ── Task list checkboxes ───────────────────────────────────────────
-      const taskMatch = text.match(/^(\s*[-*+]\s)\[( |x|X)\]\s/)
-      if (taskMatch) {
-        const bulletEnd = lineFrom + taskMatch[1].length
-        const boxStart = bulletEnd
-        const boxEnd = boxStart + taskMatch[2].length + 2 // [x]
-        const checked = taskMatch[2].toLowerCase() === 'x'
-        const label = text.replace(/^(\s*[-*+]\s)\[( |x|X)\]\s/, '').trim()
+      // ── Lists and Task Lists ───────────────────────────────────────────
+      const listMatch = text.match(/^(\s*)([-*+]|\d+[.)])(\s+)/)
+      const taskMatch = text.match(/^(\s*)([-*+]\s+\[(?: |x|X)\])(\s*)/)
 
+      if (listMatch && !taskMatch) {
+        const indentSpan = listMatch[1]
+        const marker = listMatch[2]
+        const depth = Math.floor(indentSpan.replace(/\t/g, '    ').length / 2)
+
+        const markerStart = lineFrom + indentSpan.length
+        const markerEnd = markerStart + marker.length
+        const isOrdered = /^\d/.test(marker)
+
+        // Obsidian-style live preview: reveal raw marker on the cursor line
+        // so it is directly editable; render the decorated form otherwise.
+        if (isOrdered) {
+          if (!onLine) {
+            queueDecoration(
+              decorations,
+              markerStart,
+              markerEnd,
+              Decoration.mark({ class: 'cm-wysiwyg-ordered-number' })
+            )
+          }
+        } else if (!onLine) {
+          queueDecoration(
+            decorations,
+            markerStart,
+            markerEnd,
+            Decoration.replace({ widget: new ListBulletWidget(depth) })
+          )
+        }
+      }
+
+      if (taskMatch) {
+        const markerAndBox = taskMatch[2]
+        const mStart = lineFrom + taskMatch[1].length
+        const mEnd = mStart + markerAndBox.length // includes exactly the marker and the box
+
+        // Parse the checked state from the match (e.g. "- [x]")
+        const isChecked = /\[x\]/i.test(markerAndBox)
+        const label = text.substring(mEnd).trim()
+
+        // Obsidian-style live preview: render the widget when cursor is off
+        // the line so click-to-toggle works; reveal raw "- [ ]" when the
+        // cursor sits on the line so the source is editable.
         if (!onLine) {
           queueDecoration(
             decorations,
-            boxStart,
-            boxEnd + 1, // include trailing space
-            Decoration.replace({ widget: new CheckboxWidget(checked, boxStart, label) })
+            mStart,
+            mEnd,
+            Decoration.replace({ widget: new CheckboxWidget(isChecked, mStart, label) })
+          )
+        } else {
+          queueDecoration(
+            decorations,
+            mStart,
+            mEnd,
+            Decoration.mark({ class: 'cm-wysiwyg-task-marker' })
+          )
+        }
+
+        // Add line style for completed tasks (strikethrough & muted)
+        if (isChecked && label.length > 0) {
+          queueDecoration(
+            decorations,
+            mEnd,
+            line.to,
+            Decoration.mark({ class: 'cm-wysiwyg-task-completed' })
           )
         }
       }
@@ -1485,7 +1569,7 @@ function processPattern(
 }
 
 function toggleTaskCheckbox(view: EditorView, target: EventTarget | null): boolean {
-  const checkbox = (target as HTMLElement | null)?.closest<HTMLInputElement>('.cm-wysiwyg-checkbox')
+  const checkbox = (target as HTMLElement | null)?.closest<HTMLElement>('.cm-wysiwyg-checkbox')
   if (!checkbox) return false
 
   const checkboxFrom = Number(checkbox.dataset.checkboxFrom)
@@ -1494,6 +1578,9 @@ function toggleTaskCheckbox(view: EditorView, target: EventTarget | null): boole
   const line = view.state.doc.lineAt(checkboxFrom)
   const change = getTaskCheckboxChange(line.text, line.from)
   if (!change) return false
+
+  // Optionally animate before replacing document state
+  checkbox.classList.toggle('is-checked')
 
   view.dispatch({ changes: change })
   view.focus()
@@ -2263,6 +2350,13 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
           event.preventDefault()
           return true
         }
+        if ((event.target as HTMLElement | null)?.closest('.cm-wysiwyg-checkbox')) {
+          // Prevent CodeMirror from moving the caret onto the task line on
+          // mousedown — otherwise the widget disappears before the click
+          // handler gets a chance to toggle it.
+          event.preventDefault()
+          return true
+        }
         if (!activateMathTarget(view, event.target)) return false
         event.preventDefault()
         return true
@@ -2640,6 +2734,59 @@ export const wysiwygTheme = EditorView.baseTheme({
     fontStyle: 'normal',
     borderLeft: '4px solid color-mix(in srgb, var(--text-muted) 42%, transparent)',
     paddingLeft: '14px',
+  },
+  '.cm-wysiwyg-task-completed': {
+    textDecoration: 'line-through',
+    color: 'var(--text-muted) !important',
+    transition: 'color 0.2s ease, text-decoration-color 0.2s ease',
+  },
+  '.cm-wysiwyg-task-marker': {
+    color: 'color-mix(in srgb, var(--text-muted) 70%, transparent) !important',
+    fontFamily: 'var(--font-mono, monospace)',
+  },
+  '.cm-wysiwyg-bullet-simple': {
+    display: 'inline-block',
+    textAlign: 'center',
+    width: '1ch',
+  },
+  '.cm-wysiwyg-ordered-number': {
+    fontFamily: 'var(--font-mono, monospace)',
+    color: 'color-mix(in srgb, var(--text-muted) 50%, var(--text-primary)) !important',
+    fontWeight: '500',
+  },
+  '.cm-wysiwyg-checkbox': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '16px',
+    height: '16px',
+    marginRight: '6px',
+    verticalAlign: 'middle',
+    cursor: 'pointer',
+    border: '2px solid color-mix(in srgb, var(--text-muted) 60%, transparent)',
+    borderRadius: '4px',
+    backgroundColor: 'transparent',
+    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+    transform: 'translateY(-1px)',
+    flexShrink: '0',
+  },
+  '.cm-wysiwyg-checkbox:hover': {
+    borderColor: 'var(--accent)',
+    backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)',
+  },
+  '.cm-wysiwyg-checkbox.is-checked': {
+    backgroundColor: 'var(--accent)',
+    borderColor: 'var(--accent)',
+  },
+  '.cm-wysiwyg-checkbox .checkmark': {
+    opacity: '0',
+    color: '#ffffff',
+    transform: 'scale(0.5)',
+    transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+  },
+  '.cm-wysiwyg-checkbox.is-checked .checkmark': {
+    opacity: '1',
+    transform: 'scale(1)',
   },
   '.cm-wysiwyg-blockquote-empty': {
     display: 'inline-block',
