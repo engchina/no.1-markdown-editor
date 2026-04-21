@@ -58,9 +58,12 @@ const COMMAND_PRIORITY = new Map<string, number>([
   ['view.lineNumbers', 216],
   ['view.wordWrap', 217],
   ['view.typewriter', 218],
-  ['view.fontSizeIncrease', 219],
-  ['view.fontSizeDecrease', 220],
-  ['view.fontSizeReset', 221],
+  ['view.zoomIn', 219],
+  ['view.zoomOut', 220],
+  ['view.zoomReset', 221],
+  ['view.fontSizeIncrease', 222],
+  ['view.fontSizeDecrease', 223],
+  ['view.fontSizeReset', 224],
   ['export.html', 310],
   ['export.pdf', 311],
   ['export.markdown', 312],
@@ -197,6 +200,12 @@ function getCommandIndicator(command: Command, mode: Props['mode']): ReactNode {
       return <SvgBadge name="wrap" />
     case 'view.typewriter':
       return <SvgBadge name="typewriter" />
+    case 'view.zoomIn':
+      return <TextBadge label="Z+" />
+    case 'view.zoomOut':
+      return <TextBadge label="Z-" />
+    case 'view.zoomReset':
+      return <TextBadge label="Z" />
     case 'view.fontSizeIncrease':
       return <TextBadge label="A+" />
     case 'view.fontSizeDecrease':

@@ -14,7 +14,7 @@ test('AI Composer binds document font size to content text while keeping the wid
   assert.doesNotMatch(composer, /data-ai-composer="true"[\s\S]{0,260}fontSize:/)
 })
 
-test('sidebar stays width-driven and does not subscribe to document font size', async () => {
+test('sidebar stays width-driven while app-level zoom remains separate from document font size', async () => {
   const [sidebar, app, layout] = await Promise.all([
     readFile(new URL('../src/components/Sidebar/Sidebar.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
@@ -24,8 +24,12 @@ test('sidebar stays width-driven and does not subscribe to document font size', 
   assert.match(sidebar, /export default function Sidebar\(\{ width \}: Props\)/)
   assert.match(sidebar, /className="sidebar-surface flex h-full min-h-0 flex-shrink-0 flex-col"[\s\S]*style=\{\{\s*[\s\S]*width,/)
   assert.doesNotMatch(sidebar, /useEditorStore\(\(state\) => state\.fontSize\)/)
-  assert.match(app, /store\.setFontSize\(Math\.min\(24, store\.fontSize \+ 1\)\)/)
-  assert.match(app, /store\.setFontSize\(Math\.max\(11, store\.fontSize - 1\)\)/)
+  assert.match(app, /const \{\s*[\s\S]*zoom,[\s\S]*\} = useEditorStore\(\)/)
+  assert.match(app, /zoom: `\$\{zoom\}%`/)
+  assert.match(app, /store\.setZoom\(Math\.min\(300, store\.zoom \+ 10\)\)/)
+  assert.match(app, /store\.setZoom\(Math\.max\(50, store\.zoom - 10\)\)/)
+  assert.match(app, /store\.setZoom\(100\)/)
+  assert.doesNotMatch(app, /store\.setFontSize\(/)
   assert.match(layout, /export const SIDEBAR_MIN_WIDTH = 260/)
   assert.match(layout, /export const SIDEBAR_MAX_WIDTH = 420/)
 })

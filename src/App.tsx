@@ -102,6 +102,7 @@ export default function App() {
     typewriterMode,
     activeThemeId,
     wysiwygMode,
+    zoom,
   } = useEditorStore()
   const activeTab = useActiveTab()
   const aiComposerOpen = useAIStore((state) => state.composer.open)
@@ -118,6 +119,7 @@ export default function App() {
     background: 'transparent',
     '--focus-column-max-width': `${focusColumnWidth}px`,
     '--focus-column-inline-padding': `${focusColumnPadding}px`,
+    zoom: `${zoom}%`,
   } as CSSProperties
   useDocumentDrop()
   useExternalFileChanges()
@@ -194,18 +196,36 @@ export default function App() {
       const store = useEditorStore.getState()
       if (event.code === 'Equal' || event.key === '=' || event.key === '+') {
         event.preventDefault()
-        store.setFontSize(Math.min(24, store.fontSize + 1))
+        store.setZoom(Math.min(300, store.zoom + 10))
       } else if (event.code === 'Minus' || event.key === '-') {
         event.preventDefault()
-        store.setFontSize(Math.max(11, store.fontSize - 1))
+        store.setZoom(Math.max(50, store.zoom - 10))
       } else if (event.key === '0') {
         event.preventDefault()
-        store.setFontSize(14)
+        store.setZoom(100)
       }
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  useEffect(() => {
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault()
+
+        const store = useEditorStore.getState()
+        if (event.deltaY > 0) {
+          store.setZoom(Math.max(50, store.zoom - 10))
+        } else if (event.deltaY < 0) {
+          store.setZoom(Math.min(300, store.zoom + 10))
+        }
+      }
+    }
+
+    document.addEventListener('wheel', onWheel, { passive: false })
+    return () => document.removeEventListener('wheel', onWheel)
   }, [])
 
   useEffect(() => {
