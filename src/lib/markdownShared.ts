@@ -6,7 +6,16 @@ export type FrontMatterMeta = Record<string, string>
 
 export const sanitizeSchema = {
   ...defaultSchema,
-  tagNames: Array.from(new Set([...(defaultSchema.tagNames ?? []), 'mark', 'sup', 'u'])),
+  tagNames: Array.from(new Set([...(defaultSchema.tagNames ?? []), 'mark', 'sup', 'u', 'section'])),
+  attributes: {
+    ...defaultSchema.attributes,
+    '*': [...(defaultSchema.attributes?.['*'] ?? []), 'className', 'class'], // To allow standard classes
+    'section': ['dataFootnotes', 'className', 'class'],
+    'h2': [...(defaultSchema.attributes?.h2 ?? []), 'id', 'className', 'class'],
+    'sup': ['id'],
+    'a': [...(defaultSchema.attributes?.a ?? []), 'dataFootnoteRef', 'dataFootnoteBackref', 'ariaDescribedby', 'ariaLabel'],
+    'li': [...(defaultSchema.attributes?.li ?? []), 'id'],
+  },
   protocols: {
     ...defaultSchema.protocols,
     src: Array.from(new Set([...(defaultSchema.protocols?.src ?? []), 'data', 'file'])),

@@ -34,6 +34,13 @@ import { renderInlineMarkdownFragment } from './wysiwygInlineMarkdown.ts'
 import { findInlineStrikethroughRanges } from './wysiwygStrikethrough.ts'
 import { findInlineSuperscriptRanges } from './wysiwygSuperscript.ts'
 import {
+  findInlineFootnoteRanges,
+  findBlockFootnoteRanges,
+  InlineFootnoteWidget,
+  BlockFootnoteTagWidget,
+  collectFootnoteIndices
+} from './wysiwygFootnote.ts'
+import {
   collectWysiwygCodeBlockDecorations,
   type WysiwygDecorationView,
 } from './wysiwygCodeBlock.ts'
@@ -797,7 +804,8 @@ export function buildWysiwygDecorations(
   view: WysiwygDecorationView,
   fencedCodeBlocks: readonly FencedCodeBlock[],
   mathBlocks: readonly MathBlock[],
-  tables: readonly MarkdownTableBlock[]
+  tables: readonly MarkdownTableBlock[],
+  footnoteIndices: Map<string, number>
 ): DecorationSet {
   // Mixed replace/mark decorations often start at the same position.
   // Collect first, then sort by CodeMirror's range ordering rules.
@@ -922,6 +930,31 @@ export function buildWysiwygDecorations(
         continue
       }
 
+      // ── Block Footnote Definitions ─────────────────────────────────────
+      const blockFootnotes = findBlockFootnoteRanges(text)
+      for (const fnRange of blockFootnotes) {
+        if (!onLine) {
+          queueDecoration(
+            decorations,
+            lineFrom + fnRange.from,
+            lineFrom + fnRange.to,
+            Decoration.replace({ widget: new BlockFootnoteTagWidget(fnRange.label, footnoteIndices.get(fnRange.label) ?? null) })
+          )
+        } else {
+          queueDecoration(
+             decorations,
+             lineFrom + fnRange.from,
+             lineFrom + fnRange.to,
+             Decoration.mark({ class: 'cm-wysiwyg-footnote-def-active' })
+          )
+        }
+        // Advance pos to end of footnote label tag
+        if (lineFrom + fnRange.to > pos) {
+          pos = lineFrom + fnRange.to
+        }
+        break // only one block footnote definition at start of line
+      }
+
       // ── Blockquote decoration ─────────────────────────────────────────
       const blockquoteLine = parseWysiwygBlockquoteLine(text)
       if (blockquoteLine) {
@@ -977,7 +1010,7 @@ export function buildWysiwygDecorations(
       // Only apply when NOT on the line containing the cursor
       if (!onLine) {
         processInlineMath(decorations, text, lineFrom)
-        processInline(decorations, text, lineFrom)
+        processInline(decorations, text, lineFrom, footnoteIndices)
       }
 
       pos = line.to + 1
@@ -991,10 +1024,11 @@ function safeBuildDecorations(
   view: WysiwygDecorationView,
   fencedCodeBlocks: readonly FencedCodeBlock[],
   mathBlocks: readonly MathBlock[],
-  tables: readonly MarkdownTableBlock[]
+  tables: readonly MarkdownTableBlock[],
+  footnoteIndices: Map<string, number>
 ): DecorationSet {
   try {
-    return buildWysiwygDecorations(view, fencedCodeBlocks, mathBlocks, tables)
+    return buildWysiwygDecorations(view, fencedCodeBlocks, mathBlocks, tables, footnoteIndices)
   } catch {
     return Decoration.none
   }
@@ -1211,7 +1245,8 @@ function processInlineMath(
 function processInline(
   decorations: DecorationSpec[],
   text: string,
-  lineFrom: number
+  lineFrom: number,
+  footnoteIndices: Map<string, number>
 ): void {
   const inlineCodeRanges = collectInlineCodeRanges(text)
   const inlineLiteralExcludedRanges = [
@@ -1220,6 +1255,7 @@ function processInline(
   ].sort((left, right) => left.from - right.from || left.to - right.to)
 
   processSuperscript(decorations, text, lineFrom)
+  processInlineFootnotes(decorations, text, lineFrom, footnoteIndices)
 
   // Bold **text** or __text__
   processPattern(decorations, text, lineFrom, /(\*\*|__)((?:[^*_]|\*(?!\*))+?)\1/g, 'cm-wysiwyg-bold', {
@@ -1292,6 +1328,22 @@ function processInline(
   }
 
   processLiteralEscapes(decorations, text, lineFrom, inlineLiteralExcludedRanges)
+}
+
+function processInlineFootnotes(
+  decorations: DecorationSpec[],
+  text: string,
+  lineFrom: number,
+  footnoteIndices: Map<string, number>
+): void {
+  for (const range of findInlineFootnoteRanges(text)) {
+    queueDecoration(
+      decorations,
+      lineFrom + range.from,
+      lineFrom + range.to,
+      Decoration.replace({ widget: new InlineFootnoteWidget(range.label, footnoteIndices.get(range.label) ?? 0) })
+    )
+  }
 }
 
 function processSuperscript(
@@ -1460,12 +1512,14 @@ class WysiwygPluginValue {
   fencedCodeBlocks: FencedCodeBlock[]
   mathBlocks: MathBlock[]
   tables: MarkdownTableBlock[]
+  footnoteIndices: Map<string, number>
   activeTableCell: ActiveWysiwygTableCell | null
 
   constructor(view: EditorView) {
     this.fencedCodeBlocks = collectFencedCodeBlocks(view.state.doc.toString())
     this.mathBlocks = collectMathBlocks(view.state.doc.toString(), this.fencedCodeBlocks)
     this.tables = collectMarkdownTableBlocks(view.state.doc.toString(), [...this.fencedCodeBlocks, ...this.mathBlocks])
+    this.footnoteIndices = collectFootnoteIndices(view.state.doc.toString())
     this.activeTableCell = null
     this.syncActiveTableCell(view)
     this.syncTableEditingPresentation(view, null)
@@ -1473,7 +1527,8 @@ class WysiwygPluginValue {
       view,
       this.fencedCodeBlocks,
       this.mathBlocks,
-      this.tables
+      this.tables,
+      this.footnoteIndices
     )
   }
 
@@ -1482,6 +1537,7 @@ class WysiwygPluginValue {
       this.fencedCodeBlocks = collectFencedCodeBlocks(update.state.doc.toString())
       this.mathBlocks = collectMathBlocks(update.state.doc.toString(), this.fencedCodeBlocks)
       this.tables = collectMarkdownTableBlocks(update.state.doc.toString(), [...this.fencedCodeBlocks, ...this.mathBlocks])
+      this.footnoteIndices = collectFootnoteIndices(update.state.doc.toString())
       pruneTableColumnWidthSnapshots(this.tables)
     }
 
@@ -1512,7 +1568,8 @@ class WysiwygPluginValue {
         update.view,
         this.fencedCodeBlocks,
         this.mathBlocks,
-        this.tables
+        this.tables,
+        this.footnoteIndices
       )
     }
 

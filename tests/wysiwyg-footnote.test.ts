@@ -1,0 +1,94 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import test from 'node:test'
+import {
+  collectFootnoteIndices,
+  findBlockFootnoteRanges,
+  findInlineFootnoteRanges,
+} from '../src/components/Editor/wysiwygFootnote.ts'
+
+test('findInlineFootnoteRanges matches references while skipping code spans and block definitions', () => {
+  const markdown = [
+    'a[^note] `[^skip]`',
+    '',
+    '[^def]: body',
+    'b[^two]',
+  ].join('\n')
+
+  const noteFrom = markdown.indexOf('[^note]')
+  const twoFrom = markdown.indexOf('[^two]')
+
+  assert.deepEqual(findInlineFootnoteRanges(markdown), [
+    {
+      from: noteFrom,
+      to: noteFrom + '[^note]'.length,
+      contentFrom: noteFrom + 2,
+      contentTo: noteFrom + '[^note]'.length - 1,
+      label: 'note',
+    },
+    {
+      from: twoFrom,
+      to: twoFrom + '[^two]'.length,
+      contentFrom: twoFrom + 2,
+      contentTo: twoFrom + '[^two]'.length - 1,
+      label: 'two',
+    },
+  ])
+})
+
+test('findBlockFootnoteRanges matches indented footnote definitions', () => {
+  const markdown = [
+    'Intro',
+    '  [^note]: first line',
+    '[^other]: second line',
+  ].join('\n')
+
+  const noteFrom = markdown.indexOf('[^note]')
+  const otherFrom = markdown.indexOf('[^other]')
+
+  assert.deepEqual(findBlockFootnoteRanges(markdown), [
+    {
+      from: noteFrom,
+      to: noteFrom + '[^note]: '.length,
+      labelFrom: noteFrom + 2,
+      labelTo: noteFrom + 2 + 'note'.length,
+      label: 'note',
+    },
+    {
+      from: otherFrom,
+      to: otherFrom + '[^other]: '.length,
+      labelFrom: otherFrom + 2,
+      labelTo: otherFrom + 2 + 'other'.length,
+      label: 'other',
+    },
+  ])
+})
+
+test('collectFootnoteIndices assigns stable display numbers from first reference order', () => {
+  const markdown = 'alpha[^b] beta[^a] gamma[^b] delta[^c]'
+
+  assert.deepEqual(
+    Array.from(collectFootnoteIndices(markdown).entries()),
+    [
+      ['b', 1],
+      ['a', 2],
+      ['c', 3],
+    ],
+  )
+})
+
+test('wysiwyg footnote support wires hover tooltip and presentation styles into the editor', async () => {
+  const editorSource = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
+  const css = await readFile(new URL('../src/global.css', import.meta.url), 'utf8')
+
+  assert.match(editorSource, /import\('\.\/wysiwygFootnoteHover'\)/u)
+  assert.match(editorSource, /wysiwygFootnoteHoverTooltip/u)
+  assert.match(
+    editorSource,
+    /setWysiwygExtensions\(\[wysiwygTableDecorations, wysiwygPlugin, wysiwygTheme, wysiwygFootnoteHoverTooltip\]\)/u,
+  )
+
+  assert.match(css, /\.cm-wysiwyg-footnote-ref\s*\{/u)
+  assert.match(css, /\.cm-wysiwyg-footnote-def-active\s*\{/u)
+  assert.match(css, /\.cm-wysiwyg-footnote-tooltip\s*\{/u)
+})

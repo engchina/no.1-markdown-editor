@@ -461,8 +461,10 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     }
 
     let cancelled = false
-    void import('./wysiwyg').then(({ wysiwygPlugin, wysiwygTheme, wysiwygTableDecorations }) => {
-      if (!cancelled) setWysiwygExtensions([wysiwygTableDecorations, wysiwygPlugin, wysiwygTheme])
+    import('./wysiwygFootnoteHover').then(({ wysiwygFootnoteHoverTooltip }) => {
+      void import('./wysiwyg').then(({ wysiwygPlugin, wysiwygTheme, wysiwygTableDecorations }) => {
+        if (!cancelled) setWysiwygExtensions([wysiwygTableDecorations, wysiwygPlugin, wysiwygTheme, wysiwygFootnoteHoverTooltip])
+      })
     })
 
     return () => {
