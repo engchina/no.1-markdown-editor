@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useAnchoredOverlayStyle } from '../../hooks/useAnchoredOverlayStyle'
+import { useEditorStore } from '../../store/editor'
 import UpdateSettingsSection from './UpdateSettingsSection'
 
 interface Props {
@@ -11,8 +12,9 @@ interface Props {
 
 export default function AboutPanel({ onClose, triggerRef }: Props) {
   const { t } = useTranslation()
+  const zoom = useEditorStore((state) => state.zoom)
   const panelRef = useRef<HTMLDivElement>(null)
-  const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align: 'right', width: 344 })
+  const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align: 'right', width: 344, zoom })
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -34,7 +36,7 @@ export default function AboutPanel({ onClose, triggerRef }: Props) {
     <div
       ref={panelRef}
       data-about-panel="true"
-      className="fixed z-[80] rounded-xl shadow-2xl overflow-hidden animate-in glass-panel"
+      className="fixed z-[80] flex flex-col rounded-xl shadow-2xl overflow-hidden animate-in glass-panel"
       style={{
         ...overlayStyle,
         background: 'color-mix(in srgb, var(--bg-primary) 96%, transparent)',
@@ -47,7 +49,7 @@ export default function AboutPanel({ onClose, triggerRef }: Props) {
         </h3>
       </div>
 
-      <div className="p-4 max-h-[70vh] overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <UpdateSettingsSection showSectionLabel={false} />
       </div>
     </div>,

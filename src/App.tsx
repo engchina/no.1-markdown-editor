@@ -466,105 +466,107 @@ export default function App() {
 
       {isTauri && <TitleBar />}
 
-      <div
-        className="relative z-20 flex-shrink-0 px-3 pt-3 pb-2"
-        style={{ minHeight: 'var(--toolbar-shell-height)' }}
-      >
-        {focusMode ? (
-          <div className="flex h-12 items-center justify-end px-1">
-            <div
-              className="text-xs px-3 py-1 rounded-full pointer-events-none select-none opacity-60"
-              style={{
-                background: 'color-mix(in srgb, var(--bg-secondary) 88%, transparent)',
-                color: 'var(--text-muted)',
-                border: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
-              }}
-            >
-              {t('toolbar.focusMode')} · F11
-            </div>
-          </div>
-        ) : (
-          <div className="toolbar-scroll-shell">
-            <Toolbar onOpenPalette={() => setPaletteMode('command')} saving={saving} />
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-1 min-h-0 px-3 pb-3">
-        <div className="relative flex flex-1 min-h-0 min-w-0">
-          {showSidebar && (
-            <div className="relative z-10 flex min-h-0 flex-shrink-0 items-stretch">
+      <div data-overlay-boundary="true" className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          className="relative z-20 flex-shrink-0 px-3 pt-3 pb-2"
+          style={{ minHeight: 'var(--toolbar-shell-height)' }}
+        >
+          {focusMode ? (
+            <div className="flex h-12 items-center justify-end px-1">
               <div
-                className="flex min-h-0 flex-shrink-0 flex-col overflow-hidden"
-                style={{ width: resolvedSidebarWidth }}
+                className="text-xs px-3 py-1 rounded-full pointer-events-none select-none opacity-60"
+                style={{
+                  background: 'color-mix(in srgb, var(--bg-secondary) 88%, transparent)',
+                  color: 'var(--text-muted)',
+                  border: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+                }}
               >
-                <Sidebar width={resolvedSidebarWidth} />
+                {t('toolbar.focusMode')} · F11
               </div>
-              <ResizableDivider
-                variant="sidebar"
-                ariaLabel={t('layout.sidebarResizeHandle')}
-                hint={t('layout.resizeHint')}
-                ariaValueMin={SIDEBAR_MIN_WIDTH}
-                ariaValueMax={SIDEBAR_MAX_WIDTH}
-                ariaValueNow={resolvedSidebarWidth}
-                ariaValueText={t('layout.sidebarResizeValue', { width: resolvedSidebarWidth })}
-                onResize={handleSidebarResize}
-                onReset={resetSidebarResize}
-              />
+            </div>
+          ) : (
+            <div className="toolbar-scroll-shell">
+              <Toolbar onOpenPalette={() => setPaletteMode('command')} saving={saving} />
             </div>
           )}
+        </div>
 
-          <div
-            className="relative flex flex-1 min-w-0 flex-col overflow-hidden rounded-[28px] shadow-elegant"
-            style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
-          >
-            {!focusMode && <DocumentTabs />}
-
-            {focusMode ? (
-              <div className="flex-1 min-w-0 overflow-hidden flex items-start justify-center focus-mode-container h-full">
-                <div className="focus-mode-column h-full w-full">
-                  {renderEditorPane()}
+        <div className="flex flex-1 min-h-0 px-3 pb-3">
+          <div className="relative flex flex-1 min-h-0 min-w-0">
+            {showSidebar && (
+              <div className="relative z-10 flex min-h-0 flex-shrink-0 items-stretch">
+                <div
+                  className="flex min-h-0 flex-shrink-0 flex-col overflow-hidden"
+                  style={{ width: resolvedSidebarWidth }}
+                >
+                  <Sidebar width={resolvedSidebarWidth} />
                 </div>
-              </div>
-            ) : (
-              <div className="flex flex-1 min-h-0 min-w-0">
-                {showEditor && (
-                  <div
-                    className="min-h-0 flex-shrink-0 overflow-hidden"
-                    style={{ width: showPreview ? `${editorRatio * 100}%` : '100%' }}
-                  >
-                    {renderEditorPane()}
-                  </div>
-                )}
-
-                {showEditor && showPreview && (
-                  <ResizableDivider
-                    variant="pane"
-                    ariaLabel={t('layout.splitResizeHandle')}
-                    hint={t('layout.resizeHint')}
-                    ariaValueMin={20}
-                    ariaValueMax={80}
-                    ariaValueNow={splitEditorPercent}
-                    ariaValueText={t('layout.splitResizeValue', {
-                      editor: splitEditorPercent,
-                      preview: splitPreviewPercent,
-                    })}
-                    onResize={handleSplitResize}
-                    onReset={resetSplitResize}
-                  />
-                )}
-
-                {showPreview && (
-                  <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
-                    {previewActivated ? (
-                      renderPreviewPane()
-                    ) : (
-                      <PreviewPlaceholder onActivate={() => setPreviewActivated(true)} />
-                    )}
-                  </div>
-                )}
+                <ResizableDivider
+                  variant="sidebar"
+                  ariaLabel={t('layout.sidebarResizeHandle')}
+                  hint={t('layout.resizeHint')}
+                  ariaValueMin={SIDEBAR_MIN_WIDTH}
+                  ariaValueMax={SIDEBAR_MAX_WIDTH}
+                  ariaValueNow={resolvedSidebarWidth}
+                  ariaValueText={t('layout.sidebarResizeValue', { width: resolvedSidebarWidth })}
+                  onResize={handleSidebarResize}
+                  onReset={resetSidebarResize}
+                />
               </div>
             )}
+
+            <div
+              className="relative flex flex-1 min-w-0 flex-col overflow-hidden rounded-[28px] shadow-elegant"
+              style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
+            >
+              {!focusMode && <DocumentTabs />}
+
+              {focusMode ? (
+                <div className="flex-1 min-w-0 overflow-hidden flex items-start justify-center focus-mode-container h-full">
+                  <div className="focus-mode-column h-full w-full">
+                    {renderEditorPane()}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-1 min-h-0 min-w-0">
+                  {showEditor && (
+                    <div
+                      className="min-h-0 flex-shrink-0 overflow-hidden"
+                      style={{ width: showPreview ? `${editorRatio * 100}%` : '100%' }}
+                    >
+                      {renderEditorPane()}
+                    </div>
+                  )}
+
+                  {showEditor && showPreview && (
+                    <ResizableDivider
+                      variant="pane"
+                      ariaLabel={t('layout.splitResizeHandle')}
+                      hint={t('layout.resizeHint')}
+                      ariaValueMin={20}
+                      ariaValueMax={80}
+                      ariaValueNow={splitEditorPercent}
+                      ariaValueText={t('layout.splitResizeValue', {
+                        editor: splitEditorPercent,
+                        preview: splitPreviewPercent,
+                      })}
+                      onResize={handleSplitResize}
+                      onReset={resetSplitResize}
+                    />
+                  )}
+
+                  {showPreview && (
+                    <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+                      {previewActivated ? (
+                        renderPreviewPane()
+                      ) : (
+                        <PreviewPlaceholder onActivate={() => setPreviewActivated(true)} />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

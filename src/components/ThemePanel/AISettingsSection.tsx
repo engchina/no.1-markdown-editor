@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useEffect, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   clearAIHostedAgentClientSecret,
@@ -226,6 +226,11 @@ export default function AISettingsSection() {
     })
   }
 
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void saveAiConnection()
+  }
+
   if (!isAIDesktopAvailable()) {
     return (
       <div data-ai-settings="true">
@@ -242,7 +247,7 @@ export default function AISettingsSection() {
   }
 
   return (
-    <div data-ai-settings="true" className="space-y-3">
+    <form data-ai-settings="true" className="space-y-3" onSubmit={handleSubmit} autoComplete="off">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
           {t('ai.connection.title')}
@@ -289,6 +294,7 @@ export default function AISettingsSection() {
         <FormField label={t('ai.connection.apiKey')}>
           <input
             type="password"
+            autoComplete="new-password"
             value={aiApiKey}
             onChange={(event) => setAiApiKey(event.target.value)}
             className="rounded-lg border px-3 py-2 text-xs outline-none"
@@ -339,8 +345,7 @@ export default function AISettingsSection() {
 
       <div className="flex flex-wrap gap-2">
         <button
-          type="button"
-          onClick={() => void saveAiConnection()}
+          type="submit"
           className="rounded-lg px-3 py-2 text-xs font-medium transition-colors"
           style={{ background: 'var(--accent)', color: 'white' }}
           disabled={aiLoading}
@@ -361,7 +366,7 @@ export default function AISettingsSection() {
           {t('ai.connection.clearKey')}
         </button>
       </div>
-    </div>
+    </form>
   )
 }
 
@@ -743,6 +748,7 @@ function renderHostedAgentSection({
               <div className="flex gap-2">
                 <input
                   type="password"
+                  autoComplete="new-password"
                   value={aiHostedAgentSecrets[profile.id] ?? ''}
                   onChange={(event) =>
                     setAiHostedAgentSecrets((current) => ({ ...current, [profile.id]: event.target.value }))

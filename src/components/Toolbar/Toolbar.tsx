@@ -125,15 +125,17 @@ function ToolbarMenu({
   triggerRef,
   align = 'left',
   width = 216,
+  zoom = 100,
 }: {
   items: ToolbarMenuItem[]
   onClose: () => void
   triggerRef: RefObject<HTMLButtonElement | null>
   align?: ToolbarMenuAlign
   width?: number
+  zoom?: number
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
-  const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align, width })
+  const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align, width, zoom })
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -186,9 +188,11 @@ function ToolbarMenu({
 function ExportMenu({
   onClose,
   triggerRef,
+  zoom,
 }: {
   onClose: () => void
   triggerRef: RefObject<HTMLButtonElement | null>
+  zoom: number
 }) {
   const { t } = useTranslation()
   const { exportHtml, exportPdf, exportMarkdown, copyAsHtml } = useExport()
@@ -210,7 +214,7 @@ function ExportMenu({
     },
   ]
 
-  return <ToolbarMenu items={items} onClose={onClose} triggerRef={triggerRef} width={200} />
+  return <ToolbarMenu items={items} onClose={onClose} triggerRef={triggerRef} width={200} zoom={zoom} />
 }
 
 export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () => void; saving?: boolean }) {
@@ -228,6 +232,7 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
     setLanguage,
     tabs,
     activeTabId,
+    zoom,
   } = useEditorStore()
 
   const { newFile, openFile, saveFile, saveFileAs } = useFileOps()
@@ -328,7 +333,7 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
           >
             <AppIcon name="download" size={16} />
           </ToolbarBtn>
-          {showExport && <ExportMenu onClose={() => setShowExport(false)} triggerRef={exportButtonRef} />}
+          {showExport && <ExportMenu onClose={() => setShowExport(false)} triggerRef={exportButtonRef} zoom={zoom} />}
         </div>
       </ToolbarGroup>
 
@@ -344,7 +349,15 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
             <ToolbarTextMark label="H" />
             <AppIcon name="chevronDown" size={14} />
           </ToolbarBtn>
-          {showHeadings && <ToolbarMenu items={headingItems} onClose={() => setShowHeadings(false)} triggerRef={headingButtonRef} width={176} />}
+          {showHeadings && (
+            <ToolbarMenu
+              items={headingItems}
+              onClose={() => setShowHeadings(false)}
+              triggerRef={headingButtonRef}
+              width={176}
+              zoom={zoom}
+            />
+          )}
         </div>
 
         <ToolbarBtn title={t('toolbar.quote')} onClick={() => emitFormat('quote')}>
@@ -393,6 +406,7 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
               onClose={() => setShowMoreActions(false)}
               triggerRef={moreActionsButtonRef}
               width={220}
+              zoom={zoom}
             />
           )}
         </div>

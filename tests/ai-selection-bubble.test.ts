@@ -131,3 +131,15 @@ test('computeAISelectionBubblePosition falls back to default measurements when i
   assert.equal(position.top, 56)
   assert.equal(position.left, 120)
 })
+
+test('computeAISelectionBubblePosition falls back to default measurements when DOM sizing yields undefined values', () => {
+  const position = computeAISelectionBubblePosition(
+    { top: 200, bottom: 220, left: 180, right: 260 },
+    { top: 100, bottom: 500, left: 100, right: 700 },
+    { width: undefined, height: undefined } as unknown as { width: number; height: number },
+    { gap: undefined, edgePadding: undefined }
+  )
+
+  assert.equal(position.top, 56)
+  assert.equal(position.left, 120)
+})

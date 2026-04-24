@@ -118,5 +118,5 @@ function resolveFiniteNonNegativeNumber(value: number | undefined, fallback: num
 }
 
 function resolveFiniteNumber(value: number | undefined, fallback: number): number {
-  return Number.isFinite(value) ? value : fallback
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }

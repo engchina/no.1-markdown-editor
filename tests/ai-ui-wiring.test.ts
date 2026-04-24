@@ -85,6 +85,16 @@ test('ThemePanel keeps AI connection settings but removes editable AI preference
   assert.doesNotMatch(section, /t\('ai\.preferences\.historyProviderBudget'\)/)
 })
 
+test('AI settings wrap secret inputs in a submit form so password fields keep proper semantics', async () => {
+  const section = await readFile(new URL('../src/components/ThemePanel/AISettingsSection.tsx', import.meta.url), 'utf8')
+
+  assert.match(section, /function handleSubmit\(event: FormEvent<HTMLFormElement>\)/)
+  assert.match(section, /event\.preventDefault\(\)\s*\n\s*void saveAiConnection\(\)/)
+  assert.match(section, /<form data-ai-settings="true" className="space-y-3" onSubmit=\{handleSubmit\} autoComplete="off">/)
+  assert.match(section, /type="password"\s*\n\s*autoComplete="new-password"/)
+  assert.match(section, /type="submit"\s*\n\s*className="rounded-lg px-3 py-2 text-xs font-medium transition-colors"/)
+})
+
 test('AI settings surface resolved hosted-agent URLs and notify the composer when provider state changes', async () => {
   const [section, composer] = await Promise.all([
     readFile(new URL('../src/components/ThemePanel/AISettingsSection.tsx', import.meta.url), 'utf8'),

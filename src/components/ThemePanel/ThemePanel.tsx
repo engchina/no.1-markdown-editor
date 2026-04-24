@@ -44,9 +44,10 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
     setSyntaxHighlightEngine,
     previewLineBreakMode,
     setPreviewLineBreakMode,
+    zoom,
   } = useEditorStore()
   const panelRef = useRef<HTMLDivElement>(null)
-  const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align: 'right', width: 420 })
+  const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align: 'right', width: 420, zoom })
   const resolvedThemeId = getThemeById(activeThemeId).id
   const resolvedFocusWidthPx = resolveFocusWidthPx(focusWidthMode, focusWidthCustomPx)
   const focusWidthPresets: Array<{
@@ -106,7 +107,7 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
     <div
       ref={panelRef}
       data-theme-panel="true"
-      className="fixed z-[80] rounded-xl shadow-2xl overflow-hidden animate-in glass-panel"
+      className="fixed z-[80] flex flex-col rounded-xl shadow-2xl overflow-hidden animate-in glass-panel"
       style={{
         ...overlayStyle,
         background: 'color-mix(in srgb, var(--bg-primary) 96%, transparent)',
@@ -119,7 +120,7 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
         </h3>
       </div>
 
-      <div className="p-4 space-y-5 max-h-[70vh] overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-5">
         <div>
           <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
             {t('themePanel.theme')}
