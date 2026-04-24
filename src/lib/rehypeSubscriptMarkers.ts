@@ -17,10 +17,10 @@ type VFileLike = {
   value?: unknown
 }
 
-const SUPERSCRIPT_MARKER = '^'
+const SUBSCRIPT_MARKER = '~'
 const CHARACTER_REFERENCE_PATTERN = /^&(?:#\d+|#x[0-9a-f]+|[A-Za-z][A-Za-z0-9]+);/i
 const INLINE_MATH_PATTERN = /(?<!\$)\${1,2}(?!\$)(.+?)(?<!\$)\${1,2}(?!\$)/g
-const SKIP_TAGS = new Set(['code', 'pre', 'script', 'style', 'textarea', 'sup', 'svg'])
+const SKIP_TAGS = new Set(['code', 'pre', 'script', 'style', 'textarea', 'sub', 'svg'])
 
 function appendText(target: HastNode[], value: string): void {
   if (!value) return
@@ -38,11 +38,11 @@ function appendNode(target: HastNode[], node: HastNode): void {
   target.push(node)
 }
 
-function flushSuperscriptBuffer(result: HastNode[], superscriptBuffer: HastNode[] | null): HastNode[] | null {
-  if (superscriptBuffer === null) return null
+function flushSubscriptBuffer(result: HastNode[], subscriptBuffer: HastNode[] | null): HastNode[] | null {
+  if (subscriptBuffer === null) return null
 
-  appendText(result, SUPERSCRIPT_MARKER)
-  for (const node of superscriptBuffer) {
+  appendText(result, SUBSCRIPT_MARKER)
+  for (const node of subscriptBuffer) {
     appendNode(result, node)
   }
 
@@ -146,9 +146,9 @@ function getSourceSlice(node: HastNode, source: string): string {
   return source.slice(startOffset, endOffset)
 }
 
-function getProtectedCaretOffsets(textValue: string, sourceSlice: string): Set<number> {
+function getProtectedTildeOffsets(textValue: string, sourceSlice: string): Set<number> {
   const protectedOffsets = new Set<number>()
-  if (!textValue.includes(SUPERSCRIPT_MARKER) || !sourceSlice) return protectedOffsets
+  if (!textValue.includes(SUBSCRIPT_MARKER) || !sourceSlice) return protectedOffsets
 
   let textIndex = 0
   let sourceIndex = 0
@@ -158,7 +158,7 @@ function getProtectedCaretOffsets(textValue: string, sourceSlice: string): Set<n
     const sourceChar = sourceSlice[sourceIndex]
 
     if (sourceChar === '\\' && sourceSlice[sourceIndex + 1] === textChar) {
-      if (textChar === SUPERSCRIPT_MARKER) {
+      if (textChar === SUBSCRIPT_MARKER) {
         protectedOffsets.add(textIndex)
       }
       sourceIndex += 2
@@ -169,7 +169,7 @@ function getProtectedCaretOffsets(textValue: string, sourceSlice: string): Set<n
     if (sourceChar === '&') {
       const characterReference = CHARACTER_REFERENCE_PATTERN.exec(sourceSlice.slice(sourceIndex))
       if (characterReference) {
-        if (textChar === SUPERSCRIPT_MARKER) {
+        if (textChar === SUBSCRIPT_MARKER) {
           protectedOffsets.add(textIndex)
         }
         sourceIndex += characterReference[0].length
@@ -196,7 +196,7 @@ function getProtectedCaretOffsets(textValue: string, sourceSlice: string): Set<n
   return protectedOffsets
 }
 
-function protectCaretsInsideInlineMath(textValue: string, protectedOffsets: Set<number>): void {
+function protectTildesInsideInlineMath(textValue: string, protectedOffsets: Set<number>): void {
   let match: RegExpExecArray | null
 
   while ((match = INLINE_MATH_PATTERN.exec(textValue)) !== null) {
@@ -204,92 +204,98 @@ function protectCaretsInsideInlineMath(textValue: string, protectedOffsets: Set<
     const to = from + match[0].length
 
     for (let index = from; index < to; index += 1) {
-      if (textValue[index] === SUPERSCRIPT_MARKER) {
+      if (textValue[index] === SUBSCRIPT_MARKER) {
         protectedOffsets.add(index)
       }
     }
   }
 }
 
-function canOpenSuperscript(previousChar: string | null, nextChar: string | null): boolean {
-  return previousChar !== '[' && nextChar !== null && nextChar !== SUPERSCRIPT_MARKER && nextChar !== '[' && !/\s/u.test(nextChar)
+function canOpenSubscript(previousChar: string | null, nextChar: string | null): boolean {
+  return previousChar !== SUBSCRIPT_MARKER &&
+    nextChar !== null &&
+    nextChar !== SUBSCRIPT_MARKER &&
+    !/\s/u.test(nextChar)
 }
 
-function canCloseSuperscript(previousChar: string | null): boolean {
-  return previousChar !== null && previousChar !== SUPERSCRIPT_MARKER && !/\s/u.test(previousChar)
+function canCloseSubscript(previousChar: string | null, nextChar: string | null): boolean {
+  return previousChar !== null &&
+    previousChar !== SUBSCRIPT_MARKER &&
+    !/\s/u.test(previousChar) &&
+    nextChar !== SUBSCRIPT_MARKER
 }
 
-function rewriteSuperscriptChildren(children: HastNode[], source: string): HastNode[] {
+function rewriteSubscriptChildren(children: HastNode[], source: string): HastNode[] {
   const result: HastNode[] = []
-  let superscriptBuffer: HastNode[] | null = null
+  let subscriptBuffer: HastNode[] | null = null
 
   for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
     const child = children[childIndex]
 
-    if (child.type === 'element' && child.tagName === 'br' && superscriptBuffer !== null) {
-      superscriptBuffer = flushSuperscriptBuffer(result, superscriptBuffer)
+    if (child.type === 'element' && child.tagName === 'br' && subscriptBuffer !== null) {
+      subscriptBuffer = flushSubscriptBuffer(result, subscriptBuffer)
       appendNode(result, child)
       continue
     }
 
-    if (child.type !== 'text' || typeof child.value !== 'string' || !child.value.includes(SUPERSCRIPT_MARKER)) {
-      appendNode(superscriptBuffer ?? result, child)
+    if (child.type !== 'text' || typeof child.value !== 'string' || !child.value.includes(SUBSCRIPT_MARKER)) {
+      appendNode(subscriptBuffer ?? result, child)
       continue
     }
 
     const textValue = child.value
-    const protectedOffsets = getProtectedCaretOffsets(textValue, getSourceSlice(child, source))
-    protectCaretsInsideInlineMath(textValue, protectedOffsets)
+    const protectedOffsets = getProtectedTildeOffsets(textValue, getSourceSlice(child, source))
+    protectTildesInsideInlineMath(textValue, protectedOffsets)
     let cursor = 0
 
     while (cursor < textValue.length) {
-      const markerIndex = textValue.indexOf(SUPERSCRIPT_MARKER, cursor)
+      const markerIndex = textValue.indexOf(SUBSCRIPT_MARKER, cursor)
       if (markerIndex === -1) {
-        appendText(superscriptBuffer ?? result, textValue.slice(cursor))
+        appendText(subscriptBuffer ?? result, textValue.slice(cursor))
         break
       }
 
       const textBeforeMarker = textValue.slice(cursor, markerIndex)
-      appendText(superscriptBuffer ?? result, textBeforeMarker)
+      appendText(subscriptBuffer ?? result, textBeforeMarker)
 
       if (protectedOffsets.has(markerIndex)) {
-        appendText(superscriptBuffer ?? result, SUPERSCRIPT_MARKER)
-        cursor = markerIndex + SUPERSCRIPT_MARKER.length
+        appendText(subscriptBuffer ?? result, SUBSCRIPT_MARKER)
+        cursor = markerIndex + SUBSCRIPT_MARKER.length
         continue
       }
 
       const previousChar = textBeforeMarker
         ? textBeforeMarker[textBeforeMarker.length - 1]
-        : getLastVisibleCharFromNodes(superscriptBuffer ?? result)
-      const nextChar = findNextVisibleChar(children, childIndex, textValue, markerIndex + SUPERSCRIPT_MARKER.length)
+        : getLastVisibleCharFromNodes(subscriptBuffer ?? result)
+      const nextChar = findNextVisibleChar(children, childIndex, textValue, markerIndex + SUBSCRIPT_MARKER.length)
 
-      if (superscriptBuffer === null) {
-        if (canOpenSuperscript(previousChar, nextChar)) {
-          superscriptBuffer = []
+      if (subscriptBuffer === null) {
+        if (canOpenSubscript(previousChar, nextChar)) {
+          subscriptBuffer = []
         } else {
-          appendText(result, SUPERSCRIPT_MARKER)
+          appendText(result, SUBSCRIPT_MARKER)
         }
-      } else if (canCloseSuperscript(previousChar)) {
+      } else if (canCloseSubscript(previousChar, nextChar)) {
         result.push({
           type: 'element',
-          tagName: 'sup',
+          tagName: 'sub',
           properties: {},
-          children: superscriptBuffer,
+          children: subscriptBuffer,
         })
-        superscriptBuffer = null
+        subscriptBuffer = null
       } else {
-        appendText(superscriptBuffer, SUPERSCRIPT_MARKER)
+        appendText(subscriptBuffer, SUBSCRIPT_MARKER)
       }
 
-      cursor = markerIndex + SUPERSCRIPT_MARKER.length
+      cursor = markerIndex + SUBSCRIPT_MARKER.length
     }
   }
 
-  flushSuperscriptBuffer(result, superscriptBuffer)
+  flushSubscriptBuffer(result, subscriptBuffer)
   return result
 }
 
-function rewriteSuperscriptMarkers(node: HastNode, source: string): void {
+function rewriteSubscriptMarkers(node: HastNode, source: string): void {
   if (node.type !== 'root' && node.type !== 'element') return
   if (shouldSkipNode(node)) return
 
@@ -297,16 +303,16 @@ function rewriteSuperscriptMarkers(node: HastNode, source: string): void {
   if (!children?.length) return
 
   for (const child of children) {
-    rewriteSuperscriptMarkers(child, source)
+    rewriteSubscriptMarkers(child, source)
   }
 
-  node.children = rewriteSuperscriptChildren(children, source)
+  node.children = rewriteSubscriptChildren(children, source)
 }
 
-export const rehypeSuperscriptMarkers: Plugin = () => {
+export const rehypeSubscriptMarkers: Plugin = () => {
   return (tree: unknown, file?: VFileLike) => {
     const markdownSource = file?.data?.markdownSource
-    rewriteSuperscriptMarkers(
+    rewriteSubscriptMarkers(
       tree as HastNode,
       typeof markdownSource === 'string' ? markdownSource : String(file?.value ?? '')
     )

@@ -9,6 +9,8 @@ test('wysiwyg task list live preview wires custom bullets, checkbox widgets, and
   assert.ok(source.includes("el.className = `cm-wysiwyg-checkbox ${this.checked ? 'is-checked' : ''}`"))
   assert.ok(source.includes("el.setAttribute('role', 'checkbox')"))
   assert.ok(source.includes("el.setAttribute('aria-checked', String(this.checked))"))
+  assert.ok(source.includes("el.setAttribute('aria-keyshortcuts', 'Enter Space')"))
+  assert.ok(source.includes('el.tabIndex = 0'))
   assert.match(source, /class ListBulletWidget extends WidgetType/u)
   assert.ok(source.includes("if (this.depth === 0) el.textContent = '•'"))
   assert.ok(source.includes("else if (this.depth === 1) el.textContent = '◦'"))
@@ -26,6 +28,7 @@ test('wysiwyg task list live preview wires custom bullets, checkbox widgets, and
     source,
     /closest\('\.cm-wysiwyg-checkbox'\)[\s\S]*?event\.preventDefault\(\)[\s\S]*?return true/u,
   )
+  assert.match(source, /'\.cm-wysiwyg-checkbox:focus-visible': \{[\s\S]*?outline:[\s\S]*?boxShadow:/u)
 
   assert.ok(source.includes("'.cm-wysiwyg-task-completed': {"))
   assert.ok(source.includes("'.cm-wysiwyg-task-marker': {"))

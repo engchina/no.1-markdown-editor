@@ -243,7 +243,17 @@
     "wysiwyg": "WYSIWYG（实时预览）",
     "lineNumbers": "行号",
     "wordWrap": "自动换行",
-    "typewriterMode": "打字机模式"
+    "showInvisibleCharacters": "显示不可见字符",
+    "typewriterMode": "打字机模式",
+    "showInvisibleCharactersHint": "在源码模式下显示 Tab、行尾空格和特殊空白。Markdown 硬换行用到的行尾空格会更容易识别。",
+    "previewOptions": "预览选项",
+    "previewLineBreaks": "预览换行方式",
+    "previewLineBreakModes": {
+      "strict": "严格模式",
+      "visualSoftBreaks": "视觉保留单换行"
+    },
+    "previewLineBreakHintStrict": "兼容模式。遵循可移植 Markdown 语义，单个换行仍属于同一段落。",
+    "previewLineBreakHintVisualSoftBreaks": "默认写作预览。单个换行会视觉换行，但不会修改文件内容。"
   },
   "updates": {
     "about": "关于",

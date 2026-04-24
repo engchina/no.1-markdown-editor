@@ -78,8 +78,12 @@ test('collectFootnoteIndices assigns stable display numbers from first reference
 })
 
 test('wysiwyg footnote support wires hover tooltip and presentation styles into the editor', async () => {
-  const editorSource = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
-  const css = await readFile(new URL('../src/global.css', import.meta.url), 'utf8')
+  const [editorSource, wysiwygSource, footnoteSource, css] = await Promise.all([
+    readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Editor/wysiwygFootnote.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/global.css', import.meta.url), 'utf8'),
+  ])
 
   assert.match(editorSource, /import\('\.\/wysiwygFootnoteHover'\)/u)
   assert.match(editorSource, /wysiwygFootnoteHoverTooltip/u)
@@ -91,7 +95,19 @@ test('wysiwyg footnote support wires hover tooltip and presentation styles into 
   assert.match(editorSource, /footnoteHoverCompartmentRef\.current\.of\(footnoteHoverExtension\)/u)
   assert.match(editorSource, /reconfigure\(footnoteHoverCompartmentRef\.current, footnoteHoverExtension\)/u)
 
+  assert.match(footnoteSource, /el\.dataset\.footnoteKind = 'ref'/u)
+  assert.match(footnoteSource, /el\.dataset\.footnoteLabel = this\.label/u)
+  assert.match(footnoteSource, /el\.dataset\.footnoteEditAnchor = String\(this\.editAnchor\)/u)
+  assert.match(footnoteSource, /el\.setAttribute\('aria-keyshortcuts', 'Enter Space'\)/u)
+  assert.match(footnoteSource, /el\.setAttribute\('role', 'button'\)/u)
+  assert.match(footnoteSource, /el\.tabIndex = 0/u)
+  assert.match(wysiwygSource, /function activateFootnoteTarget\(view: EditorView, target: EventTarget \| null\): boolean \{/u)
+  assert.match(wysiwygSource, /findBlockFootnoteRanges\(view\.state\.doc\.toString\(\)\)\.find\(\(range\) => range\.label === label\)/u)
+  assert.match(wysiwygSource, /closest\('\.cm-wysiwyg-footnote-ref, \.cm-wysiwyg-footnote-def'\)/u)
+  assert.match(wysiwygSource, /isPlainFootnoteWidgetActivationKey\(event\)/u)
+
   assert.match(css, /\.cm-wysiwyg-footnote-ref\s*\{/u)
   assert.match(css, /\.cm-wysiwyg-footnote-def-active\s*\{/u)
   assert.match(css, /\.cm-wysiwyg-footnote-tooltip\s*\{/u)
+  assert.match(css, /\.cm-wysiwyg-footnote-ref:focus-visible,\s*\.cm-wysiwyg-footnote-def:focus-visible\s*\{/u)
 })

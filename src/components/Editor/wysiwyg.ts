@@ -27,10 +27,16 @@ import { getTaskCheckboxChange } from './taskCheckbox.ts'
 import { collectMarkdownTableBlocks, type MarkdownTableBlock } from './tableBlockRanges.ts'
 import { parseWysiwygBlockquoteLine } from './wysiwygBlockquote.ts'
 import { collectInlineCodeRanges, findContainingTextRange, type TextRange } from './wysiwygInlineCode.ts'
-import { findInlineItalicRanges } from './wysiwygInlineEmphasis.ts'
+import {
+  findInlineBoldItalicRanges,
+  findInlineItalicRanges,
+  type InlineBoldItalicRange,
+} from './wysiwygInlineEmphasis.ts'
 import { collectInlineLiteralEscapeRanges, hasOddTrailingBackslashes } from './wysiwygInlineLiterals.ts'
 import { findInlineMathRanges } from './wysiwygInlineMath.ts'
 import { renderInlineMarkdownFragment } from './wysiwygInlineMarkdown.ts'
+import { collectInlineHardBreakTokens } from './wysiwygHardBreak.ts'
+import { findInlineSubscriptRanges } from './wysiwygSubscript.ts'
 import { findInlineStrikethroughRanges } from './wysiwygStrikethrough.ts'
 import { findInlineSuperscriptRanges } from './wysiwygSuperscript.ts'
 import { isThematicBreakLine } from './thematicBreak.ts'
@@ -100,7 +106,9 @@ class InlineMathWidget extends WidgetType {
     el.className = 'cm-wysiwyg-math-inline'
     el.dataset.mathEditAnchor = String(this.editAnchor)
     el.setAttribute('aria-label', 'Edit inline math')
+    el.setAttribute('aria-keyshortcuts', 'Enter Space')
     el.setAttribute('role', 'button')
+    el.tabIndex = 0
     void ensureKatexStylesheet().catch(() => {})
     try {
       katex.render(this.latex, el, { throwOnError: false, displayMode: false })
@@ -128,7 +136,9 @@ class BlockMathWidget extends WidgetType {
     el.className = 'cm-wysiwyg-math-block'
     el.dataset.mathEditAnchor = String(this.editAnchor)
     el.setAttribute('aria-label', 'Edit math block')
+    el.setAttribute('aria-keyshortcuts', 'Enter Space')
     el.setAttribute('role', 'button')
+    el.tabIndex = 0
 
     const surface = document.createElement('div')
     surface.className = 'cm-wysiwyg-math-block__surface'
@@ -717,8 +727,10 @@ class CheckboxWidget extends WidgetType {
     el.className = `cm-wysiwyg-checkbox ${this.checked ? 'is-checked' : ''}`
     el.dataset.checkboxFrom = String(this.from)
     el.setAttribute('aria-label', this.label || 'Task')
+    el.setAttribute('aria-keyshortcuts', 'Enter Space')
     el.setAttribute('role', 'checkbox')
     el.setAttribute('aria-checked', String(this.checked))
+    el.tabIndex = 0
     
     // Create inner SVG checkmark
     el.innerHTML = `
@@ -779,6 +791,17 @@ class ListBulletWidget extends WidgetType {
   eq(other: ListBulletWidget) {
     return this.depth === other.depth
   }
+}
+
+class HardBreakWidget extends WidgetType {
+  toDOM() {
+    const el = document.createElement('br')
+    el.className = 'cm-wysiwyg-hard-break'
+    el.setAttribute('aria-hidden', 'true')
+    return el
+  }
+
+  ignoreEvent() { return true }
 }
 
 // ── Cursor range helpers ───────────────────────────────────────────────────
@@ -969,7 +992,7 @@ export function buildWysiwygDecorations(
             decorations,
             lineFrom + fnRange.from,
             lineFrom + fnRange.to,
-            Decoration.replace({ widget: new BlockFootnoteTagWidget(fnRange.label, footnoteIndices.get(fnRange.label) ?? null) })
+            Decoration.replace({ widget: new BlockFootnoteTagWidget(fnRange.label, footnoteIndices.get(fnRange.label) ?? null, lineFrom + fnRange.from) })
           )
         } else {
           queueDecoration(
@@ -1095,7 +1118,7 @@ export function buildWysiwygDecorations(
       // Only apply when NOT on the line containing the cursor
       if (!onLine) {
         processInlineMath(decorations, text, lineFrom)
-        processInline(decorations, text, lineFrom, footnoteIndices)
+        processInline(decorations, text, lineFrom, line.number < doc.lines, footnoteIndices)
       }
 
       pos = line.to + 1
@@ -1331,23 +1354,36 @@ function processInline(
   decorations: DecorationSpec[],
   text: string,
   lineFrom: number,
+  hasFollowingLine: boolean,
   footnoteIndices: Map<string, number>
 ): void {
   const inlineCodeRanges = collectInlineCodeRanges(text)
+  const combinedEmphasisRanges = findInlineBoldItalicRanges(text)
+  const combinedEmphasisMarkerRanges = combinedEmphasisRanges
+    .flatMap((range) => ([
+      { from: range.from, to: range.contentFrom },
+      { from: range.contentTo, to: range.to },
+    ]))
+    .sort((left, right) => left.from - right.from || left.to - right.to)
   const inlineLiteralExcludedRanges = [
     ...inlineCodeRanges,
     ...findInlineMathRanges(text).map((range) => ({ from: range.from, to: range.to })),
   ].sort((left, right) => left.from - right.from || left.to - right.to)
 
+  processSubscript(decorations, text, lineFrom)
   processSuperscript(decorations, text, lineFrom)
   processInlineFootnotes(decorations, text, lineFrom, footnoteIndices)
+  processInlineHardBreaks(decorations, text, lineFrom, inlineLiteralExcludedRanges, hasFollowingLine)
+  processBoldItalicEmphasis(decorations, combinedEmphasisRanges, lineFrom)
 
   // Bold **text** or __text__
   processPattern(decorations, text, lineFrom, /(\*\*|__)((?:[^*_]|\*(?!\*))+?)\1/g, 'cm-wysiwyg-bold', {
-    excludedRanges: inlineCodeRanges,
+    excludedRanges: [...inlineCodeRanges, ...combinedEmphasisMarkerRanges].sort(
+      (left, right) => left.from - right.from || left.to - right.to
+    ),
   })
 
-  processItalic(decorations, text, lineFrom)
+  processItalic(decorations, text, lineFrom, combinedEmphasisMarkerRanges)
 
   // Underline <u>text</u>
   processPattern(decorations, text, lineFrom, /(<u>)(.+?)(<\/u>)/gi, 'cm-wysiwyg-underline', {
@@ -1426,8 +1462,51 @@ function processInlineFootnotes(
       decorations,
       lineFrom + range.from,
       lineFrom + range.to,
-      Decoration.replace({ widget: new InlineFootnoteWidget(range.label, footnoteIndices.get(range.label) ?? 0) })
+      Decoration.replace({ widget: new InlineFootnoteWidget(range.label, footnoteIndices.get(range.label) ?? 0, lineFrom + range.from) })
     )
+  }
+}
+
+function processInlineHardBreaks(
+  decorations: DecorationSpec[],
+  text: string,
+  lineFrom: number,
+  excludedRanges: readonly TextRange[],
+  hasFollowingLine: boolean
+): void {
+  for (const token of collectInlineHardBreakTokens(text, excludedRanges, { hasFollowingLine })) {
+    const replacement = token.renderWidget
+      ? Decoration.replace({ widget: new HardBreakWidget() })
+      : Decoration.replace({})
+
+    queueDecoration(
+      decorations,
+      lineFrom + token.from,
+      lineFrom + token.to,
+      replacement
+    )
+  }
+}
+
+function processSubscript(
+  decorations: DecorationSpec[],
+  text: string,
+  lineFrom: number
+): void {
+  for (const range of findInlineSubscriptRanges(text)) {
+    const fullStart = lineFrom + range.from
+    const contentStart = lineFrom + range.contentFrom
+    const contentEnd = lineFrom + range.contentTo
+    const fullEnd = lineFrom + range.to
+
+    queueDecoration(decorations, fullStart, contentStart, Decoration.replace({}))
+    queueDecoration(
+      decorations,
+      contentStart,
+      contentEnd,
+      Decoration.mark({ class: 'cm-wysiwyg-subscript' })
+    )
+    queueDecoration(decorations, contentEnd, fullEnd, Decoration.replace({}))
   }
 }
 
@@ -1475,12 +1554,42 @@ function processStrikethrough(
   }
 }
 
+function processBoldItalicEmphasis(
+  decorations: DecorationSpec[],
+  ranges: readonly InlineBoldItalicRange[],
+  lineFrom: number
+): void {
+  for (const range of ranges) {
+    const fullStart = lineFrom + range.from
+    const contentStart = lineFrom + range.contentFrom
+    const contentEnd = lineFrom + range.contentTo
+    const fullEnd = lineFrom + range.to
+
+    queueDecoration(decorations, fullStart, contentStart, Decoration.replace({}))
+    queueDecoration(
+      decorations,
+      contentStart,
+      contentEnd,
+      Decoration.mark({ class: 'cm-wysiwyg-bold cm-wysiwyg-italic' })
+    )
+    queueDecoration(decorations, contentEnd, fullEnd, Decoration.replace({}))
+  }
+}
+
 function processItalic(
   decorations: DecorationSpec[],
   text: string,
-  lineFrom: number
+  lineFrom: number,
+  excludedRanges: readonly TextRange[] = []
 ): void {
   for (const range of findInlineItalicRanges(text)) {
+    if (
+      findContainingTextRange(range.from, excludedRanges) ||
+      findContainingTextRange(Math.max(range.from, range.to - 1), excludedRanges)
+    ) {
+      continue
+    }
+
     const fullStart = lineFrom + range.from
     const contentStart = lineFrom + range.contentFrom
     const contentEnd = lineFrom + range.contentTo
@@ -1586,6 +1695,36 @@ function toggleTaskCheckbox(view: EditorView, target: EventTarget | null): boole
   view.dispatch({ changes: change })
   view.focus()
   return true
+}
+
+function isPlainTaskCheckboxToggleKey(event: KeyboardEvent): boolean {
+  return (
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.key === ' ' || event.key === 'Enter')
+  )
+}
+
+function isPlainMathWidgetActivationKey(event: KeyboardEvent): boolean {
+  return (
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.key === ' ' || event.key === 'Enter')
+  )
+}
+
+function isPlainFootnoteWidgetActivationKey(event: KeyboardEvent): boolean {
+  return (
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.key === ' ' || event.key === 'Enter')
+  )
 }
 
 interface ResolvedTableCellTarget {
@@ -2338,6 +2477,31 @@ function activateMathTarget(view: EditorView, target: EventTarget | null): boole
   return true
 }
 
+function activateFootnoteTarget(view: EditorView, target: EventTarget | null): boolean {
+  const footnoteTarget = (target as HTMLElement | null)?.closest<HTMLElement>('.cm-wysiwyg-footnote-ref, .cm-wysiwyg-footnote-def')
+  if (!footnoteTarget) return false
+
+  const editAnchor = Number(footnoteTarget.dataset.footnoteEditAnchor)
+  if (!Number.isFinite(editAnchor)) return false
+
+  const label = footnoteTarget.dataset.footnoteLabel
+  const kind = footnoteTarget.dataset.footnoteKind
+  let anchor = editAnchor
+
+  if (kind === 'ref' && label) {
+    const definition = findBlockFootnoteRanges(view.state.doc.toString()).find((range) => range.label === label)
+    if (definition) anchor = definition.from
+  }
+
+  view.dispatch({
+    selection: { anchor },
+    userEvent: 'select.pointer',
+    scrollIntoView: true,
+  })
+  view.focus()
+  return true
+}
+
 // ── Plugin definition ──────────────────────────────────────────────────────
 
 export const wysiwygPlugin = ViewPlugin.fromClass(
@@ -2348,6 +2512,10 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
       mousedown(event, view) {
         if (getTableCellInputFromTarget(event.target, view)) return false
         if (activateTable(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateFootnoteTarget(view, event.target)) {
           event.preventDefault()
           return true
         }
@@ -2365,6 +2533,10 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
       click(event, view) {
         if (getTableCellInputFromTarget(event.target, view)) return false
         if (activateTable(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateFootnoteTarget(view, event.target)) {
           event.preventDefault()
           return true
         }
@@ -2404,10 +2576,31 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
           return true
         }
 
-        if (event.key !== ' ' && event.key !== 'Enter') return false
-        if (!toggleTaskCheckbox(view, event.target)) return false
-        event.preventDefault()
-        return true
+        const checkboxTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-checkbox')
+        if (checkboxTarget) {
+          if (!isPlainTaskCheckboxToggleKey(event)) return false
+          if (!toggleTaskCheckbox(view, event.target)) return false
+          event.preventDefault()
+          return true
+        }
+
+        const mathTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-math-block, .cm-wysiwyg-math-inline')
+        if (mathTarget) {
+          if (!isPlainMathWidgetActivationKey(event)) return false
+          if (!activateMathTarget(view, event.target)) return false
+          event.preventDefault()
+          return true
+        }
+
+        const footnoteTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-footnote-ref, .cm-wysiwyg-footnote-def')
+        if (footnoteTarget) {
+          if (!isPlainFootnoteWidgetActivationKey(event)) return false
+          if (!activateFootnoteTarget(view, event.target)) return false
+          event.preventDefault()
+          return true
+        }
+
+        return false
       },
       paste(event, view) {
         if (getTableCellInputFromTarget(event.target, view)) return false
@@ -2476,6 +2669,12 @@ export const wysiwygTheme = EditorView.baseTheme({
   '.cm-wysiwyg-italic': { fontStyle: 'italic', color: 'var(--text-primary) !important' },
   '.cm-wysiwyg-underline': { textDecoration: 'underline', color: 'var(--text-primary) !important' },
   '.cm-wysiwyg-strikethrough': { textDecoration: 'line-through', color: 'var(--text-muted) !important' },
+  '.cm-wysiwyg-subscript': {
+    fontSize: '0.75em',
+    lineHeight: '0',
+    verticalAlign: 'sub',
+    color: 'var(--text-primary) !important',
+  },
   '.cm-wysiwyg-superscript': {
     fontSize: '0.75em',
     lineHeight: '0',
@@ -2512,6 +2711,7 @@ export const wysiwygTheme = EditorView.baseTheme({
     marginLeft: '32px',
     marginRight: '32px',
     padding: '10px 16px 8px !important',
+    cursor: 'text',
     backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-tertiary))',
     borderTop: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
     borderLeft: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
@@ -2543,6 +2743,7 @@ export const wysiwygTheme = EditorView.baseTheme({
     fontSize: '0.94em',
     marginLeft: '32px',
     marginRight: '32px',
+    cursor: 'text',
     backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-tertiary))',
     borderLeft: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
     borderRight: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
@@ -2556,6 +2757,7 @@ export const wysiwygTheme = EditorView.baseTheme({
     marginLeft: '32px',
     marginRight: '32px',
     padding: '0 16px 10px !important',
+    cursor: 'text',
     backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-tertiary))',
     borderLeft: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
     borderRight: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
@@ -2775,6 +2977,11 @@ export const wysiwygTheme = EditorView.baseTheme({
     borderColor: 'var(--accent)',
     backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)',
   },
+  '.cm-wysiwyg-checkbox:focus-visible': {
+    outline: '2px solid color-mix(in srgb, var(--accent) 72%, transparent)',
+    outlineOffset: '2px',
+    boxShadow: '0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent)',
+  },
   '.cm-wysiwyg-checkbox.is-checked': {
     backgroundColor: 'var(--accent)',
     borderColor: 'var(--accent)',
@@ -2811,6 +3018,12 @@ export const wysiwygTheme = EditorView.baseTheme({
     backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 62%, transparent)',
     boxShadow: '0 0 0 1px color-mix(in srgb, var(--border) 68%, transparent)',
   },
+  '.cm-wysiwyg-math-inline:focus-visible': {
+    outline: '2px solid color-mix(in srgb, var(--accent) 72%, transparent)',
+    outlineOffset: '2px',
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)',
+    boxShadow: '0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent)',
+  },
   '.cm-wysiwyg-math-block-anchor-line': {
     padding: '0 !important',
   },
@@ -2839,6 +3052,16 @@ export const wysiwygTheme = EditorView.baseTheme({
     backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 58%, transparent)',
     borderColor: 'color-mix(in srgb, var(--border) 74%, transparent)',
     boxShadow: 'var(--shadow-sm)',
+  },
+  '.cm-wysiwyg-math-block:focus-visible .cm-wysiwyg-math-block__surface': {
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 78%, var(--bg-primary))',
+    borderColor: 'color-mix(in srgb, var(--accent) 42%, transparent)',
+    boxShadow: '0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent)',
+  },
+  '.cm-wysiwyg-footnote-ref:focus-visible, .cm-wysiwyg-footnote-def:focus-visible': {
+    outline: '2px solid color-mix(in srgb, var(--accent) 72%, transparent)',
+    outlineOffset: '2px',
+    backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)',
   },
   '.cm-wysiwyg-math-block__rendered': {
     display: 'block',

@@ -5,6 +5,7 @@ import { isolateHistory, redo, undo } from '@codemirror/commands'
 import { EditorView } from '@codemirror/view'
 import {
   buildCoreExtensions,
+  buildInvisibleCharacterExtensions,
   buildLineNumberExtensions,
   buildPlaceholderExtensions,
   buildWordWrapExtensions,
@@ -58,6 +59,7 @@ import { resolveAIOpenOutputTarget, resolveAISelectedTextRole } from '../../lib/
 import {
   DEFAULT_AI_SELECTION_BUBBLE_SIZE,
   computeAISelectionBubblePosition,
+  mergeSelectionBubbleRects,
   type SelectionBubbleSize,
 } from '../../lib/ai/selectionBubble.ts'
 import { buildAIRequestMessages, normalizeAIDraftText } from '../../lib/ai/prompt.ts'
@@ -137,6 +139,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const markdownLanguagePromiseRef = useRef<Promise<Extension[]> | null>(null)
   const lineNumbersCompartmentRef = useRef(new Compartment())
   const wordWrapCompartmentRef = useRef(new Compartment())
+  const invisibleCharactersCompartmentRef = useRef(new Compartment())
   const placeholderCompartmentRef = useRef(new Compartment())
   const languageCompartmentRef = useRef(new Compartment())
   const searchCompartmentRef = useRef(new Compartment())
@@ -146,6 +149,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
   const lineNumbers = useEditorStore((state) => state.lineNumbers)
   const wordWrap = useEditorStore((state) => state.wordWrap)
+  const showInvisibleCharacters = useEditorStore((state) => state.showInvisibleCharacters)
   const fontSize = useEditorStore((state) => state.fontSize)
   const wysiwygMode = useEditorStore((state) => state.wysiwygMode)
   const pendingNavigation = useEditorStore((state) => state.pendingNavigation)
@@ -181,7 +185,8 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     (viewOverride?: EditorView | null) => {
       const view = viewOverride ?? viewRef.current
       const shell = shellRef.current
-      if (!view || !shell || aiComposerOpen) {
+      const container = containerRef.current
+      if (!view || !shell || !container || aiComposerOpen) {
         clearGhostTextState(view)
         setSelectionBubble(null)
         return
@@ -193,21 +198,40 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         return
       }
 
-      const anchorCoords = view.coordsAtPos(selection.head)
-      if (!anchorCoords) {
+      const visualSelectionTo = selection.to > selection.from ? selection.to - 1 : selection.to
+      const selectionStartCoords = view.coordsAtPos(selection.from, 1) ?? view.coordsAtPos(selection.from)
+      const selectionEndCoords = view.coordsAtPos(visualSelectionTo, -1) ?? view.coordsAtPos(visualSelectionTo)
+      const selectionRect = mergeSelectionBubbleRects(selectionStartCoords, selectionEndCoords)
+      if (!selectionRect) {
         setSelectionBubble(null)
         return
       }
 
-      const wrapperRect = shell.getBoundingClientRect()
-      const position = computeAISelectionBubblePosition(anchorCoords, {
-        top: wrapperRect.top,
-        bottom: wrapperRect.bottom,
-        left: wrapperRect.left,
-        right: wrapperRect.right,
-      }, selectionBubbleSizeRef.current)
+      const shellRect = shell.getBoundingClientRect()
+      const editorRect = container.getBoundingClientRect()
+      const scaleX = Math.max(view.scaleX || 1, 0.0001)
+      const scaleY = Math.max(view.scaleY || 1, 0.0001)
+      const lineHeight = Number.isFinite(view.defaultLineHeight) ? view.defaultLineHeight : 0
+      const positionInEditor = computeAISelectionBubblePosition(selectionRect, {
+        top: editorRect.top,
+        bottom: editorRect.bottom,
+        left: editorRect.left,
+        right: editorRect.right,
+      }, selectionBubbleSizeRef.current, {
+        gap: Math.max(lineHeight / 4, 2),
+      })
+      const nextTop = (positionInEditor.top + editorRect.top - shellRect.top) / scaleY
+      const nextLeft = (positionInEditor.left + editorRect.left - shellRect.left) / scaleX
 
-      setSelectionBubble(position)
+      if (!Number.isFinite(nextTop) || !Number.isFinite(nextLeft)) {
+        setSelectionBubble(null)
+        return
+      }
+
+      setSelectionBubble({
+        top: nextTop,
+        left: nextLeft,
+      })
     },
     [aiComposerOpen]
   )
@@ -543,6 +567,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       }),
       lineNumbersCompartmentRef.current.of(lineNumbers ? buildLineNumberExtensions() : []),
       wordWrapCompartmentRef.current.of(buildWordWrapExtensions(wordWrap)),
+      invisibleCharactersCompartmentRef.current.of(buildInvisibleCharacterExtensions(showInvisibleCharacters)),
       placeholderCompartmentRef.current.of(buildPlaceholderExtensions(t('placeholder'))),
       languageCompartmentRef.current.of(markdownLanguageExtensions),
       searchCompartmentRef.current.of(searchSupport?.extensions ?? []),
@@ -609,6 +634,10 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   useEffect(() => {
     reconfigure(wordWrapCompartmentRef.current, buildWordWrapExtensions(wordWrap))
   }, [reconfigure, wordWrap])
+
+  useEffect(() => {
+    reconfigure(invisibleCharactersCompartmentRef.current, buildInvisibleCharacterExtensions(showInvisibleCharacters))
+  }, [reconfigure, showInvisibleCharacters])
 
   useEffect(() => {
     reconfigure(placeholderCompartmentRef.current, buildPlaceholderExtensions(t('placeholder')))

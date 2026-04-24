@@ -17,10 +17,24 @@ test('renderInlineMarkdownFragment keeps code spans literal instead of rendering
   assert.doesNotMatch(html, /class="katex"/)
 })
 
+test('renderInlineMarkdownFragment keeps single-tilde subscript distinct from double-tilde strikethrough', () => {
+  const html = renderInlineMarkdownFragment('H~2~O and ~~Mistaken~~')
+
+  assert.match(html, /H<sub>2<\/sub>O and <del>Mistaken<\/del>/)
+})
+
 test('renderInlineMarkdownFragment preserves inline html breaks for table cells', () => {
   const html = renderInlineMarkdownFragment('Line 1<br />Line 2')
 
   assert.match(html, /Line 1<br\s*\/?>Line 2/u)
+})
+
+test('renderInlineMarkdownFragment preserves markdown hard breaks from backslashes and trailing spaces', () => {
+  const backslashHtml = renderInlineMarkdownFragment('Line 1\\\nLine 2')
+  const trailingSpaceHtml = renderInlineMarkdownFragment('Line 1  \nLine 2')
+
+  assert.match(backslashHtml, /Line 1<br\s*\/?>\s*Line 2/u)
+  assert.match(trailingSpaceHtml, /Line 1<br\s*\/?>\s*Line 2/u)
 })
 
 test('renderInlineMarkdownFragment can expose visible break markers for table-cell WYSIWYG rendering', () => {

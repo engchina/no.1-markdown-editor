@@ -9,8 +9,8 @@ import { finalizeRenderedMarkdownHtml, sanitizeSchema, stripFrontMatter } from '
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
 import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
+import { rehypeSubscriptMarkers } from './rehypeSubscriptMarkers.ts'
 import { rehypeSuperscriptMarkers } from './rehypeSuperscriptMarkers.ts'
-import { remarkSoftBreaks } from './remarkSoftBreaks.ts'
 
 import rehypeHighlight from 'rehype-highlight'
 import rehypeShiki from '@shikijs/rehype'
@@ -22,10 +22,10 @@ function getProcessorWithHtml(engine: 'highlightjs' | 'shiki') {
 
   let processor: any = unified()
     .use(remarkParse)
-    .use(remarkGfm)
-    .use(remarkSoftBreaks)
+    .use(remarkGfm, { singleTilde: false })
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeRaw)
+    .use(rehypeSubscriptMarkers)
     .use(rehypeSuperscriptMarkers)
     .use(rehypeHighlightMarkers)
     .use(rehypeNormalizeImageSources)

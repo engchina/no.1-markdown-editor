@@ -34,12 +34,16 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
     setLineNumbers,
     wordWrap,
     setWordWrap,
+    showInvisibleCharacters,
+    setShowInvisibleCharacters,
     wysiwygMode,
     setWysiwygMode,
     typewriterMode,
     setTypewriterMode,
     syntaxHighlightEngine,
     setSyntaxHighlightEngine,
+    previewLineBreakMode,
+    setPreviewLineBreakMode,
   } = useEditorStore()
   const panelRef = useRef<HTMLDivElement>(null)
   const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align: 'right', width: 420 })
@@ -243,6 +247,11 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
               { label: t('themePanel.wysiwyg'), value: wysiwygMode, set: setWysiwygMode },
               { label: t('themePanel.lineNumbers'), value: lineNumbers, set: setLineNumbers },
               { label: t('themePanel.wordWrap'), value: wordWrap, set: setWordWrap },
+              {
+                label: t('themePanel.showInvisibleCharacters'),
+                value: showInvisibleCharacters,
+                set: setShowInvisibleCharacters,
+              },
               { label: t('themePanel.typewriterMode'), value: typewriterMode, set: setTypewriterMode },
             ] as const).map(({ label, value, set }) => (
               <label key={label} className="flex items-center justify-between cursor-pointer">
@@ -270,6 +279,46 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
                 </button>
               </label>
             ))}
+          </div>
+          <div className="mt-2 text-[10px] leading-4" style={{ color: 'var(--text-secondary)' }}>
+            {t('themePanel.showInvisibleCharactersHint')}
+          </div>
+
+          <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+            <p className="text-xs font-medium mb-3" style={{ color: 'var(--text-muted)' }}>
+              {t('themePanel.previewOptions')}
+            </p>
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  {t('themePanel.previewLineBreaks')}
+                </span>
+              </div>
+              <div className="flex gap-2 mt-2">
+                {([
+                  { mode: 'visual-soft-breaks', label: t('themePanel.previewLineBreakModes.visualSoftBreaks') },
+                  { mode: 'strict', label: t('themePanel.previewLineBreakModes.strict') },
+                ] as const).map(({ mode, label }) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setPreviewLineBreakMode(mode)}
+                    className="flex-1 text-[11px] px-2 py-1.5 rounded transition-all hover-scale"
+                    style={{
+                      background: previewLineBreakMode === mode ? 'var(--accent)' : 'var(--bg-tertiary)',
+                      color: previewLineBreakMode === mode ? 'white' : 'var(--text-muted)',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 text-[10px] leading-4" style={{ color: 'var(--text-secondary)' }}>
+                {previewLineBreakMode === 'strict'
+                  ? t('themePanel.previewLineBreakHintStrict')
+                  : t('themePanel.previewLineBreakHintVisualSoftBreaks')}
+              </div>
+            </div>
           </div>
 
           <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>

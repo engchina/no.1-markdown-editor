@@ -6,12 +6,13 @@ export type FrontMatterMeta = Record<string, string>
 
 export const sanitizeSchema = {
   ...defaultSchema,
-  tagNames: Array.from(new Set([...(defaultSchema.tagNames ?? []), 'mark', 'sup', 'u', 'section'])),
+  tagNames: Array.from(new Set([...(defaultSchema.tagNames ?? []), 'mark', 'sub', 'sup', 'u', 'section'])),
   attributes: {
     ...defaultSchema.attributes,
     '*': [...(defaultSchema.attributes?.['*'] ?? []), 'className', 'class'], // To allow standard classes
     'section': ['dataFootnotes', 'className', 'class'],
     'h2': [...(defaultSchema.attributes?.h2 ?? []), 'id', 'className', 'class'],
+    'sub': ['id'],
     'sup': ['id'],
     'a': [...(defaultSchema.attributes?.a ?? []), 'dataFootnoteRef', 'dataFootnoteBackref', 'ariaDescribedby', 'ariaLabel'],
     'li': [...(defaultSchema.attributes?.li ?? []), 'id'],
@@ -131,6 +132,11 @@ export function buildStandaloneHtml(
       font-size: 0.75em;
       line-height: 0;
       vertical-align: super;
+    }
+    sub {
+      font-size: 0.75em;
+      line-height: 0;
+      vertical-align: sub;
     }
     p { margin: 0; }
     code {

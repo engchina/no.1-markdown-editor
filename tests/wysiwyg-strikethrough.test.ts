@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { findInlineStrikethroughRanges } from '../src/components/Editor/wysiwygStrikethrough.ts'
 
-test('findInlineStrikethroughRanges matches single-tilde spans inside words', () => {
-  assert.deepEqual(findInlineStrikethroughRanges('H~2~O'), [
+test('findInlineStrikethroughRanges matches double-tilde spans', () => {
+  assert.deepEqual(findInlineStrikethroughRanges('~~text~~'), [
     {
-      from: 1,
-      to: 4,
+      from: 0,
+      to: 8,
       contentFrom: 2,
-      contentTo: 3,
+      contentTo: 6,
     },
   ])
 })
@@ -24,20 +24,24 @@ test('findInlineStrikethroughRanges preserves nested inline formatting inside do
   ])
 })
 
-test('findInlineStrikethroughRanges pairs only same-length tilde sequences', () => {
-  assert.deepEqual(findInlineStrikethroughRanges('a~b~~c~'), [
-    {
-      from: 1,
-      to: 7,
-      contentFrom: 2,
-      contentTo: 6,
-    },
-  ])
+test('findInlineStrikethroughRanges ignores single-tilde subscript spans', () => {
+  assert.deepEqual(findInlineStrikethroughRanges('H~2~O'), [])
 })
 
-test('findInlineStrikethroughRanges ignores escaped, invalid, code, math, and triple-tilde runs', () => {
+test('findInlineStrikethroughRanges ignores invalid marker combinations that do not form double-tilde pairs', () => {
+  assert.deepEqual(findInlineStrikethroughRanges('a~b~~c~'), [])
+})
+
+test('findInlineStrikethroughRanges ignores escaped, invalid, code, math, and triple-tilde runs while keeping valid double-tilde spans', () => {
   assert.deepEqual(
-    findInlineStrikethroughRanges(String.raw`\~text~ ~ text~ ~text ~ \`~code~\` $~math~$ foo~~~bar~~~baz`),
-    []
+    findInlineStrikethroughRanges(String.raw`\~text~ ~ text~ ~text ~ \`~code~\` $~math~$ foo~~~bar~~~baz ~~strike~~`),
+    [
+      {
+        from: 60,
+        to: 70,
+        contentFrom: 62,
+        contentTo: 68,
+      },
+    ]
   )
 })

@@ -248,7 +248,17 @@
     "wysiwyg": "WYSIWYG (Live Preview)",
     "lineNumbers": "Line Numbers",
     "wordWrap": "Word Wrap",
-    "typewriterMode": "Typewriter Mode"
+    "showInvisibleCharacters": "Show Invisible Characters",
+    "typewriterMode": "Typewriter Mode",
+    "showInvisibleCharactersHint": "Shows tabs, trailing spaces, and special whitespace in source mode. Markdown hard-break spaces at line ends become easy to spot.",
+    "previewOptions": "PREVIEW OPTIONS",
+    "previewLineBreaks": "Preview Line Breaks",
+    "previewLineBreakModes": {
+      "strict": "Strict",
+      "visualSoftBreaks": "Visual Soft Breaks"
+    },
+    "previewLineBreakHintStrict": "Compatibility mode. Matches portable Markdown semantics and keeps single newlines inside the same paragraph.",
+    "previewLineBreakHintVisualSoftBreaks": "Default writing preview. Single newlines render visually as line breaks without changing the file."
   },
   "updates": {
     "about": "About",

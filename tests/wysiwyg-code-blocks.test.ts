@@ -71,9 +71,16 @@ test('collectWysiwygCodeBlockDecorations drops code block chrome when the select
 })
 
 test('wysiwyg code block theme keeps preview-like horizontal insets instead of stretching edge to edge', async () => {
-  const source = await readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8')
+  const [source, codeBlockSource] = await Promise.all([
+    readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Editor/wysiwygCodeBlock.ts', import.meta.url), 'utf8'),
+  ])
 
-  assert.match(source, /'\.cm-wysiwyg-codeblock-meta-line': \{[\s\S]*?marginLeft: '32px'[\s\S]*?marginRight: '32px'[\s\S]*?padding: '10px 16px 8px !important'/u)
-  assert.match(source, /'\.cm-wysiwyg-codeblock-line': \{[\s\S]*?marginLeft: '32px'[\s\S]*?marginRight: '32px'[\s\S]*?padding: '0 16px !important'/u)
-  assert.match(source, /'\.cm-wysiwyg-codeblock-close-line': \{[\s\S]*?marginLeft: '32px'[\s\S]*?marginRight: '32px'[\s\S]*?padding: '0 16px 10px !important'/u)
+  assert.match(source, /'\.cm-wysiwyg-codeblock-meta-line': \{[\s\S]*?marginLeft: '32px'[\s\S]*?marginRight: '32px'[\s\S]*?padding: '10px 16px 8px !important'[\s\S]*?cursor: 'text'/u)
+  assert.match(source, /'\.cm-wysiwyg-codeblock-line': \{[\s\S]*?marginLeft: '32px'[\s\S]*?marginRight: '32px'[\s\S]*?cursor: 'text'[\s\S]*?padding: '0 16px !important'/u)
+  assert.match(source, /'\.cm-wysiwyg-codeblock-close-line': \{[\s\S]*?marginLeft: '32px'[\s\S]*?marginRight: '32px'[\s\S]*?padding: '0 16px 10px !important'[\s\S]*?cursor: 'text'/u)
+  assert.match(codeBlockSource, /if \(!selectionTouchesFencedCodeBlock\(view, fencedCodeBlock\)\) \{/u)
+  assert.doesNotMatch(codeBlockSource, /WidgetType/u)
+  assert.doesNotMatch(codeBlockSource, /tabIndex/u)
+  assert.doesNotMatch(codeBlockSource, /setAttribute\('role'/u)
 })

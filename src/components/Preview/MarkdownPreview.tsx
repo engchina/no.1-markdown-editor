@@ -33,6 +33,7 @@ export default function MarkdownPreview() {
   const activeTab = useActiveTab()
   const activeThemeId = useEditorStore((state) => state.activeThemeId)
   const fontSize = useEditorStore((state) => state.fontSize)
+  const previewLineBreakMode = useEditorStore((state) => state.previewLineBreakMode)
   const content = activeTab?.content ?? ''
   const documentPath = activeTab?.path ?? null
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -592,7 +593,7 @@ export default function MarkdownPreview() {
       )}
       <div
         ref={previewRef}
-        className="markdown-preview animate-in"
+        className={`markdown-preview animate-in${previewLineBreakMode === 'visual-soft-breaks' ? ' markdown-preview--visual-soft-breaks' : ''}`}
         dangerouslySetInnerHTML={{ __html: previewHtml }}
         style={{
           background: 'var(--preview-bg)',

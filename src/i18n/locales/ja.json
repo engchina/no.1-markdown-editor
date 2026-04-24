@@ -243,7 +243,17 @@
     "wysiwyg": "WYSIWYG (ライブプレビュー)",
     "lineNumbers": "行番号",
     "wordWrap": "折り返し",
-    "typewriterMode": "タイプライターモード"
+    "showInvisibleCharacters": "不可視文字を表示",
+    "typewriterMode": "タイプライターモード",
+    "showInvisibleCharactersHint": "ソースモードで Tab、行末空白、特殊な空白文字を表示します。Markdown のハード改行に使う行末空白を見つけやすくします。",
+    "previewOptions": "プレビュー設定",
+    "previewLineBreaks": "プレビュー改行表示",
+    "previewLineBreakModes": {
+      "strict": "厳密",
+      "visualSoftBreaks": "ソフト改行を表示"
+    },
+    "previewLineBreakHintStrict": "互換モードです。可搬性の高い Markdown の意味を優先し、単一改行は同じ段落内に留まります。",
+    "previewLineBreakHintVisualSoftBreaks": "標準の執筆プレビューです。単一改行を視覚的な改行として表示しますが、ファイル内容は変えません。"
   },
   "updates": {
     "about": "このアプリについて",

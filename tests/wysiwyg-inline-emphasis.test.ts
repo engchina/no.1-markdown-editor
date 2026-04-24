@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { findInlineItalicRanges } from '../src/components/Editor/wysiwygInlineEmphasis.ts'
+import {
+  findInlineBoldItalicRanges,
+  findInlineItalicRanges,
+} from '../src/components/Editor/wysiwygInlineEmphasis.ts'
 
 test('findInlineItalicRanges detects single underscore emphasis', () => {
   assert.deepEqual(findInlineItalicRanges('_single underscores_'), [
@@ -51,4 +54,46 @@ test('findInlineItalicRanges keeps thematic breaks out of italic rendering', () 
   assert.deepEqual(findInlineItalicRanges('***'), [])
   assert.deepEqual(findInlineItalicRanges('* * *'), [])
   assert.deepEqual(findInlineItalicRanges('  * * *'), [])
+})
+
+test('findInlineBoldItalicRanges detects triple-asterisk emphasis', () => {
+  assert.deepEqual(findInlineBoldItalicRanges('***triple emphasis***'), [
+    {
+      from: 0,
+      to: 21,
+      contentFrom: 3,
+      contentTo: 18,
+    },
+  ])
+})
+
+test('findInlineBoldItalicRanges detects triple-asterisk emphasis wrapped around highlight markers', () => {
+  assert.deepEqual(findInlineBoldItalicRanges('***==abc==***'), [
+    {
+      from: 0,
+      to: 13,
+      contentFrom: 3,
+      contentTo: 10,
+    },
+  ])
+})
+
+test('findInlineBoldItalicRanges detects triple-underscore emphasis', () => {
+  assert.deepEqual(findInlineBoldItalicRanges('___triple emphasis___'), [
+    {
+      from: 0,
+      to: 21,
+      contentFrom: 3,
+      contentTo: 18,
+    },
+  ])
+})
+
+test('findInlineBoldItalicRanges keeps mixed nested markers on their regular paths', () => {
+  assert.deepEqual(findInlineBoldItalicRanges('*__triple emphasis__*'), [])
+})
+
+test('findInlineBoldItalicRanges ignores inline code and inline math', () => {
+  assert.deepEqual(findInlineBoldItalicRanges('`***literal***`'), [])
+  assert.deepEqual(findInlineBoldItalicRanges('$***literal***$'), [])
 })

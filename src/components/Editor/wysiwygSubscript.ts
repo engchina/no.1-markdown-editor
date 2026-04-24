@@ -2,7 +2,7 @@ import { collectInlineCodeRanges, findContainingTextRange, type TextRange } from
 import { hasOddTrailingBackslashes } from './wysiwygInlineLiterals.ts'
 import { findInlineMathRanges } from './wysiwygInlineMath.ts'
 
-export interface InlineStrikethroughRange {
+export interface InlineSubscriptRange {
   from: number
   to: number
   contentFrom: number
@@ -19,14 +19,14 @@ function classifyBoundaryCharacter(char: string | null): BoundaryCharacterGroup 
   return 'other'
 }
 
-function canOpenStrikethrough(
+function canOpenSubscript(
   before: BoundaryCharacterGroup,
   after: BoundaryCharacterGroup
 ): boolean {
   return after === 'other' || (after === 'punctuation' && before !== 'other')
 }
 
-function canCloseStrikethrough(
+function canCloseSubscript(
   before: BoundaryCharacterGroup,
   after: BoundaryCharacterGroup
 ): boolean {
@@ -50,8 +50,8 @@ function countTildeRun(text: string, index: number): number {
   return size
 }
 
-export function findInlineStrikethroughRanges(text: string): InlineStrikethroughRange[] {
-  const ranges: InlineStrikethroughRange[] = []
+export function findInlineSubscriptRanges(text: string): InlineSubscriptRange[] {
+  const ranges: InlineSubscriptRange[] = []
   const excludedRanges = collectExcludedRanges(text)
   const openers: number[] = []
 
@@ -71,28 +71,26 @@ export function findInlineStrikethroughRanges(text: string): InlineStrikethrough
     }
 
     const markerLength = countTildeRun(text, index)
-    if (markerLength !== 2) {
+    if (markerLength !== 1) {
       index += markerLength - 1
       continue
     }
 
-    const markerSize = 2
     const before = classifyBoundaryCharacter(index > 0 ? text[index - 1] : null)
-    const after = classifyBoundaryCharacter(text[index + markerSize] ?? null)
-    const canOpen = canOpenStrikethrough(before, after)
-    const canClose = canCloseStrikethrough(before, after)
+    const after = classifyBoundaryCharacter(text[index + 1] ?? null)
+    const canOpen = canOpenSubscript(before, after)
+    const canClose = canCloseSubscript(before, after)
 
     if (canClose) {
       const opener = openers[openers.length - 1]
-      if (typeof opener === 'number' && opener + markerSize < index) {
+      if (typeof opener === 'number' && opener + 1 < index) {
         openers.pop()
         ranges.push({
           from: opener,
-          to: index + markerSize,
-          contentFrom: opener + markerSize,
+          to: index + 1,
+          contentFrom: opener + 1,
           contentTo: index,
         })
-        index += markerSize - 1
         continue
       }
     }
@@ -100,8 +98,6 @@ export function findInlineStrikethroughRanges(text: string): InlineStrikethrough
     if (canOpen) {
       openers.push(index)
     }
-
-    index += markerSize - 1
   }
 
   return ranges.sort((left, right) => left.from - right.from || left.to - right.to)

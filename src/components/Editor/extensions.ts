@@ -4,6 +4,8 @@ import {
   lineNumbers,
   highlightActiveLine,
   highlightActiveLineGutter,
+  highlightSpecialChars,
+  highlightTrailingWhitespace,
   drawSelection,
   dropCursor,
   rectangularSelection,
@@ -12,7 +14,7 @@ import {
   tooltips,
   type ViewUpdate,
 } from '@codemirror/view'
-import { EditorState, Extension } from '@codemirror/state'
+import { EditorSelection, EditorState, type Extension } from '@codemirror/state'
 import { history, defaultKeymap, historyKeymap, indentWithTab } from '@codemirror/commands'
 import {
   foldGutter,
@@ -24,6 +26,12 @@ import {
   foldKeymap,
 } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+import { collectFencedCodeBlocks, type TextRange } from './fencedCodeRanges.ts'
+import { collectMathBlocks } from './mathBlockRanges.ts'
+import { isThematicBreakLine } from './thematicBreak.ts'
+import { collectInlineCodeRanges, findContainingTextRange } from './wysiwygInlineCode.ts'
+import { findInlineMathRanges } from './wysiwygInlineMath.ts'
+import { findBlockFootnoteRanges, findInlineFootnoteRanges } from './wysiwygFootnote.ts'
 
 export const lightTheme = EditorView.theme(
   {
@@ -93,11 +101,95 @@ const markdownUnderlineOverride = HighlightStyle.define([
   // In the source editor this reads like rendered content, so remove it.
   { tag: [tags.link, tags.heading], textDecoration: 'none' },
 ])
+// Keep ordinary spaces quiet. This mode focuses on Markdown-relevant invisibles:
+// tabs, non-breaking spaces, and line-ending whitespace handled separately below.
+const INVISIBLE_MARKDOWN_SPECIAL_CHARS = /[\t\u00a0]/g
 
 export const markdownHighlight = [
   syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
   syntaxHighlighting(markdownUnderlineOverride),
 ]
+
+export const MARKDOWN_HARD_LINE_BREAK = '<br />\n'
+export const MARKDOWN_PLAIN_LINE_BREAK = '\n'
+const ATX_HEADING_PATTERN = /^(#{1,6})\s/
+const SETEXT_HEADING_UNDERLINE_PATTERN = /^[ ]{0,3}(?:=+|-+)[ \t]*$/
+
+function collectShiftEnterLiteralBlocks(markdown: string): readonly TextRange[] {
+  const fencedCodeBlocks = collectFencedCodeBlocks(markdown)
+  return [...fencedCodeBlocks, ...collectMathBlocks(markdown, fencedCodeBlocks)]
+}
+
+function isPositionInsideTextRanges(position: number, ranges: readonly TextRange[]): boolean {
+  return ranges.some((range) => position >= range.from && position <= range.to)
+}
+
+function isSetextHeadingUnderlineLine(text: string): boolean {
+  return SETEXT_HEADING_UNDERLINE_PATTERN.test(text)
+}
+
+function shouldInsertPlainLineBreakInLine(
+  doc: Pick<EditorState['doc'], 'line' | 'lines'>,
+  line: Pick<ReturnType<EditorState['doc']['lineAt']>, 'text' | 'number'>,
+  lineOffset: number
+): boolean {
+  if (ATX_HEADING_PATTERN.test(line.text) || isThematicBreakLine(line.text) || isSetextHeadingUnderlineLine(line.text)) {
+    return true
+  }
+
+  if (line.number < doc.lines && line.text.trim().length > 0) {
+    const nextLine = doc.line(line.number + 1)
+    if (isSetextHeadingUnderlineLine(nextLine.text)) {
+      return true
+    }
+  }
+
+  const inlineCodeRanges = collectInlineCodeRanges(line.text)
+  if (findContainingTextRange(lineOffset, inlineCodeRanges)) return true
+
+  if (findInlineMathRanges(line.text).some((range) => lineOffset >= range.from && lineOffset < range.to)) {
+    return true
+  }
+
+  if (findInlineFootnoteRanges(line.text, inlineCodeRanges).some((range) => lineOffset >= range.from && lineOffset < range.to)) {
+    return true
+  }
+
+  if (findBlockFootnoteRanges(line.text, inlineCodeRanges).some((range) => lineOffset >= range.from && lineOffset < range.to)) {
+    return true
+  }
+
+  return false
+}
+
+export function insertMarkdownHardLineBreak(
+  view: Pick<EditorView, 'state' | 'dispatch'>
+): boolean {
+  const markdown = view.state.doc.toString()
+  const literalBlocks = collectShiftEnterLiteralBlocks(markdown)
+
+  view.dispatch({
+    ...view.state.changeByRange((range) => {
+      const line = view.state.doc.lineAt(range.from)
+      const insert = isPositionInsideTextRanges(range.from, literalBlocks) ||
+        shouldInsertPlainLineBreakInLine(view.state.doc, line, range.from - line.from)
+        ? MARKDOWN_PLAIN_LINE_BREAK
+        : MARKDOWN_HARD_LINE_BREAK
+
+      return {
+        changes: {
+          from: range.from,
+          to: range.to,
+          insert,
+        },
+        range: EditorSelection.cursor(range.from + insert.length),
+      }
+    }),
+    scrollIntoView: true,
+    userEvent: 'input.type',
+  })
+  return true
+}
 
 export function buildCoreExtensions(options: {
   onChange: (content: string) => void
@@ -117,6 +209,10 @@ export function buildCoreExtensions(options: {
     bracketMatching(),
     tooltips({ position: 'fixed' }),
     keymap.of([
+      {
+        key: 'Shift-Enter',
+        run: insertMarkdownHardLineBreak,
+      },
       ...defaultKeymap,
       ...historyKeymap,
       ...foldKeymap,
@@ -145,6 +241,17 @@ export function buildLineNumberExtensions(): Extension[] {
 
 export function buildWordWrapExtensions(enabled: boolean): Extension[] {
   return enabled ? [EditorView.lineWrapping] : []
+}
+
+export function buildInvisibleCharacterExtensions(enabled: boolean): Extension[] {
+  return enabled
+    ? [
+        highlightTrailingWhitespace(),
+        highlightSpecialChars({
+          addSpecialChars: INVISIBLE_MARKDOWN_SPECIAL_CHARS,
+        }),
+      ]
+    : []
 }
 
 export function buildPlaceholderExtensions(placeholder?: string): Extension[] {

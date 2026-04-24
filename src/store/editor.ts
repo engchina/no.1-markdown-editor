@@ -22,6 +22,7 @@ export type Theme = 'light' | 'dark'
 export type ViewMode = 'source' | 'split' | 'preview' | 'focus'
 export type SidebarTab = 'outline' | 'files' | 'recent' | 'search'
 export type SyntaxHighlightEngine = 'highlightjs' | 'shiki'
+export type PreviewLineBreakMode = 'strict' | 'visual-soft-breaks'
 
 export interface FileTab {
   id: string
@@ -136,6 +137,8 @@ interface EditorState {
   setLineNumbers: (v: boolean) => void
   wordWrap: boolean
   setWordWrap: (v: boolean) => void
+  showInvisibleCharacters: boolean
+  setShowInvisibleCharacters: (v: boolean) => void
   fontSize: number
   setFontSize: (size: number) => void
   wysiwygMode: boolean
@@ -152,6 +155,9 @@ interface EditorState {
   // Editor and Preview advanced features
   syntaxHighlightEngine: SyntaxHighlightEngine
   setSyntaxHighlightEngine: (engine: SyntaxHighlightEngine) => void
+  previewLineBreakMode: PreviewLineBreakMode
+  setPreviewLineBreakMode: (mode: PreviewLineBreakMode) => void
+  hasExplicitPreviewLineBreakModePreference: boolean
 }
 
 function generateId() {
@@ -190,6 +196,10 @@ function sanitizeSidebarTab(value: unknown): SidebarTab {
   }
 }
 
+function sanitizePreviewLineBreakMode(value: unknown): PreviewLineBreakMode {
+  return value === 'strict' ? value : 'visual-soft-breaks'
+}
+
 export const useEditorStore = create<EditorState>()(
   persist(
     (set) => ({
@@ -223,6 +233,12 @@ export const useEditorStore = create<EditorState>()(
       // Advanced Options
       syntaxHighlightEngine: 'highlightjs',
       setSyntaxHighlightEngine: (syntaxHighlightEngine) => set({ syntaxHighlightEngine }),
+      previewLineBreakMode: 'visual-soft-breaks',
+      setPreviewLineBreakMode: (previewLineBreakMode) => set({
+        previewLineBreakMode,
+        hasExplicitPreviewLineBreakModePreference: true,
+      }),
+      hasExplicitPreviewLineBreakModePreference: false,
 
       // Tabs
       tabs: [initialTab],
@@ -535,6 +551,8 @@ export const useEditorStore = create<EditorState>()(
       setLineNumbers: (lineNumbers) => set({ lineNumbers }),
       wordWrap: true,
       setWordWrap: (wordWrap) => set({ wordWrap }),
+      showInvisibleCharacters: false,
+      setShowInvisibleCharacters: (showInvisibleCharacters) => set({ showInvisibleCharacters }),
       fontSize: 14,
       setFontSize: (fontSize) => set({ fontSize }),
       wysiwygMode: false,
@@ -562,11 +580,14 @@ export const useEditorStore = create<EditorState>()(
         focusWidthCustomPx: s.focusWidthCustomPx,
         lineNumbers: s.lineNumbers,
         wordWrap: s.wordWrap,
+        showInvisibleCharacters: s.showInvisibleCharacters,
         fontSize: s.fontSize,
         typewriterMode: s.typewriterMode,
         wysiwygMode: s.wysiwygMode,
         activeThemeId: s.activeThemeId,
         syntaxHighlightEngine: s.syntaxHighlightEngine,
+        previewLineBreakMode: s.previewLineBreakMode,
+        hasExplicitPreviewLineBreakModePreference: s.hasExplicitPreviewLineBreakModePreference,
         zoom: s.zoom,
         tabs: s.tabs.filter(isRestorableDraftTab),
         activeTabId: s.tabs.some((tab) => tab.id === s.activeTabId && isRestorableDraftTab(tab))
@@ -597,7 +618,14 @@ export const useEditorStore = create<EditorState>()(
           aiDefaultSelectedTextRole: 'transform-target',
           aiHistoryProviderRerankEnabled: true,
           aiHistoryProviderRerankBudget: 'balanced',
+          showInvisibleCharacters: persistedState?.showInvisibleCharacters === true,
           syntaxHighlightEngine: persistedState?.syntaxHighlightEngine ?? 'highlightjs',
+          previewLineBreakMode:
+            persistedState?.hasExplicitPreviewLineBreakModePreference
+              ? sanitizePreviewLineBreakMode(persistedState?.previewLineBreakMode)
+              : 'visual-soft-breaks',
+          hasExplicitPreviewLineBreakModePreference:
+            persistedState?.hasExplicitPreviewLineBreakModePreference === true,
         }
       },
       onRehydrateStorage: () => (state) => {

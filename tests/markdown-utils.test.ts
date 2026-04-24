@@ -23,6 +23,10 @@ function countRenderedBreaks(html: string): number {
   return html.match(/<br\s*\/?>/g)?.length ?? 0
 }
 
+function countRenderedParagraphs(html: string): number {
+  return html.match(/<p>/g)?.length ?? 0
+}
+
 function extractHeadingIds(html: string): string[] {
   return Array.from(html.matchAll(/<h[1-6]\s+id="([^"]*)"/g), (match) => match[1])
 }
@@ -82,11 +86,33 @@ test('renderMarkdown ignores front matter values when choosing the math path', a
   assert.match(html, /<p>Plain body<\/p>/)
 })
 
-test('renderMarkdown preserves soft paragraph line breaks in preview output', async () => {
+test('renderMarkdown keeps single newlines as soft paragraph breaks', async () => {
   const html = await renderMarkdown('Line 1\nLine 2\nLine 3')
 
-  assert.equal(countRenderedBreaks(html), 2)
-  assert.match(html, /<p>Line 1<br\s*\/?>\s*Line 2<br\s*\/?>\s*Line 3<\/p>/)
+  assert.equal(countRenderedBreaks(html), 0)
+  assert.equal(countRenderedParagraphs(html), 1)
+  assert.match(html, /<p>Line 1\s*Line 2\s*Line 3<\/p>/)
+})
+
+test('renderMarkdown uses blank lines to separate paragraphs and ignores extra empty lines', async () => {
+  const html = await renderMarkdown('A\n\n\nB\n')
+
+  assert.equal(countRenderedBreaks(html), 0)
+  assert.equal(countRenderedParagraphs(html), 2)
+  assert.match(html, /<p>A<\/p>\s*<p>B<\/p>/)
+})
+
+test('renderMarkdown preserves explicit hard breaks from Markdown and br tags', async () => {
+  const markdownHardBreakHtml = await renderMarkdown('Line 1  \nLine 2')
+  const markdownBackslashBreakHtml = await renderMarkdown('Line 1\\\nLine 2')
+  const htmlHardBreakHtml = await renderMarkdown('Line 1<br />\nLine 2')
+
+  assert.equal(countRenderedBreaks(markdownHardBreakHtml), 1)
+  assert.match(markdownHardBreakHtml, /<p>Line 1<br\s*\/?>\s*Line 2<\/p>/)
+  assert.equal(countRenderedBreaks(markdownBackslashBreakHtml), 1)
+  assert.match(markdownBackslashBreakHtml, /<p>Line 1<br\s*\/?>\s*Line 2<\/p>/)
+  assert.equal(countRenderedBreaks(htmlHardBreakHtml), 1)
+  assert.match(htmlHardBreakHtml, /<p>Line 1<br\s*\/?>\s*Line 2<\/p>/)
 })
 
 test('renderMarkdown keeps preview heading ids aligned with outline ids for non-Latin and symbol-only titles', async () => {
@@ -106,23 +132,26 @@ test('renderMarkdown keeps preview heading ids aligned with outline ids for non-
   assert.deepEqual(extractHeadingIds(workerHtml), expectedIds)
 })
 
-test('renderMarkdown keeps soft line breaks when raw html is present', async () => {
+test('renderMarkdown keeps single newlines soft when raw html is present', async () => {
   const html = await renderMarkdown('Line 1\n<span>Inline</span>\nLine 3')
 
-  assert.equal(countRenderedBreaks(html), 2)
-  assert.match(html, /<span>Inline<\/span>/)
+  assert.equal(countRenderedBreaks(html), 0)
+  assert.equal(countRenderedParagraphs(html), 1)
+  assert.match(html, /<p>Line 1\s*<span>Inline<\/span>\s*Line 3<\/p>/)
 })
 
-test('renderMarkdown keeps soft line breaks when math is present', async () => {
+test('renderMarkdown keeps single newlines soft when math is present', async () => {
   const html = await renderMarkdown('Top\nInline $E=mc^2$\nBottom')
 
-  assert.equal(countRenderedBreaks(html), 2)
+  assert.equal(countRenderedBreaks(html), 0)
+  assert.equal(countRenderedParagraphs(html), 1)
   assert.match(html, /class="katex"/)
 })
 
 test('containsLikelyRawHtml detects actual html but ignores plain angle brackets', () => {
   assert.equal(containsLikelyRawHtml('2 < 3 and 5 > 4'), false)
   assert.equal(containsLikelyRawHtml('Hello <span>world</span>'), true)
+  assert.equal(containsLikelyRawHtml('Hello<br />world'), true)
   assert.equal(containsLikelyRawHtml('<!-- comment -->\nText'), true)
   assert.equal(containsLikelyRawHtml('<https://example.com>'), false)
   assert.equal(containsLikelyRawHtml('<hello@example.com>'), false)
@@ -156,6 +185,14 @@ test('renderMarkdown renders superscript markers in both preview and worker outp
   assert.match(workerHtml, /<p>2<sup>10<\/sup><\/p>/)
 })
 
+test('renderMarkdown keeps single-tilde subscript distinct from double-tilde strikethrough in preview and worker output', async () => {
+  const html = await renderMarkdown('H~2~O and ~~Mistaken~~')
+  const workerHtml = await renderMarkdownInWorker('H~2~O and ~~Mistaken~~')
+
+  assert.match(html, /<p>H<sub>2<\/sub>O and <del>Mistaken<\/del><\/p>/)
+  assert.match(workerHtml, /<p>H<sub>2<\/sub>O and <del>Mistaken<\/del><\/p>/)
+})
+
 test('renderMarkdown keeps escaped and invalid superscript markers literal', async () => {
   const escapedHtml = await renderMarkdown('\\^text^')
   const leadingSpaceHtml = await renderMarkdown('^ leading^')
@@ -170,6 +207,25 @@ test('renderMarkdown keeps escaped and invalid superscript markers literal', asy
   assert.doesNotMatch(trailingSpaceHtml, /<sup>/)
   assert.match(unclosedHtml, /<p>\^text<\/p>/)
   assert.doesNotMatch(unclosedHtml, /<sup>/)
+})
+
+test('renderMarkdown keeps escaped and invalid subscript markers literal', async () => {
+  const escapedHtml = await renderMarkdown('\\~text~')
+  const leadingSpaceHtml = await renderMarkdown('~ leading~')
+  const trailingSpaceHtml = await renderMarkdown('~trailing ~')
+  const doubleTildeHtml = await renderMarkdown('~~text~~')
+  const unclosedHtml = await renderMarkdown('~text')
+
+  assert.match(escapedHtml, /<p>~text~<\/p>/)
+  assert.doesNotMatch(escapedHtml, /<sub>/)
+  assert.match(leadingSpaceHtml, /<p>~ leading~<\/p>/)
+  assert.doesNotMatch(leadingSpaceHtml, /<sub>/)
+  assert.match(trailingSpaceHtml, /<p>~trailing ~<\/p>/)
+  assert.doesNotMatch(trailingSpaceHtml, /<sub>/)
+  assert.match(doubleTildeHtml, /<p><del>text<\/del><\/p>/)
+  assert.doesNotMatch(doubleTildeHtml, /<sub>/)
+  assert.match(unclosedHtml, /<p>~text<\/p>/)
+  assert.doesNotMatch(unclosedHtml, /<sub>/)
 })
 
 test('renderMarkdown converts ==highlight== syntax to mark tags across inline nodes', async () => {
@@ -196,6 +252,23 @@ test('renderMarkdown keeps superscript markers out of code and inline math while
   assert.match(mixedHtml, /x<sup><em>2<\/em><\/sup>/)
   assert.match(mixedHtml, /y<sup><strong>3<\/strong><\/sup>/)
   assert.match(workerMathHtml, /<p>Inline \$a\^2\$ and 2<sup>10<\/sup><\/p>/)
+})
+
+test('renderMarkdown keeps subscript markers out of code and inline math while preserving nested inline formatting', async () => {
+  const inlineCodeHtml = await renderMarkdown('`H~2~O`')
+  const fencedCodeHtml = await renderMarkdown('```\nH~2~O\n```')
+  const mixedHtml = await renderMarkdown('Inline $H~2~O$ and H~2~O plus x~*2*~ and y~**3**~')
+  const workerMathHtml = await renderMarkdownInWorker('Inline $H~2~O$ and H~2~O')
+
+  assert.match(inlineCodeHtml, /<code>H~2~O<\/code>/)
+  assert.doesNotMatch(inlineCodeHtml, /H<sub>2<\/sub>O/)
+  assert.match(fencedCodeHtml, /H~2~O/)
+  assert.doesNotMatch(fencedCodeHtml, /H<sub>2<\/sub>O/)
+  assert.match(mixedHtml, /class="katex"/)
+  assert.match(mixedHtml, /H<sub>2<\/sub>O/)
+  assert.match(mixedHtml, /x<sub><em>2<\/em><\/sub>/)
+  assert.match(mixedHtml, /y<sub><strong>3<\/strong><\/sub>/)
+  assert.match(workerMathHtml, /<p>Inline \$H~2~O\$ and H<sub>2<\/sub>O<\/p>/)
 })
 
 test('renderMarkdown preserves footnotes while rendering superscript in surrounding text and footnote content', async () => {
@@ -627,11 +700,20 @@ test('renderMarkdownInWorker preserves Windows absolute raw html image sources b
   assert.match(html, /src="file:\/\/\/C:\/Users\/thinkpad\/Pictures\/worker-raw\.png"/)
 })
 
-test('renderMarkdownInWorker preserves soft paragraph line breaks', async () => {
+test('renderMarkdownInWorker keeps single newlines as soft paragraph breaks', async () => {
   const html = await renderMarkdownInWorker('Worker 1\nWorker 2\nWorker 3')
 
-  assert.equal(countRenderedBreaks(html), 2)
-  assert.match(html, /<p>Worker 1<br\s*\/?>\s*Worker 2<br\s*\/?>\s*Worker 3<\/p>/)
+  assert.equal(countRenderedBreaks(html), 0)
+  assert.equal(countRenderedParagraphs(html), 1)
+  assert.match(html, /<p>Worker 1\s*Worker 2\s*Worker 3<\/p>/)
+})
+
+test('renderMarkdownInWorker uses blank lines to separate paragraphs and ignores extra empty lines', async () => {
+  const html = await renderMarkdownInWorker('Worker 1\n\n\nWorker 2\n')
+
+  assert.equal(countRenderedBreaks(html), 0)
+  assert.equal(countRenderedParagraphs(html), 2)
+  assert.match(html, /<p>Worker 1<\/p>\s*<p>Worker 2<\/p>/)
 })
 
 test('renderMarkdownInWorker supports sanitized raw html when needed', async () => {
@@ -642,9 +724,10 @@ test('renderMarkdownInWorker supports sanitized raw html when needed', async () 
   assert.doesNotMatch(html, /bad\(\)/)
 })
 
-test('renderMarkdownInWorker keeps soft line breaks when raw html is present', async () => {
+test('renderMarkdownInWorker keeps single newlines soft when raw html is present', async () => {
   const html = await renderMarkdownInWorker('Worker 1\n<span>Inline</span>\nWorker 3')
 
-  assert.equal(countRenderedBreaks(html), 2)
-  assert.match(html, /<span>Inline<\/span>/)
+  assert.equal(countRenderedBreaks(html), 0)
+  assert.equal(countRenderedParagraphs(html), 1)
+  assert.match(html, /<p>Worker 1\s*<span>Inline<\/span>\s*Worker 3<\/p>/)
 })

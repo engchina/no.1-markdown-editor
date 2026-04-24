@@ -9,6 +9,7 @@ import rehypeStringify from 'rehype-stringify'
 import rehypeKatex from 'rehype-katex'
 import { sanitizeSchema } from '../../lib/markdownShared.ts'
 import { rehypeHighlightMarkers } from '../../lib/rehypeHighlightMarkers.ts'
+import { rehypeSubscriptMarkers } from '../../lib/rehypeSubscriptMarkers.ts'
 import { rehypeSuperscriptMarkers } from '../../lib/rehypeSuperscriptMarkers.ts'
 
 const inlineMarkdownCache = new Map<string, string>()
@@ -20,10 +21,11 @@ interface RenderInlineMarkdownFragmentOptions {
 
 const inlineMarkdownProcessor = unified()
   .use(remarkParse)
-  .use(remarkGfm)
+  .use(remarkGfm, { singleTilde: false })
   .use(remarkMath)
   .use(remarkRehype, { allowDangerousHtml: true })
   .use(rehypeRaw)
+  .use(rehypeSubscriptMarkers)
   .use(rehypeSuperscriptMarkers)
   .use(rehypeHighlightMarkers)
   .use(rehypeSanitize, sanitizeSchema)

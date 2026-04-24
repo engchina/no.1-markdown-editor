@@ -20,43 +20,65 @@ export interface BlockFootnoteRange {
 export class InlineFootnoteWidget extends WidgetType {
   readonly label: string
   readonly displayIndex: number
+  readonly editAnchor: number
 
-  constructor(label: string, displayIndex: number) {
+  constructor(label: string, displayIndex: number, editAnchor: number) {
     super()
     this.label = label
     this.displayIndex = displayIndex
+    this.editAnchor = editAnchor
   }
 
   toDOM() {
     const el = document.createElement('sup')
     el.className = 'cm-wysiwyg-footnote-ref'
+    el.dataset.footnoteKind = 'ref'
+    el.dataset.footnoteLabel = this.label
+    el.dataset.footnoteEditAnchor = String(this.editAnchor)
+    el.setAttribute('aria-label', `Edit footnote reference ${this.displayIndex}`)
+    el.setAttribute('aria-keyshortcuts', 'Enter Space')
+    el.setAttribute('role', 'button')
+    el.tabIndex = 0
     el.textContent = String(this.displayIndex)
     return el
   }
 
   ignoreEvent() { return false }
-  eq(other: InlineFootnoteWidget) { return this.label === other.label && this.displayIndex === other.displayIndex }
+  eq(other: InlineFootnoteWidget) {
+    return this.label === other.label && this.displayIndex === other.displayIndex && this.editAnchor === other.editAnchor
+  }
 }
 
 export class BlockFootnoteTagWidget extends WidgetType {
   readonly label: string
   readonly displayIndex: number | null
+  readonly editAnchor: number
 
-  constructor(label: string, displayIndex: number | null) {
+  constructor(label: string, displayIndex: number | null, editAnchor: number) {
     super()
     this.label = label
     this.displayIndex = displayIndex
+    this.editAnchor = editAnchor
   }
 
   toDOM() {
     const el = document.createElement('span')
     el.className = 'cm-wysiwyg-footnote-def'
+    el.dataset.footnoteKind = 'def'
+    el.dataset.footnoteLabel = this.label
+    el.dataset.footnoteEditAnchor = String(this.editAnchor)
+    el.setAttribute('aria-label', this.displayIndex !== null ? `Edit footnote definition ${this.displayIndex}` : `Edit footnote definition ${this.label}`)
+    el.setAttribute('aria-keyshortcuts', 'Enter Space')
+    el.setAttribute('role', 'button')
+    el.tabIndex = 0
     el.textContent = this.displayIndex !== null ? `[${this.displayIndex}]: ` : `[^${this.label}]: `
     return el
   }
 
   ignoreEvent() { return false }
-  eq(other: BlockFootnoteTagWidget) { return this.label === other.label && this.displayIndex === other.displayIndex }
+  eq(other: BlockFootnoteTagWidget) {
+    return this.label === other.label && this.displayIndex === other.displayIndex && this.editAnchor === other.editAnchor
+  }
 }
 
 // INLINE pattern: [^something]
