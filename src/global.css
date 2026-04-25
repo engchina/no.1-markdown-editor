@@ -4,6 +4,9 @@
 
 /* ── CSS Custom Properties ── */
 :root {
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-preview: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
   /* Light theme */
   --bg-canvas: #E5E7EB;
   /* Subtle gray background for floating look */
@@ -35,6 +38,34 @@
   /* Preview */
   --preview-bg: transparent;
   --preview-text: #1A1A1A;
+  --md-heading-1-size: 2em;
+  --md-heading-2-size: 1.5em;
+  --md-heading-3-size: 1.25em;
+  --md-heading-4-size: 1.1em;
+  --md-heading-5-size: 1em;
+  --md-heading-6-size: 0.95em;
+  --md-link-text-decoration: none;
+  --md-link-hover-text-decoration: underline;
+  --md-hr-rule-color: var(--border);
+  --md-blockquote-text-color: var(--text-secondary);
+  --md-list-marker-color: var(--preview-text);
+  --md-inline-mark-bg: color-mix(in srgb, #FACC15 52%, transparent);
+  --md-inline-mark-radius: 0.28em;
+  --md-inline-mark-padding-inline: 0.18em;
+  --md-inline-script-font-size: 0.75em;
+  --md-inline-script-line-height: 0;
+  --md-inline-code-font-size: 0.875em;
+  --md-inline-code-radius: 4px;
+  --md-inline-code-padding: 0.125em 0.375em;
+  --md-strikethrough-color: color-mix(in srgb, var(--preview-text) 78%, var(--text-muted));
+  --md-task-checkbox-size: 16px;
+  --md-task-checkbox-radius: 4px;
+  --md-task-checkbox-gap: 8px;
+  --md-task-completed-color: color-mix(in srgb, var(--preview-text) 68%, var(--text-muted));
+  --md-footnotes-font-size: 0.875em;
+  --md-footnote-ref-color: var(--accent);
+  --md-footnote-ref-weight: 600;
+  --md-footnote-backref-color: var(--text-muted);
 
   /* Glass & Depth */
   --glass-bg: rgba(255, 255, 255, 0.65);
@@ -107,7 +138,7 @@ body {
   background-color: var(--bg-canvas);
   /* The outer background */
   color: var(--text-primary);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-ui, Inter, system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
@@ -298,9 +329,13 @@ a:focus-visible {
 
 /* ── WYSIWYG Footnotes ── */
 .cm-wysiwyg-footnote-ref {
-  color: var(--accent);
+  color: var(--md-footnote-ref-color, var(--accent));
   cursor: pointer;
-  font-weight: 600;
+  font-size: var(--md-inline-script-font-size, 0.75em);
+  line-height: var(--md-inline-script-line-height, 0);
+  vertical-align: super;
+  font-weight: var(--md-footnote-ref-weight, 600);
+  text-decoration: var(--md-link-text-decoration, none);
   padding: 0 2px;
   border-radius: 4px;
   transition: color 150ms ease, background 150ms ease;
@@ -318,15 +353,15 @@ a:focus-visible {
 }
 
 .cm-wysiwyg-footnote-def {
-  color: var(--accent);
-  font-family: var(--font-mono, monospace);
-  font-size: 0.85em;
-  opacity: 0.8;
+  color: var(--md-footnote-ref-color, var(--accent));
+  font-family: var(--font-preview, Inter, system-ui, sans-serif);
+  font-size: var(--md-footnotes-font-size, 0.875em);
+  font-weight: var(--md-footnote-ref-weight, 600);
   user-select: none;
 }
 
 .cm-wysiwyg-footnote-def-active {
-  color: var(--text-muted);
+  color: var(--md-blockquote-text-color, var(--text-secondary));
   font-family: inherit;
 }
 
@@ -623,6 +658,7 @@ a:focus-visible {
 .markdown-preview {
   background-color: transparent;
   color: var(--preview-text);
+  font-family: var(--font-preview, Inter, system-ui, sans-serif);
   padding: 32px 48px var(--document-bottom-buffer);
   overflow-y: auto;
   height: 100%;
@@ -668,55 +704,71 @@ a:focus-visible {
 }
 
 .markdown-preview h1 {
-  font-size: 2em;
+  font-size: var(--md-heading-1-size, 2em);
 }
 
 .markdown-preview h2 {
-  font-size: 1.5em;
+  font-size: var(--md-heading-2-size, 1.5em);
 }
 
 .markdown-preview h3 {
-  font-size: 1.25em;
+  font-size: var(--md-heading-3-size, 1.25em);
+}
+
+.markdown-preview h4 {
+  font-size: var(--md-heading-4-size, 1.1em);
+}
+
+.markdown-preview h5 {
+  font-size: var(--md-heading-5-size, 1em);
+}
+
+.markdown-preview h6 {
+  font-size: var(--md-heading-6-size, 0.95em);
 }
 
 .markdown-preview a {
   color: var(--accent);
-  text-decoration: none;
+  text-decoration: var(--md-link-text-decoration, none);
   transition: all 0.2s ease;
 }
 
 .markdown-preview a:hover {
   color: var(--accent-hover);
-  text-decoration: underline;
+  text-decoration: var(--md-link-hover-text-decoration, underline);
+}
+
+.markdown-preview del {
+  color: var(--md-strikethrough-color, color-mix(in srgb, var(--preview-text) 78%, var(--text-muted)));
 }
 
 .markdown-preview mark {
   color: inherit;
-  background: color-mix(in srgb, #FACC15 52%, transparent);
-  border-radius: 0.28em;
-  padding: 0 0.18em;
+  background: var(--md-inline-mark-bg, color-mix(in srgb, #FACC15 52%, transparent));
+  border-radius: var(--md-inline-mark-radius, 0.28em);
+  padding: 0 var(--md-inline-mark-padding-inline, 0.18em);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
 
 .markdown-preview sup {
-  font-size: 0.75em;
-  line-height: 0;
+  font-size: var(--md-inline-script-font-size, 0.75em);
+  line-height: var(--md-inline-script-line-height, 0);
   vertical-align: super;
 }
 
 .markdown-preview sub {
-  font-size: 0.75em;
-  line-height: 0;
+  font-size: var(--md-inline-script-font-size, 0.75em);
+  line-height: var(--md-inline-script-line-height, 0);
   vertical-align: sub;
 }
 
 .markdown-preview code {
   background: var(--bg-tertiary);
-  padding: 0.125em 0.375em;
-  border-radius: 4px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.875em;
+  padding: var(--md-inline-code-padding, 0.125em 0.375em);
+  border-radius: var(--md-inline-code-radius, 4px);
+  font-family: var(--font-mono, JetBrains Mono, Cascadia Code, Fira Code, Consolas, monospace);
+  font-size: var(--md-inline-code-font-size, 0.875em);
   transition: background 0.2s ease;
 }
 
@@ -783,7 +835,7 @@ a:focus-visible {
 
 .markdown-preview blockquote {
   padding: var(--md-quote-pad-block) var(--md-quote-pad-inline-end) var(--md-quote-pad-block) var(--md-quote-pad-inline-start);
-  color: var(--text-secondary);
+  color: var(--md-blockquote-text-color, var(--text-secondary));
   font-style: normal;
   background: none;
   border-left: var(--md-quote-line-width) solid var(--md-quote-rule-color);
@@ -835,8 +887,13 @@ a:focus-visible {
 }
 
 .markdown-preview li.task-list-item > input[type="checkbox"] {
-  margin-right: 0.5em;
+  margin-right: var(--md-task-checkbox-gap, 8px);
   vertical-align: middle;
+}
+
+.markdown-preview li.task-list-item:has(> input[type="checkbox"]:checked) {
+  color: var(--md-task-completed-color, color-mix(in srgb, var(--preview-text) 68%, var(--text-muted)));
+  transition: color 0.2s ease;
 }
 
 .markdown-preview li>ul,
@@ -891,7 +948,7 @@ a:focus-visible {
 
 .markdown-preview hr {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--md-hr-rule-color, var(--border));
   margin: 0;
 }
 
@@ -929,14 +986,14 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: var(--md-task-checkbox-size, 16px);
+  height: var(--md-task-checkbox-size, 16px);
   margin: 0;
-  margin-right: 8px;
+  margin-right: var(--md-task-checkbox-gap, 8px);
   vertical-align: middle;
   cursor: pointer;
   border: 2px solid color-mix(in srgb, var(--text-muted) 60%, transparent);
-  border-radius: 4px;
+  border-radius: var(--md-task-checkbox-radius, 4px);
   background-color: transparent;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   transform: translateY(-1px);
@@ -1388,8 +1445,8 @@ a:focus-visible {
   margin-top: 2em;
   padding-top: 1em;
   border-top: 1px solid var(--border);
-  font-size: 0.875em;
-  color: var(--text-secondary);
+  font-size: var(--md-footnotes-font-size, 0.875em);
+  color: var(--md-blockquote-text-color, var(--text-secondary));
 }
 
 .markdown-preview> :is(p,
@@ -1450,11 +1507,11 @@ a:focus-visible {
 .markdown-preview a[data-footnote-ref] {
   font-size: 1em;
   vertical-align: baseline;
-  text-decoration: none;
-  color: var(--accent);
-  font-weight: 600;
+  text-decoration: var(--md-link-text-decoration, none);
+  color: var(--md-footnote-ref-color, var(--accent));
+  font-weight: var(--md-footnote-ref-weight, 600);
 }
 
 .markdown-preview a[data-footnote-backref] {
-  color: var(--text-muted);
+  color: var(--md-footnote-backref-color, var(--text-muted));
 }

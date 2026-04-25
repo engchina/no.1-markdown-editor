@@ -368,11 +368,9 @@ async fn native_print_to_pdf<R: Runtime>(
     window: &tauri::WebviewWindow<R>,
     output_path: &str,
 ) -> Result<(), String> {
-    use gtk::prelude::*;
     use webkit2gtk::{PrintOperation, PrintOperationExt};
 
     let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
-    let output = output_path.to_string();
     let output_uri = output_file_uri(Path::new(output_path))?;
 
     window

@@ -35,6 +35,15 @@ test('wysiwyg task list live preview wires custom bullets, checkbox widgets, and
   assert.ok(source.includes("'.cm-wysiwyg-bullet-simple': {"))
   assert.ok(source.includes("'.cm-wysiwyg-ordered-number': {"))
   assert.ok(source.includes("'.cm-wysiwyg-checkbox.is-checked .checkmark': {"))
+  const taskCompletedStyleMatch = source.match(/'\.cm-wysiwyg-task-completed': \{([\s\S]*?)\n  \},/u)
+  assert.ok(taskCompletedStyleMatch)
+  const taskCompletedStyle = taskCompletedStyleMatch[1]
+  assert.match(taskCompletedStyle, /color: 'var\(--md-task-completed-color, color-mix\(in srgb, var\(--preview-text\) 68%, var\(--text-muted\)\)\) !important'/u)
+  assert.match(taskCompletedStyle, /transition: 'color 0\.2s ease'/u)
+  assert.doesNotMatch(taskCompletedStyle, /textDecoration/u)
+  assert.match(source, /'\.cm-wysiwyg-bullet-simple': \{[\s\S]*?color: 'var\(--md-list-marker-color, var\(--preview-text\)\) !important'[\s\S]*?fontFamily: PREVIEW_FONT_FAMILY/u)
+  assert.match(source, /'\.cm-wysiwyg-ordered-number': \{[\s\S]*?fontFamily: PREVIEW_FONT_FAMILY[\s\S]*?color: 'var\(--md-list-marker-color, var\(--preview-text\)\) !important'/u)
+  assert.match(source, /'\.cm-wysiwyg-checkbox': \{[\s\S]*?width: 'var\(--md-task-checkbox-size, 16px\)'[\s\S]*?height: 'var\(--md-task-checkbox-size, 16px\)'[\s\S]*?marginRight: 'var\(--md-task-checkbox-gap, 8px\)'[\s\S]*?borderRadius: 'var\(--md-task-checkbox-radius, 4px\)'/u)
 })
 
 test('preview task list styles target semantic GFM task list markup and custom checkbox chrome', async () => {
@@ -43,7 +52,14 @@ test('preview task list styles target semantic GFM task list markup and custom c
   assert.match(css, /\.markdown-preview ul\.contains-task-list,\s*\.markdown-preview ul\.contains-task-list ul\.contains-task-list\s*\{/u)
   assert.match(css, /\.markdown-preview li\.task-list-item\s*\{/u)
   assert.match(css, /\.markdown-preview li\.task-list-item > input\[type="checkbox"\]\s*\{/u)
+  const checkedTaskStyleMatch = css.match(/\.markdown-preview li\.task-list-item:has\(> input\[type="checkbox"\]:checked\)\s*\{([\s\S]*?)\n\}/u)
+  assert.ok(checkedTaskStyleMatch)
+  const checkedTaskStyle = checkedTaskStyleMatch[1]
+  assert.match(checkedTaskStyle, /color:\s*var\(--md-task-completed-color/u)
+  assert.match(checkedTaskStyle, /transition:\s*color 0\.2s ease;/u)
+  assert.doesNotMatch(checkedTaskStyle, /text-decoration/u)
   assert.match(css, /\.markdown-preview input\[type="checkbox"\]\s*\{[\s\S]*appearance:\s*none;/u)
+  assert.match(css, /\.markdown-preview input\[type="checkbox"\]\s*\{[\s\S]*width:\s*var\(--md-task-checkbox-size, 16px\);[\s\S]*margin-right:\s*var\(--md-task-checkbox-gap, 8px\);[\s\S]*border-radius:\s*var\(--md-task-checkbox-radius, 4px\);/u)
   assert.match(css, /\.markdown-preview input\[type="checkbox"\]:checked\s*\{/u)
   assert.match(css, /\.markdown-preview input\[type="checkbox"\]::after\s*\{/u)
   assert.match(css, /\.markdown-preview input\[type="checkbox"\]:checked::after\s*\{/u)

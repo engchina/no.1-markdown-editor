@@ -58,7 +58,7 @@ test('wysiwyg blockquotes keep the active line structurally visible while weaken
   assert.match(source, /Decoration\.mark\(\{ class: blockquoteClass \}\)/u)
   assert.match(
     source,
-    /'\.cm-wysiwyg-blockquote': \{[\s\S]*?borderLeft: '4px solid color-mix\(in srgb, var\(--text-muted\) 42%, transparent\)'[\s\S]*?paddingLeft: '14px'/u,
+    /'\.cm-wysiwyg-blockquote': \{[\s\S]*?color: 'var\(--md-blockquote-text-color, var\(--text-secondary\)\) !important'[\s\S]*?borderLeft: 'var\(--md-quote-line-width\) solid var\(--md-quote-rule-color\)'[\s\S]*?paddingLeft: 'var\(--md-quote-pad-inline-start\)'[\s\S]*?paddingRight: 'var\(--md-quote-pad-inline-end\)'/u,
   )
   assert.match(
     source,

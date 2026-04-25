@@ -1314,7 +1314,7 @@ export function buildWysiwygDecorations(
           )
         }
 
-        // Add line style for completed tasks (strikethrough & muted)
+        // Keep completed tasks readable: mute the line, but do not add strikethrough.
         if (isChecked && label.length > 0) {
           queueDecoration(
             decorations,
@@ -2935,14 +2935,20 @@ export const wysiwygTableDecorations = [wysiwygTableDecorationField, wysiwygGutt
 // ── WYSIWYG CSS styles ─────────────────────────────────────────────────────
 // These are injected via a CM theme extension
 
+const PREVIEW_FONT_FAMILY = 'var(--font-preview, Inter, system-ui, sans-serif)'
+const MONO_FONT_FAMILY = 'var(--font-mono, JetBrains Mono, Cascadia Code, Fira Code, Consolas, monospace)'
+
 export const wysiwygTheme = EditorView.baseTheme({
+  '.cm-content': {
+    fontFamily: PREVIEW_FONT_FAMILY,
+  },
   // Headings
-  '.cm-wysiwyg-h1': { fontSize: '2em', fontWeight: '700', lineHeight: '1.3', color: 'var(--text-primary) !important', fontFamily: 'var(--font-preview, inherit)' },
-  '.cm-wysiwyg-h2': { fontSize: '1.6em', fontWeight: '700', lineHeight: '1.3', color: 'var(--text-primary) !important' },
-  '.cm-wysiwyg-h3': { fontSize: '1.3em', fontWeight: '600', lineHeight: '1.3', color: 'var(--text-primary) !important' },
-  '.cm-wysiwyg-h4': { fontSize: '1.1em', fontWeight: '600', color: 'var(--text-primary) !important' },
-  '.cm-wysiwyg-h5': { fontSize: '1em', fontWeight: '600', color: 'var(--text-secondary) !important' },
-  '.cm-wysiwyg-h6': { fontSize: '0.95em', fontWeight: '600', color: 'var(--text-muted) !important' },
+  '.cm-wysiwyg-h1': { fontSize: 'var(--md-heading-1-size, 2em)', fontWeight: '700', lineHeight: '1.3', color: 'var(--text-primary) !important', fontFamily: PREVIEW_FONT_FAMILY },
+  '.cm-wysiwyg-h2': { fontSize: 'var(--md-heading-2-size, 1.5em)', fontWeight: '700', lineHeight: '1.3', color: 'var(--text-primary) !important', fontFamily: PREVIEW_FONT_FAMILY },
+  '.cm-wysiwyg-h3': { fontSize: 'var(--md-heading-3-size, 1.25em)', fontWeight: '600', lineHeight: '1.3', color: 'var(--text-primary) !important', fontFamily: PREVIEW_FONT_FAMILY },
+  '.cm-wysiwyg-h4': { fontSize: 'var(--md-heading-4-size, 1.1em)', fontWeight: '600', lineHeight: '1.3', color: 'var(--text-primary) !important', fontFamily: PREVIEW_FONT_FAMILY },
+  '.cm-wysiwyg-h5': { fontSize: 'var(--md-heading-5-size, 1em)', fontWeight: '600', lineHeight: '1.3', color: 'var(--text-primary) !important', fontFamily: PREVIEW_FONT_FAMILY },
+  '.cm-wysiwyg-h6': { fontSize: 'var(--md-heading-6-size, 0.95em)', fontWeight: '600', lineHeight: '1.3', color: 'var(--text-primary) !important', fontFamily: PREVIEW_FONT_FAMILY },
   '.cm-wysiwyg-hr-anchor-line': {
     padding: '0 !important',
     lineHeight: '0',
@@ -2957,45 +2963,49 @@ export const wysiwygTheme = EditorView.baseTheme({
   },
   '.cm-wysiwyg-hr__rule': {
     display: 'block',
-    borderTop: '1px solid var(--border)',
-    margin: '0.75em 0',
+    borderTop: '1px solid var(--md-hr-rule-color, var(--border))',
+    margin: '0',
   },
 
   // Inline
   '.cm-wysiwyg-bold': { fontWeight: '700', color: 'var(--text-primary) !important' },
   '.cm-wysiwyg-italic': { fontStyle: 'italic', color: 'var(--text-primary) !important' },
   '.cm-wysiwyg-underline': { textDecoration: 'underline', color: 'var(--text-primary) !important' },
-  '.cm-wysiwyg-strikethrough': { textDecoration: 'line-through', color: 'var(--text-muted) !important' },
+  '.cm-wysiwyg-strikethrough': { textDecoration: 'line-through', color: 'var(--md-strikethrough-color, color-mix(in srgb, var(--preview-text) 78%, var(--text-muted))) !important' },
   '.cm-wysiwyg-subscript': {
-    fontSize: '0.75em',
-    lineHeight: '0',
+    fontSize: 'var(--md-inline-script-font-size, 0.75em)',
+    lineHeight: 'var(--md-inline-script-line-height, 0)',
     verticalAlign: 'sub',
-    color: 'var(--text-primary) !important',
+    color: 'inherit !important',
   },
   '.cm-wysiwyg-superscript': {
-    fontSize: '0.75em',
-    lineHeight: '0',
+    fontSize: 'var(--md-inline-script-font-size, 0.75em)',
+    lineHeight: 'var(--md-inline-script-line-height, 0)',
     verticalAlign: 'super',
-    color: 'var(--text-primary) !important',
+    color: 'inherit !important',
   },
   '.cm-wysiwyg-highlight': {
-    backgroundColor: 'color-mix(in srgb, #FACC15 52%, transparent)',
-    borderRadius: '0.28em',
-    color: 'var(--text-primary) !important',
-    padding: '0 0.18em',
+    backgroundColor: 'var(--md-inline-mark-bg, color-mix(in srgb, #FACC15 52%, transparent))',
+    borderRadius: 'var(--md-inline-mark-radius, 0.28em)',
+    color: 'inherit !important',
+    padding: '0 var(--md-inline-mark-padding-inline, 0.18em)',
   },
   '.cm-wysiwyg-code': {
-    fontFamily: 'var(--font-mono, monospace)',
-    fontSize: '0.875em',
+    fontFamily: MONO_FONT_FAMILY,
+    fontSize: 'var(--md-inline-code-font-size, 0.875em)',
     backgroundColor: 'var(--bg-tertiary)',
-    borderRadius: '3px',
-    padding: '0 3px',
-    color: 'var(--text-primary) !important',
+    borderRadius: 'var(--md-inline-code-radius, 4px)',
+    padding: 'var(--md-inline-code-padding, 0.125em 0.375em)',
+    color: 'inherit !important',
   },
   '.cm-wysiwyg-link': {
     color: 'var(--accent) !important',
-    textDecoration: 'underline',
+    textDecoration: 'var(--md-link-text-decoration, none)',
     cursor: 'pointer',
+  },
+  '.cm-wysiwyg-link:hover': {
+    color: 'var(--accent-hover) !important',
+    textDecoration: 'var(--md-link-hover-text-decoration, underline)',
   },
   '.cm-wysiwyg-inline-fragment': {
     display: 'inline-flex',
@@ -3020,7 +3030,11 @@ export const wysiwygTheme = EditorView.baseTheme({
   },
   '.cm-wysiwyg-inline-fragment a': {
     color: 'var(--accent) !important',
-    textDecoration: 'underline',
+    textDecoration: 'var(--md-link-text-decoration, none)',
+  },
+  '.cm-wysiwyg-inline-fragment:hover a': {
+    color: 'var(--accent-hover) !important',
+    textDecoration: 'var(--md-link-hover-text-decoration, underline)',
   },
   '.cm-wysiwyg-inline-fragment img': {
     display: 'inline-block',
@@ -3261,44 +3275,47 @@ export const wysiwygTheme = EditorView.baseTheme({
     backgroundColor: 'var(--editor-selection)',
   },
   '.cm-wysiwyg-blockquote': {
-    color: 'var(--text-secondary) !important',
+    color: 'var(--md-blockquote-text-color, var(--text-secondary)) !important',
     fontStyle: 'normal',
-    borderLeft: '4px solid color-mix(in srgb, var(--text-muted) 42%, transparent)',
-    paddingLeft: '14px',
+    borderLeft: 'var(--md-quote-line-width) solid var(--md-quote-rule-color)',
+    paddingLeft: 'var(--md-quote-pad-inline-start)',
+    paddingRight: 'var(--md-quote-pad-inline-end)',
   },
   '.cm-wysiwyg-blockquote-active': {
     borderLeftColor: 'color-mix(in srgb, var(--text-muted) 22%, transparent)',
   },
   '.cm-wysiwyg-task-completed': {
-    textDecoration: 'line-through',
-    color: 'var(--text-muted) !important',
-    transition: 'color 0.2s ease, text-decoration-color 0.2s ease',
+    color: 'var(--md-task-completed-color, color-mix(in srgb, var(--preview-text) 68%, var(--text-muted))) !important',
+    transition: 'color 0.2s ease',
   },
   '.cm-wysiwyg-task-marker': {
     color: 'color-mix(in srgb, var(--text-muted) 70%, transparent) !important',
-    fontFamily: 'var(--font-mono, monospace)',
+    fontFamily: MONO_FONT_FAMILY,
   },
   '.cm-wysiwyg-bullet-simple': {
     display: 'inline-block',
     textAlign: 'center',
     width: '1ch',
+    color: 'var(--md-list-marker-color, var(--preview-text)) !important',
+    fontFamily: PREVIEW_FONT_FAMILY,
+    fontWeight: '400',
   },
   '.cm-wysiwyg-ordered-number': {
-    fontFamily: 'var(--font-mono, monospace)',
-    color: 'color-mix(in srgb, var(--text-muted) 50%, var(--text-primary)) !important',
-    fontWeight: '500',
+    fontFamily: PREVIEW_FONT_FAMILY,
+    color: 'var(--md-list-marker-color, var(--preview-text)) !important',
+    fontWeight: '400',
   },
   '.cm-wysiwyg-checkbox': {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '16px',
-    height: '16px',
-    marginRight: '6px',
+    width: 'var(--md-task-checkbox-size, 16px)',
+    height: 'var(--md-task-checkbox-size, 16px)',
+    marginRight: 'var(--md-task-checkbox-gap, 8px)',
     verticalAlign: 'middle',
     cursor: 'pointer',
     border: '2px solid color-mix(in srgb, var(--text-muted) 60%, transparent)',
-    borderRadius: '4px',
+    borderRadius: 'var(--md-task-checkbox-radius, 4px)',
     backgroundColor: 'transparent',
     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
     transform: 'translateY(-1px)',
@@ -3333,8 +3350,8 @@ export const wysiwygTheme = EditorView.baseTheme({
     minHeight: '1.45em',
     boxSizing: 'border-box',
     verticalAlign: 'top',
-    borderLeft: '4px solid color-mix(in srgb, var(--text-muted) 42%, transparent)',
-    paddingLeft: '14px',
+    borderLeft: 'var(--md-quote-line-width) solid var(--md-quote-rule-color)',
+    paddingLeft: 'var(--md-quote-pad-inline-start)',
     pointerEvents: 'none',
   },
   '.cm-wysiwyg-math-inline': {

@@ -20,6 +20,25 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.18.2 - 2026-04-25
+
+### Added
+
+### Changed
+
+- Preview and WYSIWYG now share the same typography tokens for headings, links, inline code, highlights, blockquotes, footnotes, and thematic breaks, so documents keep a more consistent reading surface across editing modes.
+- Task list markers, checkbox sizing, and completed-item styling are now aligned between preview and WYSIWYG for cleaner Markdown list scanning.
+
+### Fixed
+
+- Completed task items no longer force a strikethrough in WYSIWYG. Checked items stay muted, but remain easier to read while reviewing finished work.
+- Footnote references and definitions now render with consistent superscript sizing and prose typography instead of mixing mismatched emphasis between editor and preview surfaces.
+
+### Internal
+
+- Added regression coverage for preview and WYSIWYG typography parity across shared tokens, blockquotes, footnotes, task lists, and thematic breaks.
+- Removed unused Linux PDF export locals in the native print path.
+
 ## 0.18.1 - 2026-04-25
 
 ### Added
