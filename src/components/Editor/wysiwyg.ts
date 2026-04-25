@@ -775,29 +775,6 @@ class CheckboxWidget extends WidgetType {
   }
 }
 
-class BlockquoteSpacerWidget extends WidgetType {
-  private readonly depth: number
-
-  constructor(depth: number) {
-    super()
-    this.depth = depth
-  }
-
-  toDOM() {
-    const el = document.createElement('span')
-    el.className = 'cm-wysiwyg-blockquote-empty'
-    el.style.setProperty('--cm-wysiwyg-blockquote-depth', String(this.depth))
-    el.setAttribute('aria-hidden', 'true')
-    return el
-  }
-
-  ignoreEvent() { return true }
-
-  eq(other: BlockquoteSpacerWidget) {
-    return this.depth === other.depth
-  }
-}
-
 class ListBulletWidget extends WidgetType {
   private readonly depth: number
 
@@ -1220,33 +1197,35 @@ export function buildWysiwygDecorations(
       // ── Blockquote decoration ─────────────────────────────────────────
       const blockquoteLine = parseWysiwygBlockquoteLine(text)
       if (blockquoteLine) {
+        const blockquoteLineClass = onLine
+          ? 'cm-wysiwyg-blockquote-line cm-wysiwyg-blockquote-line-active'
+          : 'cm-wysiwyg-blockquote-line'
+        queueDecoration(
+          decorations,
+          lineFrom,
+          lineFrom,
+          Decoration.line({
+            attributes: {
+              class: blockquoteLineClass,
+              style: `--cm-wysiwyg-blockquote-depth: ${blockquoteLine.depth};`,
+            },
+          })
+        )
         if (onLine || !blockquoteLine.isEmpty) {
-          const blockquoteClass = onLine
-            ? 'cm-wysiwyg-blockquote cm-wysiwyg-blockquote-active'
-            : 'cm-wysiwyg-blockquote'
           queueDecoration(
             decorations,
             lineFrom,
             lineTo,
-            Decoration.mark({ class: blockquoteClass })
+            Decoration.mark({ class: 'cm-wysiwyg-blockquote' })
           )
         }
         if (!onLine) {
-          if (blockquoteLine.isEmpty) {
-            queueDecoration(
-              decorations,
-              lineFrom,
-              lineTo,
-              Decoration.replace({ widget: new BlockquoteSpacerWidget(blockquoteLine.depth) })
-            )
-          } else {
-            queueDecoration(
-              decorations,
-              lineFrom,
-              lineFrom + blockquoteLine.prefix.length,
-              Decoration.replace({})
-            )
-          }
+          queueDecoration(
+            decorations,
+            lineFrom,
+            lineFrom + blockquoteLine.prefix.length,
+            Decoration.replace({})
+          )
         }
         pos = line.to + 1
         continue
@@ -2937,6 +2916,14 @@ export const wysiwygTableDecorations = [wysiwygTableDecorationField, wysiwygGutt
 
 const PREVIEW_FONT_FAMILY = 'var(--font-preview, Inter, system-ui, sans-serif)'
 const MONO_FONT_FAMILY = 'var(--font-mono, JetBrains Mono, Cascadia Code, Fira Code, Consolas, monospace)'
+const BLOCKQUOTE_RULE_BACKGROUND =
+  'repeating-linear-gradient(to right, var(--md-quote-rule-color) 0, var(--md-quote-rule-color) var(--md-quote-line-width), transparent var(--md-quote-line-width), transparent calc(var(--md-quote-pad-inline-start) + var(--md-quote-line-width)))'
+const ACTIVE_BLOCKQUOTE_RULE_BACKGROUND =
+  'repeating-linear-gradient(to right, color-mix(in srgb, var(--text-muted) 22%, transparent) 0, color-mix(in srgb, var(--text-muted) 22%, transparent) var(--md-quote-line-width), transparent var(--md-quote-line-width), transparent calc(var(--md-quote-pad-inline-start) + var(--md-quote-line-width)))'
+const BLOCKQUOTE_LINE_PADDING_LEFT =
+  'calc(32px + var(--md-quote-pad-inline-start) + (var(--cm-wysiwyg-blockquote-depth, 1) - 1) * (var(--md-quote-pad-inline-start) + var(--md-quote-line-width)))'
+const BLOCKQUOTE_LINE_BACKGROUND_SIZE =
+  'calc((var(--md-quote-pad-inline-start) + var(--md-quote-line-width)) * var(--cm-wysiwyg-blockquote-depth, 1)) 100%'
 
 export const wysiwygTheme = EditorView.baseTheme({
   '.cm-content': {
@@ -3274,15 +3261,23 @@ export const wysiwygTheme = EditorView.baseTheme({
   '.cm-wysiwyg-table__input::selection': {
     backgroundColor: 'var(--editor-selection)',
   },
+  '.cm-wysiwyg-blockquote-line': {
+    boxSizing: 'border-box',
+    minHeight: '1.45em',
+    paddingLeft: `${BLOCKQUOTE_LINE_PADDING_LEFT} !important`,
+    paddingRight: 'calc(32px + var(--md-quote-pad-inline-end)) !important',
+    backgroundImage: BLOCKQUOTE_RULE_BACKGROUND,
+    backgroundPosition: '32px 0',
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: BLOCKQUOTE_LINE_BACKGROUND_SIZE,
+    color: 'var(--md-blockquote-text-color, var(--text-secondary)) !important',
+  },
+  '.cm-wysiwyg-blockquote-line-active': {
+    backgroundImage: ACTIVE_BLOCKQUOTE_RULE_BACKGROUND,
+  },
   '.cm-wysiwyg-blockquote': {
     color: 'var(--md-blockquote-text-color, var(--text-secondary)) !important',
     fontStyle: 'normal',
-    borderLeft: 'var(--md-quote-line-width) solid var(--md-quote-rule-color)',
-    paddingLeft: 'var(--md-quote-pad-inline-start)',
-    paddingRight: 'var(--md-quote-pad-inline-end)',
-  },
-  '.cm-wysiwyg-blockquote-active': {
-    borderLeftColor: 'color-mix(in srgb, var(--text-muted) 22%, transparent)',
   },
   '.cm-wysiwyg-task-completed': {
     color: 'var(--md-task-completed-color, color-mix(in srgb, var(--preview-text) 68%, var(--text-muted))) !important',
@@ -3343,16 +3338,6 @@ export const wysiwygTheme = EditorView.baseTheme({
   '.cm-wysiwyg-checkbox.is-checked .checkmark': {
     opacity: '1',
     transform: 'scale(1)',
-  },
-  '.cm-wysiwyg-blockquote-empty': {
-    display: 'inline-block',
-    width: '0',
-    minHeight: '1.45em',
-    boxSizing: 'border-box',
-    verticalAlign: 'top',
-    borderLeft: 'var(--md-quote-line-width) solid var(--md-quote-rule-color)',
-    paddingLeft: 'var(--md-quote-pad-inline-start)',
-    pointerEvents: 'none',
   },
   '.cm-wysiwyg-math-inline': {
     display: 'inline-block',

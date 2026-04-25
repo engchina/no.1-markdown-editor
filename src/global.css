@@ -48,6 +48,12 @@
   --md-link-hover-text-decoration: underline;
   --md-hr-rule-color: var(--border);
   --md-blockquote-text-color: var(--text-secondary);
+  --md-quote-space: 0.9em;
+  --md-quote-pad-block: 0.15em;
+  --md-quote-pad-inline-end: 0.15em;
+  --md-quote-pad-inline-start: 1.1em;
+  --md-quote-line-width: 4px;
+  --md-quote-rule-color: color-mix(in srgb, var(--text-muted) 42%, transparent);
   --md-list-marker-color: var(--preview-text);
   --md-inline-mark-bg: color-mix(in srgb, #FACC15 52%, transparent);
   --md-inline-mark-radius: 0.28em;
@@ -676,7 +682,7 @@ a:focus-visible {
   margin-bottom: 0;
 }
 
-.markdown-preview--visual-soft-breaks :is(p, li, blockquote, td, th) {
+.markdown-preview--visual-soft-breaks :is(p, li, td, th) {
   white-space: pre-line;
 }
 
@@ -834,7 +840,7 @@ a:focus-visible {
 }
 
 .markdown-preview blockquote {
-  padding: var(--md-quote-pad-block) var(--md-quote-pad-inline-end) var(--md-quote-pad-block) var(--md-quote-pad-inline-start);
+  padding: 0 var(--md-quote-pad-inline-end) 0 var(--md-quote-pad-inline-start);
   color: var(--md-blockquote-text-color, var(--text-secondary));
   font-style: normal;
   background: none;
@@ -848,6 +854,10 @@ a:focus-visible {
 
 .markdown-preview blockquote>*+* {
   margin-top: var(--md-quote-space);
+}
+
+.markdown-preview blockquote>blockquote {
+  margin-top: 0;
 }
 
 .markdown-preview ul,

@@ -44,7 +44,7 @@ test('theme panel surfaces the preview line break toggle and preview binds the v
   assert.match(panel, /themePanel\.previewLineBreakModes\.visualSoftBreaks/)
   assert.match(preview, /const previewLineBreakMode = useEditorStore\(\(state\) => state\.previewLineBreakMode\)/)
   assert.match(preview, /markdown-preview--visual-soft-breaks/)
-  assert.match(css, /\.markdown-preview--visual-soft-breaks :is\(p, li, blockquote, td, th\)\s*\{[\s\S]*white-space:\s*pre-line;/u)
+  assert.match(css, /\.markdown-preview--visual-soft-breaks :is\(p, li, td, th\)\s*\{[\s\S]*white-space:\s*pre-line;/u)
 })
 
 test('preview line break locale copy exists across en, ja, and zh', async () => {

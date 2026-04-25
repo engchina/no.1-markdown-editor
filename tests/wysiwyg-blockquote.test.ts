@@ -48,20 +48,54 @@ test('parseWysiwygBlockquoteLine preserves nested quote prefixes', () => {
   })
 })
 
-test('wysiwyg blockquotes keep the active line structurally visible while weakening the quote rule', async () => {
-  const source = await readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8')
+test('wysiwyg blockquotes render quote structure on the source line while keeping active syntax editable', async () => {
+  const [source, css] = await Promise.all([
+    readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/global.css', import.meta.url), 'utf8'),
+  ])
 
   assert.match(
     source,
-    /const blockquoteClass = onLine[\s\S]*?'cm-wysiwyg-blockquote cm-wysiwyg-blockquote-active'[\s\S]*?: 'cm-wysiwyg-blockquote'/u,
-  )
-  assert.match(source, /Decoration\.mark\(\{ class: blockquoteClass \}\)/u)
-  assert.match(
-    source,
-    /'\.cm-wysiwyg-blockquote': \{[\s\S]*?color: 'var\(--md-blockquote-text-color, var\(--text-secondary\)\) !important'[\s\S]*?borderLeft: 'var\(--md-quote-line-width\) solid var\(--md-quote-rule-color\)'[\s\S]*?paddingLeft: 'var\(--md-quote-pad-inline-start\)'[\s\S]*?paddingRight: 'var\(--md-quote-pad-inline-end\)'/u,
+    /const blockquoteLineClass = onLine[\s\S]*?'cm-wysiwyg-blockquote-line cm-wysiwyg-blockquote-line-active'[\s\S]*?: 'cm-wysiwyg-blockquote-line'/u,
   )
   assert.match(
     source,
-    /'\.cm-wysiwyg-blockquote-active': \{[\s\S]*?borderLeftColor: 'color-mix\(in srgb, var\(--text-muted\) 22%, transparent\)'/u,
+    /Decoration\.line\(\{[\s\S]*attributes: \{[\s\S]*class: blockquoteLineClass,[\s\S]*style: `--cm-wysiwyg-blockquote-depth: \$\{blockquoteLine\.depth\};`,[\s\S]*\}[\s\S]*\}\)/u,
   )
+  assert.match(source, /Decoration\.mark\(\{ class: 'cm-wysiwyg-blockquote' \}\)/u)
+  assert.doesNotMatch(source, /BlockquoteSpacerWidget/u)
+  assert.match(
+    source,
+    /const BLOCKQUOTE_RULE_BACKGROUND =[\s\S]*const ACTIVE_BLOCKQUOTE_RULE_BACKGROUND =[\s\S]*const BLOCKQUOTE_LINE_PADDING_LEFT =[\s\S]*const BLOCKQUOTE_LINE_BACKGROUND_SIZE =/u,
+  )
+  assert.match(
+    source,
+    /'\.cm-wysiwyg-blockquote-line': \{[\s\S]*?minHeight: '1\.45em'[\s\S]*?paddingLeft: `\$\{BLOCKQUOTE_LINE_PADDING_LEFT\} !important`[\s\S]*?backgroundImage: BLOCKQUOTE_RULE_BACKGROUND[\s\S]*?backgroundSize: BLOCKQUOTE_LINE_BACKGROUND_SIZE/u,
+  )
+  assert.match(
+    source,
+    /'\.cm-wysiwyg-blockquote-line-active': \{[\s\S]*?backgroundImage: ACTIVE_BLOCKQUOTE_RULE_BACKGROUND/u,
+  )
+  assert.match(
+    css,
+    /:root\s*\{[\s\S]*--md-quote-pad-inline-start:\s*1\.1em;[\s\S]*--md-quote-line-width:\s*4px;[\s\S]*--md-quote-rule-color:\s*color-mix\(in srgb, var\(--text-muted\) 42%, transparent\);/u,
+  )
+})
+
+test('preview and standalone blockquotes keep nested quote lines compact like the WYSIWYG surface', async () => {
+  const [css, standalone] = await Promise.all([
+    readFile(new URL('../src/global.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/markdownShared.ts', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(
+    css,
+    /\.markdown-preview blockquote\s*\{[\s\S]*padding:\s*0 var\(--md-quote-pad-inline-end\) 0 var\(--md-quote-pad-inline-start\);/u,
+  )
+  assert.match(css, /\.markdown-preview blockquote>blockquote\s*\{[\s\S]*margin-top:\s*0;/u)
+  assert.match(
+    standalone,
+    /blockquote\s*\{[\s\S]*padding:\s*0 var\(--md-quote-pad-inline-end\) 0 var\(--md-quote-pad-inline-start\);/u,
+  )
+  assert.match(standalone, /blockquote > blockquote \{ margin-top: 0; \}/u)
 })

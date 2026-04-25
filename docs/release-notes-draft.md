@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.18.1`.
+This document is a draft for the next public release after `v0.18.2`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -10,77 +10,73 @@ It is intentionally written in release-note language rather than implementation 
 
 ## Short Summary
 
-This release tightens typography parity between preview and WYSIWYG so Markdown feels like one coherent writing surface instead of two related renderers.
+This release makes quoted writing feel more predictable across preview, WYSIWYG, and exported HTML.
 
-The headline change is consistency: headings, links, code spans, blockquotes, footnotes, thematic breaks, and task lists now read more similarly no matter which editing surface users are in.
+The headline change is structural fidelity: nested blockquotes now keep their visual rhythm while users edit active quote lines, review quoted prose in preview, or export documents for sharing.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Shared typography tokens across preview and WYSIWYG for headings, inline formatting, links, blockquotes, thematic breaks, and footnotes.
-- Cleaner task list presentation with aligned markers, checkbox sizing, and completed-item treatment across both surfaces.
-- WYSIWYG completed tasks stay readable instead of being aggressively crossed out.
-- Additional regression coverage to keep preview and WYSIWYG presentation from drifting apart again.
+- Active WYSIWYG blockquote lines now keep the quote rail visible while leaving the `>` syntax directly editable.
+- Preview and standalone HTML blockquotes now use tighter nested spacing so quoted sections read more like the editor surface.
+- Visual soft line breaks no longer flatten blockquote handling in preview, reducing layout drift for quoted prose.
+- Added regression coverage for blockquote spacing, active-line editing, and preview line-break interactions.
 
 ### Why This Release Matters
 
-Markdown editing quality is not only about features. It is also about trust in how the document reads while users move between editing modes.
+Quoted text is a common Markdown structure for notes, reviews, and long-form writing. When the active editing line, preview rendering, and exported document disagree about spacing or quote depth, users lose confidence in what the document really looks like.
 
-Small presentation mismatches add friction:
-
-- headings look slightly different
-- task completion feels heavier in one mode than the other
-- footnotes and blockquotes carry different visual emphasis depending on surface
-- inline code and links do not always feel like part of the same typographic system
-
-This release reduces that drift so preview and WYSIWYG feel like two views of the same Markdown document, not two separate styling stacks.
+This release reduces that drift so blockquotes keep the same structural cues while users switch between writing, reviewing, and exporting.
 
 ### User-Facing Improvements
 
-#### Shared Typography
+#### Writing and Editing
 
-- Headings now follow the same tokenized size scale across preview and WYSIWYG.
-- Links, inline code, highlights, subscript, and superscript now follow shared presentation tokens more closely.
-- Blockquotes, footnotes, and thematic breaks now use the same visual system more consistently.
+- WYSIWYG keeps nested quote structure visible on the active line instead of collapsing the quote rail while the source markers remain editable.
+- Quoted continuation lines stay easier to scan when moving through nested blockquotes.
 
-#### Better Task Lists
+#### Markdown Workspace
 
-- Task list markers and checkbox spacing now align more closely between preview and WYSIWYG.
-- Completed tasks stay visually softened without becoming harder to read.
+- Preview blockquotes now follow the same tighter nesting rhythm as the editing surface, so quoted notes feel more consistent while reviewing a document.
 
-#### Safer Presentation Maintenance
+#### Performance and Reliability
 
-- Added regression tests around the presentation details that are easy to accidentally desynchronize between preview and WYSIWYG.
+- Standalone and exported HTML now use the same compact nested quote spacing, reducing mismatches between in-app reading and shared output.
+- Additional regression tests protect blockquote spacing and preview soft-break behavior from drifting again.
+
+#### AI and Writing Quality
+
+- No AI workflow changes in this release; the focus is Markdown reading and editing fidelity.
 
 ### Recommended Screenshots For Release Page
 
-- Same note shown in preview and WYSIWYG with matching heading rhythm
-- Task list with checked and unchecked items in both surfaces
-- Footnotes and blockquotes in a document that exercises the shared typography tokens
+- Nested blockquote shown on the active WYSIWYG line with visible quote rails
+- The same quoted passage in preview with matching nesting rhythm
+- Exported or shared HTML view of the same note
 
 ### Suggested “Upgrade Notes” Section
 
-- This is a polish-focused release rather than a workflow expansion release.
-- The goal is stronger visual consistency across existing Markdown editing surfaces, not more interface chrome.
+- This is a Markdown fidelity release focused on quoted text rather than new workspace features.
+- If you write heavily with references, replies, meeting notes, or literature notes, blockquotes should now feel more stable across surfaces.
 
 ### Suggested “Who Should Update” Section
 
 This release is especially relevant for users who:
 
-- switch frequently between preview and WYSIWYG while writing
-- care about typographic consistency in Markdown documents
-- review task-heavy notes, references, and long-form prose inside the editor
+- edit long quoted passages directly in WYSIWYG
+- rely on preview to review nested quoted notes before publishing or sharing
+- want Markdown structure to stay visually stable across editor and export surfaces
 
 ## Packaging Checklist Before Release
 
-- Run `npm run release:prepare -- 0.18.2` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:prepare -- 0.18.3` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
 - Confirm the final version in:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
 - Run `npm run release:validate` after the version bump so local metadata and changelog checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.18.2` if you want to inspect the generated GitHub release body before pushing the tag.
+- Run `npm run release:notes:preview -- 0.18.3` if you want to inspect the generated GitHub release body before pushing the tag.
 - Replace `vNext` in release copy with the real version tag.
 - Capture fresh screenshots if the release page will highlight typography parity or task-list presentation.
-- After the release is published, run `npm run release:draft:advance -- 0.18.2` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- After the release is published, run `npm run release:draft:advance -- 0.18.3` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

@@ -168,7 +168,7 @@ export function buildStandaloneHtml(
     .hljs-emphasis { font-style: italic; }
     .hljs-strong { font-weight: 700; }
     blockquote {
-      padding: var(--md-quote-pad-block) var(--md-quote-pad-inline-end) var(--md-quote-pad-block) var(--md-quote-pad-inline-start);
+      padding: 0 var(--md-quote-pad-inline-end) 0 var(--md-quote-pad-inline-start);
       color: #4b5563;
       font-style: normal;
       background: none;
@@ -176,6 +176,7 @@ export function buildStandaloneHtml(
     }
     blockquote > * { margin-top: 0; margin-bottom: 0; }
     blockquote > * + * { margin-top: var(--md-quote-space); }
+    blockquote > blockquote { margin-top: 0; }
     table { border-collapse: collapse; width: 100%; margin: 0; }
     th, td { border: 1px solid #e5e7eb; padding: 8px 16px; text-align: left; }
     th:empty::before, td:empty::before { content: '\\00a0'; display: block; visibility: hidden; }

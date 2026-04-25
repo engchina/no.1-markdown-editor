@@ -20,6 +20,23 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.18.3 - 2026-04-25
+
+### Added
+
+### Changed
+
+- WYSIWYG blockquotes now keep the quote rail visible on the active editing line, so nested quote structure stays easier to scan while the `>` markers remain directly editable.
+- Preview and standalone HTML now use tighter nested blockquote spacing and shared quote metrics, so quoted writing reads more consistently across editor, preview, and exported output.
+
+### Fixed
+
+- Preview visual soft line breaks no longer force blockquotes into `pre-line`, which prevents quoted paragraphs and nested quote sections from picking up the wrong line-wrapping behavior.
+
+### Internal
+
+- Added regression coverage for active-line blockquote rendering, nested quote spacing, and preview line-break behavior across editing and standalone HTML surfaces.
+
 ## 0.18.2 - 2026-04-25
 
 ### Added
