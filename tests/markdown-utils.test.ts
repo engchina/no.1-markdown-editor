@@ -187,6 +187,31 @@ test('renderMarkdown keeps safe raw html while stripping scripts', async () => {
   assert.doesNotMatch(html, /alert\(1\)/)
 })
 
+test('renderMarkdown preserves details disclosure blocks with parsed markdown content', async () => {
+  const markdown = [
+    '<details open>',
+    '<summary>こちらをクリックして表示</summary>',
+    '',
+    '```json',
+    '{',
+    '  "Version": "2012-10-17"',
+    '}',
+    '```',
+    '',
+    '</details>',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /<details open>/)
+    assert.match(rendered, /<summary>こちらをクリックして表示<\/summary>/)
+    assert.match(rendered, /<pre><code class="[^"]*language-json[^"]*">/)
+    assert.match(rendered, /2012-10-17/)
+  }
+})
+
 test('renderMarkdown preserves underline tags inserted for markdown formatting', async () => {
   const html = await renderMarkdown('Hello <u>world</u>')
 
@@ -717,6 +742,14 @@ test('buildStandaloneHtml reuses the shared prose rhythm for exported headings, 
   assert.match(html, /ul, ol \{ padding-left: var\(--md-list-indent, 1\.75em\); margin: 0; \}/)
   assert.match(html, /li \+ li \{ margin-top: var\(--md-list-item-space, 0\.2em\); \}/)
   assert.match(html, /pre \{[\s\S]*border-radius: var\(--md-code-block-radius, 10px\);[\s\S]*padding: var\(--md-code-block-padding-block, 16px\) var\(--md-code-block-padding-inline, 16px\);/)
+})
+
+test('buildStandaloneHtml keeps details disclosures styled as interactive blocks', () => {
+  const html = buildStandaloneHtml('Details', '<details open><summary>Toggle</summary><pre><code>x</code></pre></details>')
+
+  assert.match(html, /summary \{ cursor: pointer;/)
+  assert.match(html, /details > summary \+ \* \{ margin-top: var\(--md-block-space\); \}/)
+  assert.match(html, /body > :is\([^}]*details/)
 })
 
 test('buildStandaloneHtml disables ligatures for inline code so literal punctuation stays unchanged in exports', () => {

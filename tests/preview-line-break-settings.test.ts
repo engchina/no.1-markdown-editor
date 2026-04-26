@@ -48,7 +48,7 @@ test('theme panel surfaces the preview line break toggle and preview binds the v
   assert.match(css, /\.markdown-preview--visual-soft-breaks :is\(p, td, th\)\s*\{[\s\S]*white-space:\s*pre-line;/u)
   assert.match(
     css,
-    /\.markdown-preview--visual-soft-breaks li:not\(:has\(> :is\(p, ul, ol, pre, blockquote, table, hr, img, h1, h2, h3, h4, h5, h6, div, section, \.front-matter\)\)\)\s*\{[\s\S]*white-space:\s*pre-line;/u
+    /\.markdown-preview--visual-soft-breaks li:not\(:has\(> :is\(p, ul, ol, pre, blockquote, details, table, hr, img, h1, h2, h3, h4, h5, h6, div, section, \.front-matter\)\)\)\s*\{[\s\S]*white-space:\s*pre-line;/u
   )
   assert.doesNotMatch(css, /\.markdown-preview--visual-soft-breaks :is\(p, li, td, th\)\s*\{/u)
 })

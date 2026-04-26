@@ -706,7 +706,7 @@ a:focus-visible {
 /* Only preserve soft breaks on tight list items. Loose markdown lists render
    block children (`<p>`, nested lists, etc.), and inheriting `pre-line` on the
    `<li>` itself turns formatter whitespace into visible gaps. */
-.markdown-preview--visual-soft-breaks li:not(:has(> :is(p, ul, ol, pre, blockquote, table, hr, img, h1, h2, h3, h4, h5, h6, div, section, .front-matter))) {
+.markdown-preview--visual-soft-breaks li:not(:has(> :is(p, ul, ol, pre, blockquote, details, table, hr, img, h1, h2, h3, h4, h5, h6, div, section, .front-matter))) {
   white-space: pre-line;
 }
 
@@ -995,6 +995,26 @@ a:focus-visible {
   border: none;
   border-top: 1px solid var(--md-hr-rule-color, var(--border));
   margin: 0;
+}
+
+.markdown-preview details {
+  margin: 0;
+}
+
+.markdown-preview summary {
+  cursor: pointer;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.markdown-preview summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.markdown-preview details > summary + * {
+  margin-top: var(--md-block-space);
 }
 
 .markdown-preview img {
@@ -1502,6 +1522,7 @@ a:focus-visible {
   h5,
   h6,
   blockquote,
+  details,
   ul,
   ol,
   pre,
@@ -1521,6 +1542,7 @@ a:focus-visible {
   h5,
   h6,
   blockquote,
+  details,
   ul,
   ol,
   pre,
@@ -1535,6 +1557,7 @@ a:focus-visible {
   h5,
   h6,
   blockquote,
+  details,
   ul,
   ol,
   pre,

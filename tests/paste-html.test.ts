@@ -218,6 +218,71 @@ test('renderClipboardHtmlAstToMarkdown preserves fenced markdown source copied f
   )
 })
 
+test('convertClipboardHtmlToMarkdown preserves Qiita details code-frame indentation and language', () => {
+  const originalDomParser = globalThis.DOMParser
+  globalThis.DOMParser = FakeDOMParser as unknown as typeof DOMParser
+
+  try {
+    const html = `
+      <details open="">
+        <summary> こちらをクリックして表示 </summary>
+        <div>
+          <div class="code-frame" data-lang="json" data-sourcepos="76:1-111:3">
+            <div class="code-copy">
+              <div class="code-copy__message" style="display: none;">Copied!</div>
+              <button class="code-copy__button" style="display: none;">
+                <span class="fa fa-fw fa-clipboard"></span>
+              </button>
+            </div>
+            <div class="highlight"><pre><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"Version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2012-10-17"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"Statement"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"Sid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SnowflakeWriteObjects"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"Action"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+        </span><span class="s2">"s3:PutObject"</span><span class="p">,</span><span class="w">
+        </span><span class="s2">"s3:GetObject"</span><span class="w">
+      </span><span class="p">]</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+  </span><span class="p">]</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div>
+          </div>
+        </div>
+      </details>
+    `
+
+    const markdown = convertClipboardHtmlToMarkdown(html)
+
+    assert.equal(
+      markdown,
+      [
+        '<details open>',
+        '<summary>こちらをクリックして表示</summary>',
+        '',
+        '```json',
+        '{',
+        '  "Version": "2012-10-17",',
+        '  "Statement": [',
+        '    {',
+        '      "Sid": "SnowflakeWriteObjects",',
+        '      "Action": [',
+        '        "s3:PutObject",',
+        '        "s3:GetObject"',
+        '      ]',
+        '    }',
+        '  ]',
+        '}',
+        '```',
+        '',
+        '</details>',
+      ].join('\n')
+    )
+  } finally {
+    globalThis.DOMParser = originalDomParser
+  }
+})
+
 test('renderClipboardHtmlAstToMarkdown unwraps links that contain block descendants instead of emitting multiline markdown links', () => {
   const root = parseHtml(
     '<a href="https://qiita.com/yushibats"><div><img src="https://example.com/avatar.png" /></div>@yushibats</a>' +

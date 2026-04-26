@@ -17,6 +17,7 @@ const BLOCK_TAGS = new Set([
   'article',
   'aside',
   'blockquote',
+  'details',
   'div',
   'dl',
   'fieldset',
@@ -39,6 +40,7 @@ const BLOCK_TAGS = new Set([
   'p',
   'pre',
   'section',
+  'summary',
   'table',
   'tbody',
   'td',
@@ -54,6 +56,7 @@ const STRUCTURED_TAGS = new Set([
   'blockquote',
   'code',
   'del',
+  'details',
   'em',
   'h1',
   'h2',
@@ -70,6 +73,7 @@ const STRUCTURED_TAGS = new Set([
   'pre',
   'strong',
   'sub',
+  'summary',
   'sup',
   'table',
   'u',
@@ -80,6 +84,7 @@ const HTML_OVERRIDE_BLOCKER_TAGS = new Set([
   'a',
   'blockquote',
   'code',
+  'details',
   'h1',
   'h2',
   'h3',
@@ -91,6 +96,7 @@ const HTML_OVERRIDE_BLOCKER_TAGS = new Set([
   'mark',
   'pre',
   'sub',
+  'summary',
   'sup',
   'table',
   'u',
@@ -361,10 +367,19 @@ function collectAdjacentStructuredBlocks(
 function serializeBlockNode(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
   if (node.type !== 'element' || !node.tagName) return ''
   if (isFootnotesContainer(node)) return serializeFootnotesSection(node, context)
+  if (node.tagName === 'details') return serializeDetailsNode(node, context)
+  if (isCodeFrameContainer(node)) {
+    const pre = findFirstElement(
+      node,
+      (candidate) => candidate.type === 'element' && candidate.tagName === 'pre'
+    )
+    if (pre) return serializeCodeBlock(pre, extractCodeFrameLanguage(node))
+  }
 
   switch (node.tagName) {
     case 'p':
     case 'figcaption':
+    case 'summary':
       return serializeInlineChildren(node.children, context).trim()
     case 'div':
     case 'article':
@@ -558,11 +573,34 @@ function serializeImage(node: ClipboardHtmlAstNode): string {
   return `![${alt}](${destination}${titleSuffix})`
 }
 
-function serializeCodeBlock(node: ClipboardHtmlAstNode): string {
+function serializeDetailsNode(node: ClipboardHtmlAstNode, context: { listDepth: number }): string {
+  const summaryNode = node.children.find(
+    (child): child is ClipboardHtmlAstNode => child.type === 'element' && child.tagName === 'summary'
+  )
+  const summary = escapeHtmlText(
+    summaryNode ? extractTextContent(summaryNode, { preserveWhitespace: false }).trim() : ''
+  )
+  const openAttribute = hasAttribute(node.attributes, 'open', '') ? ' open' : ''
+  const bodyChildren = node.children.filter((child) => child !== summaryNode)
+  const body = serializeBlocks(bodyChildren, context).join('\n\n').trim()
+  const lines = [`<details${openAttribute}>`, `<summary>${summary || 'Details'}</summary>`]
+
+  if (body) {
+    lines.push('', body, '')
+  }
+
+  lines.push('</details>')
+  return lines.join('\n')
+}
+
+function serializeCodeBlock(node: ClipboardHtmlAstNode, languageHint = ''): string {
   const codeChild = node.children.find(
     (child): child is ClipboardHtmlAstNode => child.type === 'element' && child.tagName === 'code'
   )
-  const language = extractCodeBlockLanguage(codeChild?.attributes?.class)
+  const language =
+    normalizeCodeBlockLanguage(languageHint) ||
+    extractCodeBlockLanguage(codeChild?.attributes?.class) ||
+    extractCodeBlockLanguage(node.attributes?.class)
   const rawText = extractTextContent(codeChild ?? node, { preserveWhitespace: true }).replace(/\r\n?/g, '\n')
   const trimmedCode = rawText.replace(/\n+$/, '')
   if (isStandaloneFencedBlock(trimmedCode)) {
@@ -780,6 +818,15 @@ function extractCodeBlockLanguage(className?: string): string {
   return match?.[1] ?? ''
 }
 
+function extractCodeFrameLanguage(node: ClipboardHtmlAstNode): string {
+  return normalizeCodeBlockLanguage(node.attributes?.['data-lang'] ?? node.attributes?.['data-language'])
+}
+
+function normalizeCodeBlockLanguage(value?: string): string {
+  const language = value?.trim() ?? ''
+  return /^[A-Za-z0-9_+#.-]+$/.test(language) ? language : ''
+}
+
 function serializeInlineText(text: string): string {
   if (!text) return ''
   return escapeMarkdownText(text.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').replace(/\s+/g, ' '))
@@ -993,6 +1040,13 @@ function escapeMarkdownText(text: string): string {
     })
 }
 
+function escapeHtmlText(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 function escapeTableCell(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
 }
@@ -1043,6 +1097,14 @@ function isCheckboxNode(node: ClipboardHtmlAstNode): node is ClipboardHtmlAstNod
 
 function isFootnotesContainer(node: ClipboardHtmlAstNode): boolean {
   return node.type === 'element' && (hasAttribute(node.attributes, 'data-footnotes', '') || hasClass(node, 'footnotes'))
+}
+
+function isCodeFrameContainer(node: ClipboardHtmlAstNode): boolean {
+  return (
+    node.type === 'element' &&
+    hasClass(node, 'code-frame') &&
+    (hasAttribute(node.attributes, 'data-lang', '') || hasAttribute(node.attributes, 'data-language', ''))
+  )
 }
 
 function isFootnoteReferenceLink(node: ClipboardHtmlAstNode): boolean {

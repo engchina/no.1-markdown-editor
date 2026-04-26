@@ -6,11 +6,13 @@ export type FrontMatterMeta = Record<string, string>
 
 export const sanitizeSchema = {
   ...defaultSchema,
-  tagNames: Array.from(new Set([...(defaultSchema.tagNames ?? []), 'mark', 'sub', 'sup', 'u', 'section'])),
+  tagNames: Array.from(new Set([...(defaultSchema.tagNames ?? []), 'details', 'mark', 'section', 'sub', 'summary', 'sup', 'u'])),
   attributes: {
     ...defaultSchema.attributes,
     '*': [...(defaultSchema.attributes?.['*'] ?? []), 'className', 'class'], // To allow standard classes
+    'details': ['open', 'className', 'class'],
     'section': ['dataFootnotes', 'className', 'class'],
+    'summary': ['className', 'class'],
     'h2': [...(defaultSchema.attributes?.h2 ?? []), 'id', 'className', 'class'],
     'sub': ['id'],
     'sup': ['id'],
@@ -199,6 +201,10 @@ export function buildStandaloneHtml(
     tr:nth-child(even) td { background: #f9fafb; }
     img { max-width: 100%; border-radius: 4px; }
     hr { border: none; border-top: 1px solid #e5e7eb; margin: 0; }
+    details { margin: 0; }
+    summary { cursor: pointer; color: #1a1a1a; font-weight: 500; }
+    summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; border-radius: 3px; }
+    details > summary + * { margin-top: var(--md-block-space); }
     ul, ol { padding-left: var(--md-list-indent, 1.75em); margin: 0; }
     li { margin: 0; }
     li + li { margin-top: var(--md-list-item-space, 0.2em); }
@@ -224,12 +230,12 @@ export function buildStandaloneHtml(
     .front-matter td { border: none; padding: 2px 8px 2px 0; }
     .fm-key { font-weight: 600; color: #2563eb; white-space: nowrap; padding-right: 16px; }
     .fm-val { color: #4b5563; }
-    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, pre, table, hr, img, .front-matter) {
+    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, details, ul, ol, pre, table, hr, img, .front-matter) {
       margin-top: 0;
       margin-bottom: 0;
     }
-    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, pre, table, hr, img, .front-matter)
-      + :is(p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, pre, table, hr, img, .front-matter) {
+    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, details, ul, ol, pre, table, hr, img, .front-matter)
+      + :is(p, h1, h2, h3, h4, h5, h6, blockquote, details, ul, ol, pre, table, hr, img, .front-matter) {
       margin-top: var(--md-block-space);
     }
     @page { size: A4; margin: 18mm 16mm; }
