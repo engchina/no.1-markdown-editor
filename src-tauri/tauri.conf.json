@@ -29,12 +29,48 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Productivity",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown"],
+        "name": "Markdown Document",
+        "description": "Markdown document",
+        "role": "Editor",
+        "mimeType": "text/markdown",
+        "rank": "Default"
+      },
+      {
+        "ext": ["mdx"],
+        "name": "MDX Document",
+        "description": "MDX document",
+        "role": "Editor",
+        "mimeType": "text/markdown",
+        "rank": "Default"
+      },
+      {
+        "ext": ["txt"],
+        "name": "Plain Text Document",
+        "description": "Plain text document",
+        "role": "Editor",
+        "mimeType": "text/plain",
+        "rank": "Alternate"
+      }
+    ],
+    "windows": {
+      "wix": {
+        "upgradeCode": "2A43089D-D7E9-533A-B6A3-43EAEF3F3D3F",
+        "template": "wix/main.wxs"
+      },
+      "nsis": {
+        "installerIcon": "icons/icon.ico"
+      }
+    }
   }
 }

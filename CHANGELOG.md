@@ -20,6 +20,20 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.19.0 - 2026-04-26
+
+### Added
+
+- Windows, macOS, and Linux packages now declare Markdown, MDX, and plain-text document associations so supported files can open directly in No.1 Markdown Editor.
+
+### Fixed
+
+- Windows MSI packages now assign the product icon explicitly to the desktop shortcut and Markdown file associations, preventing blank desktop/file icons after reinstalling.
+
+### Internal
+
+- Added packaging regression coverage for desktop shortcut icons, file association icons, and supported document extensions.
+
 ## 0.18.6 - 2026-04-26
 
 ### Added
