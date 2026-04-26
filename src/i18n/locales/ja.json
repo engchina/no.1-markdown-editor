@@ -57,6 +57,8 @@
     "aiSetup": "AI",
     "appearance": "設定",
     "headings": "見出し",
+    "format": "書式",
+    "wysiwyg": "ライブ",
     "structure": "文書構造",
     "inline": "インライン装飾",
     "moreActions": "その他の書式と挿入"

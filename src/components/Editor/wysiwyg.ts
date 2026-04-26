@@ -222,26 +222,73 @@ type TableToolbarAction =
   | { kind: 'delete-column' }
   | { kind: 'set-alignment'; alignment: TableAlignment }
 
+type TableToolbarIcon =
+  | 'insertRowAbove'
+  | 'insertRowBelow'
+  | 'insertColumnLeft'
+  | 'insertColumnRight'
+  | 'deleteRow'
+  | 'deleteColumn'
+  | 'alignLeft'
+  | 'alignCenter'
+  | 'alignRight'
+  | 'alignDefault'
+
 interface TableToolbarButtonSpec {
   actionId: string
   labelKey: string
-  glyph: string
+  icon: TableToolbarIcon
   action: TableToolbarAction
   alignment?: TableAlignment
 }
 
 const TABLE_TOOLBAR_BUTTONS: readonly TableToolbarButtonSpec[] = [
-  { actionId: 'insert-row-above', labelKey: 'wysiwygTable.insertRowAbove', glyph: '⬆︎＋', action: { kind: 'insert-row', position: 'above' } },
-  { actionId: 'insert-row-below', labelKey: 'wysiwygTable.insertRowBelow', glyph: '⬇︎＋', action: { kind: 'insert-row', position: 'below' } },
-  { actionId: 'insert-column-left', labelKey: 'wysiwygTable.insertColumnLeft', glyph: '⬅︎＋', action: { kind: 'insert-column', side: 'left' } },
-  { actionId: 'insert-column-right', labelKey: 'wysiwygTable.insertColumnRight', glyph: '➡︎＋', action: { kind: 'insert-column', side: 'right' } },
-  { actionId: 'delete-row', labelKey: 'wysiwygTable.deleteRow', glyph: '−▭', action: { kind: 'delete-row' } },
-  { actionId: 'delete-column', labelKey: 'wysiwygTable.deleteColumn', glyph: '−▯', action: { kind: 'delete-column' } },
-  { actionId: 'align-left', labelKey: 'wysiwygTable.alignLeft', glyph: '⟸', action: { kind: 'set-alignment', alignment: 'left' }, alignment: 'left' },
-  { actionId: 'align-center', labelKey: 'wysiwygTable.alignCenter', glyph: '⇔', action: { kind: 'set-alignment', alignment: 'center' }, alignment: 'center' },
-  { actionId: 'align-right', labelKey: 'wysiwygTable.alignRight', glyph: '⟹', action: { kind: 'set-alignment', alignment: 'right' }, alignment: 'right' },
-  { actionId: 'align-default', labelKey: 'wysiwygTable.alignDefault', glyph: '⇠⇢', action: { kind: 'set-alignment', alignment: null }, alignment: null },
+  { actionId: 'insert-row-above', labelKey: 'wysiwygTable.insertRowAbove', icon: 'insertRowAbove', action: { kind: 'insert-row', position: 'above' } },
+  { actionId: 'insert-row-below', labelKey: 'wysiwygTable.insertRowBelow', icon: 'insertRowBelow', action: { kind: 'insert-row', position: 'below' } },
+  { actionId: 'insert-column-left', labelKey: 'wysiwygTable.insertColumnLeft', icon: 'insertColumnLeft', action: { kind: 'insert-column', side: 'left' } },
+  { actionId: 'insert-column-right', labelKey: 'wysiwygTable.insertColumnRight', icon: 'insertColumnRight', action: { kind: 'insert-column', side: 'right' } },
+  { actionId: 'delete-row', labelKey: 'wysiwygTable.deleteRow', icon: 'deleteRow', action: { kind: 'delete-row' } },
+  { actionId: 'delete-column', labelKey: 'wysiwygTable.deleteColumn', icon: 'deleteColumn', action: { kind: 'delete-column' } },
+  { actionId: 'align-left', labelKey: 'wysiwygTable.alignLeft', icon: 'alignLeft', action: { kind: 'set-alignment', alignment: 'left' }, alignment: 'left' },
+  { actionId: 'align-center', labelKey: 'wysiwygTable.alignCenter', icon: 'alignCenter', action: { kind: 'set-alignment', alignment: 'center' }, alignment: 'center' },
+  { actionId: 'align-right', labelKey: 'wysiwygTable.alignRight', icon: 'alignRight', action: { kind: 'set-alignment', alignment: 'right' }, alignment: 'right' },
+  { actionId: 'align-default', labelKey: 'wysiwygTable.alignDefault', icon: 'alignDefault', action: { kind: 'set-alignment', alignment: null }, alignment: null },
 ]
+
+const TABLE_TOOLBAR_SVG_NS = 'http://www.w3.org/2000/svg'
+
+const TABLE_TOOLBAR_ICON_PATHS: Record<TableToolbarIcon, string> = {
+  insertRowAbove: 'M6 9h12v10H6z M6 14h12 M12 9v10 M10 5h4 M12 3v4',
+  insertRowBelow: 'M6 5h12v10H6z M6 10h12 M12 5v10 M10 19h4 M12 17v4',
+  insertColumnLeft: 'M9 6h10v12H9z M14 6v12 M9 12h10 M5 10v4 M3 12h4',
+  insertColumnRight: 'M5 6h10v12H5z M10 6v12 M5 12h10 M19 10v4 M17 12h4',
+  deleteRow: 'M6 8h12v11H6z M6 13h12 M12 8v11 M10 4h4',
+  deleteColumn: 'M8 6h11v12H8z M13 6v12 M8 12h11 M3 12h4',
+  alignLeft: 'M5 6h10 M5 10h14 M5 14h8 M5 18h12',
+  alignCenter: 'M7 6h10 M5 10h14 M8 14h8 M6 18h12',
+  alignRight: 'M9 6h10 M5 10h14 M11 14h8 M7 18h12',
+  alignDefault: 'M5 7h14 M5 12h14 M5 17h14 M4 20L20 4',
+}
+
+function createTableToolbarIcon(icon: TableToolbarIcon): SVGSVGElement {
+  const svg = document.createElementNS(TABLE_TOOLBAR_SVG_NS, 'svg') as SVGSVGElement
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('width', '16')
+  svg.setAttribute('height', '16')
+  svg.setAttribute('fill', 'none')
+  svg.setAttribute('stroke', 'currentColor')
+  svg.setAttribute('stroke-width', '1.9')
+  svg.setAttribute('stroke-linecap', 'round')
+  svg.setAttribute('stroke-linejoin', 'round')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.setAttribute('focusable', 'false')
+
+  const path = document.createElementNS(TABLE_TOOLBAR_SVG_NS, 'path') as SVGPathElement
+  path.setAttribute('d', TABLE_TOOLBAR_ICON_PATHS[icon])
+  svg.appendChild(path)
+
+  return svg
+}
 
 function createTableToolbarDom(): HTMLDivElement {
   const toolbar = document.createElement('div')
@@ -254,7 +301,8 @@ function createTableToolbarDom(): HTMLDivElement {
     button.type = 'button'
     button.className = `cm-wysiwyg-table__toolbar-button cm-wysiwyg-table__toolbar-button--${spec.actionId}`
     button.dataset.wysiwygTableAction = spec.actionId
-    button.textContent = spec.glyph
+    button.dataset.wysiwygTableIcon = spec.icon
+    button.replaceChildren(createTableToolbarIcon(spec.icon))
     button.addEventListener('mousedown', preventTableToolbarBlur)
     button.addEventListener('click', handleTableToolbarClick)
     toolbar.appendChild(button)
@@ -291,7 +339,11 @@ function syncTableToolbarDom(
     else if (spec.action.kind === 'delete-column') disabled = !canDeleteColumn
 
     button.disabled = disabled
-    button.toggleAttribute('aria-pressed', spec.alignment !== undefined && activeColumnAlignment === spec.alignment)
+    if (spec.alignment !== undefined) {
+      button.setAttribute('aria-pressed', String(activeColumnAlignment === spec.alignment))
+    } else {
+      button.removeAttribute('aria-pressed')
+    }
   })
 }
 
@@ -3295,6 +3347,12 @@ export const wysiwygTheme = EditorView.baseTheme({
     borderRadius: '4px',
     cursor: 'pointer',
     userSelect: 'none',
+  },
+  '.cm-wysiwyg-table__toolbar-button svg': {
+    width: '16px',
+    height: '16px',
+    flexShrink: '0',
+    pointerEvents: 'none',
   },
   '.cm-wysiwyg-table__toolbar-button:hover:not(:disabled)': {
     background: 'var(--surface-hover, rgba(0,0,0,0.04))',

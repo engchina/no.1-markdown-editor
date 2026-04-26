@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState, useRef, useEffect, type ReactNode, type Ref, type RefObject } from 'react'
+import { Suspense, lazy, useState, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useEditorStore, type ViewMode } from '../../store/editor'
@@ -15,7 +15,7 @@ const ThemePanel = lazy(() => import('../ThemePanel/ThemePanel'))
 const AISetupPanel = lazy(() => import('../AI/AISetupPanel'))
 const AboutPanel = lazy(() => import('../Updates/AboutPanel'))
 
-type ToolbarButtonVariant = 'square' | 'wide'
+type ToolbarButtonVariant = 'square' | 'wide' | 'mode'
 type ToolbarMenuAlign = 'left' | 'right'
 
 interface ToolbarMenuItem {
@@ -52,6 +52,9 @@ interface ToolbarBtnProps {
   disabled?: boolean
   buttonRef?: Ref<HTMLButtonElement>
   variant?: ToolbarButtonVariant
+  pressed?: boolean
+  hasPopup?: 'menu'
+  expanded?: boolean
 }
 
 function ToolbarBtn({
@@ -62,8 +65,16 @@ function ToolbarBtn({
   disabled,
   buttonRef,
   variant = 'square',
+  pressed,
+  hasPopup,
+  expanded,
 }: ToolbarBtnProps) {
-  const sizeClasses = variant === 'wide' ? 'h-8 px-2.5 gap-1.5' : 'w-8 h-8'
+  const sizeClasses =
+    variant === 'mode'
+      ? 'h-8 px-2.5 gap-1.5'
+      : variant === 'wide'
+        ? 'h-8 px-2.5 gap-1.5'
+        : 'w-8 h-8'
 
   return (
     <button
@@ -71,9 +82,12 @@ function ToolbarBtn({
       type="button"
       title={title}
       aria-label={title}
+      aria-pressed={pressed === undefined ? undefined : pressed}
+      aria-haspopup={hasPopup}
+      aria-expanded={expanded === undefined ? undefined : expanded}
       onClick={onClick}
       disabled={disabled}
-      className={`flex flex-shrink-0 items-center justify-center rounded-[10px] hover-scale disabled:opacity-40 transition-all duration-200 ${sizeClasses}`}
+      className={`flex flex-shrink-0 items-center justify-center rounded-lg hover-scale disabled:opacity-40 ${sizeClasses}`}
       style={{
         color: active ? 'var(--accent)' : 'var(--text-secondary)',
         background: active ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'transparent',
@@ -95,9 +109,9 @@ function ToolbarGroup({ label, children }: { label: string; children: ReactNode 
     <div
       role="group"
       aria-label={label}
-      className="flex flex-shrink-0 items-center gap-0.5 rounded-[14px] px-1 py-1"
+      className="flex flex-shrink-0 items-center gap-0.5 rounded-lg px-1 py-1"
       style={{
-        background: 'color-mix(in srgb, var(--bg-secondary) 84%, transparent)',
+        background: 'color-mix(in srgb, var(--bg-secondary) 90%, transparent)',
         border: '1px solid color-mix(in srgb, var(--border) 72%, transparent)',
       }}
     >
@@ -124,6 +138,7 @@ function ToolbarMenu({
   items,
   onClose,
   triggerRef,
+  label,
   align = 'left',
   width = 216,
   zoom = 100,
@@ -131,12 +146,24 @@ function ToolbarMenu({
   items: ToolbarMenuItem[]
   onClose: () => void
   triggerRef: RefObject<HTMLButtonElement | null>
+  label: string
   align?: ToolbarMenuAlign
   width?: number
   zoom?: number
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
   const overlayStyle = useAnchoredOverlayStyle(triggerRef, { align, width, zoom })
+
+  const focusItem = (index: number) => {
+    const item = itemRefs.current[index]
+    item?.focus()
+  }
+
+  const closeAndRestoreFocus = () => {
+    onClose()
+    queueMicrotask(() => triggerRef.current?.focus())
+  }
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -152,22 +179,77 @@ function ToolbarMenu({
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose, triggerRef])
 
+  useEffect(() => {
+    queueMicrotask(() => focusItem(0))
+  }, [])
+
+  const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const currentIndex = itemRefs.current.findIndex((item) => item === document.activeElement)
+    const lastIndex = items.length - 1
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      closeAndRestoreFocus()
+      return
+    }
+
+    if (event.key === 'Tab') {
+      onClose()
+      return
+    }
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+      event.preventDefault()
+      focusItem(currentIndex >= 0 && currentIndex < lastIndex ? currentIndex + 1 : 0)
+      return
+    }
+
+    if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+      event.preventDefault()
+      focusItem(currentIndex > 0 ? currentIndex - 1 : lastIndex)
+      return
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault()
+      focusItem(0)
+      return
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault()
+      focusItem(lastIndex)
+    }
+  }
+
   if (typeof document === 'undefined' || overlayStyle === null) return null
 
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[80] overflow-x-hidden overflow-y-auto rounded-xl shadow-xl animate-in glass-panel"
+      role="menu"
+      aria-label={label}
+      aria-orientation="vertical"
+      data-toolbar-menu="true"
+      onKeyDown={onMenuKeyDown}
+      className="fixed z-[80] overflow-x-hidden overflow-y-auto rounded-lg shadow-lg animate-in glass-panel"
       style={{
         ...overlayStyle,
         background: 'var(--glass-bg)',
         borderColor: 'var(--glass-border)',
       }}
     >
-      {items.map(({ id, label, icon, textIcon, action }) => (
+      {items.map(({ id, label: itemLabel, icon, textIcon, action }, index) => (
         <button
           key={id}
+          ref={(element) => {
+            itemRefs.current[index] = element
+          }}
           type="button"
+          role="menuitem"
+          tabIndex={index === 0 ? 0 : -1}
+          data-toolbar-menu-item="true"
           onClick={() => {
             void action()
             onClose()
@@ -178,7 +260,7 @@ function ToolbarMenu({
           onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
         >
           <ToolbarMenuGlyph icon={icon} textIcon={textIcon} />
-          <span>{label}</span>
+          <span>{itemLabel}</span>
         </button>
       ))}
     </div>,
@@ -215,7 +297,7 @@ function ExportMenu({
     },
   ]
 
-  return <ToolbarMenu items={items} onClose={onClose} triggerRef={triggerRef} width={200} zoom={zoom} />
+  return <ToolbarMenu items={items} onClose={onClose} triggerRef={triggerRef} label={t('toolbar.export')} width={200} zoom={zoom} />
 }
 
 export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () => void; saving?: boolean }) {
@@ -292,7 +374,14 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
     { id: 'h6', label: t('toolbar.h6'), textIcon: 'H6', action: () => emitFormat('h6') },
   ]
 
-  const moreActionItems: ToolbarMenuItem[] = [
+  const formatItems: ToolbarMenuItem[] = [
+    { id: 'quote', label: t('toolbar.quote'), icon: 'quote', action: () => emitFormat('quote') },
+    { id: 'ul', label: t('toolbar.ul'), icon: 'list', action: () => emitFormat('ul') },
+    { id: 'ol', label: t('toolbar.ol'), icon: 'orderedList', action: () => emitFormat('ol') },
+    { id: 'task', label: t('toolbar.task'), icon: 'task', action: () => emitFormat('task') },
+    { id: 'underline', label: t('toolbar.underline'), icon: 'underline', action: () => emitFormat('underline') },
+    { id: 'strikethrough', label: t('toolbar.strikethrough'), icon: 'strikethrough', action: () => emitFormat('strikethrough') },
+    { id: 'highlight', label: t('toolbar.highlight'), icon: 'highlight', action: () => emitFormat('highlight') },
     { id: 'link', label: t('toolbar.link'), icon: 'link', action: () => emitFormat('link') },
     { id: 'code', label: t('toolbar.code'), icon: 'code', action: () => emitFormat('code') },
     { id: 'codeblock', label: t('toolbar.codeBlock'), icon: 'codeBlock', action: () => emitFormat('codeblock') },
@@ -303,16 +392,19 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
 
   return (
     <div
-      className="relative flex min-w-max flex-shrink-0 items-center gap-1.5 rounded-[1.25rem] px-3.5 transition-all duration-300 glass-panel"
+      role="toolbar"
+      aria-label={t('app.name')}
+      className="relative flex min-w-max flex-shrink-0 items-center gap-1.5 rounded-xl px-3 transition-colors duration-150 glass-panel"
       style={{
-        height: '46px',
-        boxShadow: 'var(--shadow-elegant)',
+        height: '42px',
+        boxShadow: 'var(--shadow-sm)',
       }}
     >
       <ToolbarBtn
         title={`${t('toolbar.toggleSidebar')} (${sidebarShortcut})`}
         onClick={() => setSidebarOpen(!sidebarOpen)}
         active={sidebarOpen}
+        pressed={sidebarOpen}
       >
         <AppIcon name="panel" size={16} />
       </ToolbarBtn>
@@ -333,6 +425,8 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
             buttonRef={exportButtonRef}
             onClick={() => setShowExport((open) => !open)}
             active={showExport}
+            hasPopup="menu"
+            expanded={showExport}
           >
             <AppIcon name="download" size={16} />
           </ToolbarBtn>
@@ -340,7 +434,7 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
         </div>
       </ToolbarGroup>
 
-      <ToolbarGroup label={t('toolbar.structure')}>
+      <ToolbarGroup label={t('toolbar.format')}>
         <div className="relative">
           <ToolbarBtn
             title={t('toolbar.headings')}
@@ -348,6 +442,8 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
             onClick={() => setShowHeadings((open) => !open)}
             active={showHeadings}
             variant="wide"
+            hasPopup="menu"
+            expanded={showHeadings}
           >
             <ToolbarTextMark label="H" />
             <AppIcon name="chevronDown" size={14} />
@@ -357,41 +453,18 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
               items={headingItems}
               onClose={() => setShowHeadings(false)}
               triggerRef={headingButtonRef}
+              label={t('toolbar.headings')}
               width={176}
               zoom={zoom}
             />
           )}
         </div>
 
-        <ToolbarBtn title={t('toolbar.quote')} onClick={() => emitFormat('quote')}>
-          <AppIcon name="quote" size={16} />
-        </ToolbarBtn>
-        <ToolbarBtn title={t('toolbar.ul')} onClick={() => emitFormat('ul')}>
-          <AppIcon name="list" size={16} />
-        </ToolbarBtn>
-        <ToolbarBtn title={t('toolbar.ol')} onClick={() => emitFormat('ol')}>
-          <AppIcon name="orderedList" size={16} />
-        </ToolbarBtn>
-        <ToolbarBtn title={t('toolbar.task')} onClick={() => emitFormat('task')}>
-          <AppIcon name="task" size={16} />
-        </ToolbarBtn>
-      </ToolbarGroup>
-
-      <ToolbarGroup label={t('toolbar.inline')}>
         <ToolbarBtn title={t('toolbar.bold')} onClick={() => emitFormat('bold')}>
           <AppIcon name="bold" size={16} />
         </ToolbarBtn>
         <ToolbarBtn title={t('toolbar.italic')} onClick={() => emitFormat('italic')}>
           <AppIcon name="italic" size={16} />
-        </ToolbarBtn>
-        <ToolbarBtn title={t('toolbar.underline')} onClick={() => emitFormat('underline')}>
-          <AppIcon name="underline" size={16} />
-        </ToolbarBtn>
-        <ToolbarBtn title={t('toolbar.strikethrough')} onClick={() => emitFormat('strikethrough')}>
-          <AppIcon name="strikethrough" size={16} />
-        </ToolbarBtn>
-        <ToolbarBtn title={t('toolbar.highlight')} onClick={() => emitFormat('highlight')}>
-          <AppIcon name="highlight" size={16} />
         </ToolbarBtn>
 
         <div className="relative">
@@ -400,15 +473,18 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
             buttonRef={moreActionsButtonRef}
             onClick={() => setShowMoreActions((open) => !open)}
             active={showMoreActions}
+            hasPopup="menu"
+            expanded={showMoreActions}
           >
-            <AppIcon name="more" size={16} />
+            <AppIcon name="format" size={16} />
           </ToolbarBtn>
           {showMoreActions && (
             <ToolbarMenu
-              items={moreActionItems}
+              items={formatItems}
               onClose={() => setShowMoreActions(false)}
               triggerRef={moreActionsButtonRef}
-              width={220}
+              label={t('toolbar.moreActions')}
+              width={236}
               zoom={zoom}
             />
           )}
@@ -431,22 +507,26 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
       <div className="flex-1" />
 
       <ToolbarBtn
-        title={wysiwygMode ? t('toolbar.disableWysiwyg') : t('toolbar.enableWysiwyg')}
+        title={wysiwygMode ? t('commands.disableWysiwyg') : t('commands.enableWysiwyg')}
         onClick={() => setWysiwygMode(!wysiwygMode)}
         active={wysiwygMode}
+        pressed={wysiwygMode}
+        variant="mode"
       >
         <AppIcon name="wysiwyg" size={16} />
+        <span className="text-xs font-medium">{t('toolbar.wysiwyg')}</span>
       </ToolbarBtn>
 
-      <ToolbarBtn title={t('toolbar.focusMode')} onClick={() => setFocusMode(!focusMode)} active={focusMode}>
+      <ToolbarBtn title={t('toolbar.focusMode')} onClick={() => setFocusMode(!focusMode)} active={focusMode} pressed={focusMode} variant="mode">
         <span data-toolbar-action="focus-mode" className="contents">
         <AppIcon name="focus" size={16} />
+        <span className="text-xs font-medium">{t('viewMode.focus')}</span>
         </span>
       </ToolbarBtn>
 
       <ToolbarGroup label={t('toolbar.viewMode')}>
         {VIEW_MODES.map(({ mode, icon }) => (
-          <ToolbarBtn key={mode} title={t(`viewMode.${mode}`)} onClick={() => setViewMode(mode)} active={viewMode === mode}>
+          <ToolbarBtn key={mode} title={t(`viewMode.${mode}`)} onClick={() => setViewMode(mode)} active={viewMode === mode} pressed={viewMode === mode}>
             <span data-view-mode={mode} className="contents">
             <AppIcon name={icon} size={15} />
             </span>
@@ -456,7 +536,7 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
 
       <ToolbarBtn title={`${t('toolbar.commandPalette')} (${commandPaletteShortcut})`} onClick={() => onOpenPalette?.()}>
         <span data-toolbar-action="command-palette" className="contents">
-        <AppIcon name="keyboard" size={16} />
+        <AppIcon name="command" size={16} />
         </span>
       </ToolbarBtn>
 

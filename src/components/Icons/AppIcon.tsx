@@ -6,6 +6,7 @@ export type IconName =
   | 'clock'
   | 'code'
   | 'codeBlock'
+  | 'command'
   | 'copy'
   | 'download'
   | 'edit'
@@ -15,6 +16,7 @@ export type IconName =
   | 'folder'
   | 'folderPlus'
   | 'folderOpen'
+  | 'format'
   | 'focus'
   | 'globe'
   | 'highlight'
@@ -60,6 +62,7 @@ const PATHS: Record<IconName, string> = {
   clock: 'M12 7v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
   code: 'M8 8l-4 4 4 4 M16 8l4 4-4 4',
   codeBlock: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5z M8 9l-2 3 2 3 M16 9l2 3-2 3',
+  command: 'M18 3a3 3 0 0 0-3 3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0 0-6z',
   copy: 'M9 9h10v11H9z M6 15H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1',
   download: 'M12 3v11 M8 10l4 4 4-4 M5 21h14',
   edit: 'M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z M15 5l4 4',
@@ -69,6 +72,7 @@ const PATHS: Record<IconName, string> = {
   folder: 'M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   folderPlus: 'M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M12 10v6 M9 13h6',
   folderOpen: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 1.8 2.8l-1 8A2 2 0 0 1 17.8 20H6.2a2 2 0 0 1-2-1.7L3 7z',
+  format: 'M4 6h10 M4 12h8 M4 18h6 M18 7v10 M15 10h6',
   focus: 'M15 3h6v6 M9 21H3v-6 M21 15v6h-6 M3 9V3h6',
   globe: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20 M2 12h20 M12 2a15 15 0 0 1 0 20 M12 2a15 15 0 0 0 0 20',
   highlight: 'M9 11l-6 6v3h9l3-3 M22 12l-7-7-3 3 7 7 3-3 M3 21h12',
@@ -82,7 +86,7 @@ const PATHS: Record<IconName, string> = {
   list: 'M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01',
   more: 'M5 12h.01 M12 12h.01 M19 12h.01',
   orderedList: 'M10 6h10 M10 12h10 M10 18h10 M4 6h1v4 M4 10h2 M6 18H4c0-1 2-2 2-3s-1-1.5-2-1',
-  outline: 'M6 6h12 M6 12h12 M6 18h12 M3 6h.01 M3 12h.01 M3 18h.01',
+  outline: 'M21 6H8 M21 12h-8 M21 18h-8 M3 6v4c0 1.1.9 2 2 2h3 M3 10v4c0 1.1.9 2 2 2h3',
   palette: 'M12 3a9 9 0 1 0 9 9c0 1.7-1.3 3-3 3h-1.2a1.8 1.8 0 1 0 0 3.6H18a6 6 0 0 0 0-12A9 9 0 0 0 12 3 M7.5 12h.01 M8.5 8h.01 M12.5 7h.01 M15.5 10h.01',
   panel: 'M3 4h18v16H3z M9 4v16',
   print: 'M6 9V4h12v5 M6 18H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-1 M7 14h10v6H7z',
@@ -102,7 +106,7 @@ const PATHS: Record<IconName, string> = {
   undo: 'M9 14l-5-4 5-4 M4 10h8a6 6 0 0 1 6 6v1',
   underline: 'M8 4v8a4 4 0 0 0 8 0V4 M5 20h14',
   wrap: 'm3 11 3-3-3-3 M7 11h7a5 5 0 0 0 5-5v0a5 5 0 0 0-5-5H7',
-  wysiwyg: 'M12 3l1.9 5.8a2 2 0 0 0 1.2 1.2L21 12l-5.8 1.9a2 2 0 0 0-1.2 1.2L12 21l-1.9-5.8a2 2 0 0 0-1.2-1.2L3 12l5.8-1.9a2 2 0 0 0 1.2-1.2L12 3Z M5 3l.4 1.1a1 1 0 0 0 .5.5L7 5l-1.1.4a1 1 0 0 0-.5.5L5 7l-.4-1.1a1 1 0 0 0-.5-.5L3 5l1.1-.4a1 1 0 0 0 .5-.5L5 3Z M19 17l.4 1.1a1 1 0 0 0 .5.5l1.1.4-1.1.4a1 1 0 0 0-.5.5L19 21l-.4-1.1a1 1 0 0 0-.5-.5l-1.1-.4 1.1-.4a1 1 0 0 0 .5-.5L19 17Z',
+  wysiwyg: 'M4 5h16v14H4z M12 5v14 M7 9h3 M7 13h2 M14 12c1.2-1.7 3.8-1.7 5 0-1.2 1.7-3.8 1.7-5 0z M16.5 12h.01',
   chevronRight: 'M9 6l6 6-6 6',
   chevronDown: 'M6 9l6 6 6-6',
   alertCircle: 'M12 8v5 M12 16h.01 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',

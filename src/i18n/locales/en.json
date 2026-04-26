@@ -57,6 +57,8 @@
     "aiSetup": "AI",
     "appearance": "Settings",
     "headings": "Headings",
+    "format": "Formatting",
+    "wysiwyg": "WYSIWYG",
     "structure": "Structure",
     "inline": "Inline Styles",
     "moreActions": "More Formatting Tools"

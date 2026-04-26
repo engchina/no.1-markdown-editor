@@ -20,6 +20,25 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.18.5 - 2026-04-26
+
+### Added
+
+### Changed
+
+- The main toolbar now uses a quieter desktop layout with common writing actions kept visible and lower-frequency formatting tools grouped into a single formatting menu.
+- Toolbar menus now expose proper menu semantics, arrow-key navigation, and Escape focus restoration so keyboard use is more predictable.
+- WYSIWYG table controls now use consistent SVG icons for row, column, delete, and alignment actions instead of text glyphs.
+
+### Fixed
+
+- Command palette and toolbar icons now distinguish command, formatting, outline, and WYSIWYG actions more clearly.
+- WYSIWYG table alignment buttons now expose an explicit pressed state only for alignment controls.
+
+### Internal
+
+- Added regression coverage for toolbar menu accessibility, quiet chrome styling, semantic icon usage, localized toolbar labels, and WYSIWYG table toolbar icons.
+
 ## 0.18.4 - 2026-04-25
 
 ### Added

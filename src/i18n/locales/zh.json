@@ -57,6 +57,8 @@
     "aiSetup": "AI",
     "appearance": "设置",
     "headings": "标题层级",
+    "format": "格式",
+    "wysiwyg": "实时预览",
     "structure": "文档结构",
     "inline": "行内样式",
     "moreActions": "更多格式与插入"

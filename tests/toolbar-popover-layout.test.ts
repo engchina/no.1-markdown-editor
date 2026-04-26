@@ -17,6 +17,74 @@ test('toolbar menus render through a portal so scroll shells cannot clip them', 
   assert.match(toolbar, /useAnchoredOverlayStyle\(triggerRef, \{ align, width, zoom \}\)/)
 })
 
+test('toolbar menus expose keyboard menu semantics and restore trigger focus on escape', async () => {
+  const toolbar = await readFile(new URL('../src/components/Toolbar/Toolbar.tsx', import.meta.url), 'utf8')
+
+  assert.match(toolbar, /role="menu"/)
+  assert.match(toolbar, /role="menuitem"/)
+  assert.match(toolbar, /aria-haspopup=\{hasPopup\}/)
+  assert.match(toolbar, /aria-expanded=\{expanded === undefined \? undefined : expanded\}/)
+  assert.match(toolbar, /data-toolbar-menu="true"/)
+  assert.match(toolbar, /data-toolbar-menu-item="true"/)
+  assert.match(toolbar, /event\.key === 'Escape'[\s\S]*closeAndRestoreFocus\(\)/)
+  assert.match(toolbar, /event\.key === 'ArrowDown' \|\| event\.key === 'ArrowRight'/)
+  assert.match(toolbar, /event\.key === 'ArrowUp' \|\| event\.key === 'ArrowLeft'/)
+  assert.match(toolbar, /event\.key === 'Home'/)
+  assert.match(toolbar, /event\.key === 'End'/)
+  assert.match(toolbar, /triggerRef\.current\?\.focus\(\)/)
+})
+
+test('toolbar consolidates lower frequency markdown formatting into one menu', async () => {
+  const toolbar = await readFile(new URL('../src/components/Toolbar/Toolbar.tsx', import.meta.url), 'utf8')
+  const toolbarRender = toolbar.slice(toolbar.indexOf('return ('), toolbar.indexOf('<div className="flex-1" />'))
+
+  assert.match(toolbarRender, /<ToolbarGroup label=\{t\('toolbar\.format'\)\}>/)
+  assert.match(toolbarRender, /<ToolbarBtn title=\{t\('toolbar\.bold'\)\}/)
+  assert.match(toolbarRender, /<ToolbarBtn title=\{t\('toolbar\.italic'\)\}/)
+  assert.match(toolbar, /const formatItems: ToolbarMenuItem\[\] = \[[\s\S]*id: 'quote'[\s\S]*id: 'ul'[\s\S]*id: 'ol'[\s\S]*id: 'task'/)
+  assert.match(toolbar, /const formatItems: ToolbarMenuItem\[\] = \[[\s\S]*id: 'underline'[\s\S]*id: 'strikethrough'[\s\S]*id: 'highlight'/)
+  assert.match(toolbar, /const formatItems: ToolbarMenuItem\[\] = \[[\s\S]*id: 'link'[\s\S]*id: 'code'[\s\S]*id: 'codeblock'[\s\S]*id: 'table'[\s\S]*id: 'hr'[\s\S]*id: 'image'/)
+  assert.doesNotMatch(toolbarRender, /<ToolbarBtn title=\{t\('toolbar\.quote'\)\}/)
+  assert.doesNotMatch(toolbarRender, /<ToolbarBtn title=\{t\('toolbar\.underline'\)\}/)
+  assert.doesNotMatch(toolbarRender, /<ToolbarBtn title=\{t\('toolbar\.highlight'\)\}/)
+})
+
+test('toolbar and command palette use semantically distinct icons', async () => {
+  const [toolbar, palette, icons] = await Promise.all([
+    readFile(new URL('../src/components/Toolbar/Toolbar.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/CommandPalette/CommandPalette.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Icons/AppIcon.tsx', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(icons, /\| 'command'/)
+  assert.match(icons, /\| 'format'/)
+  assert.match(icons, /command: '[^']+'/)
+  assert.match(icons, /format: '[^']+'/)
+  assert.match(icons, /wysiwyg: '[^']*M4 5h16v14H4z/)
+  assert.match(icons, /outline: '[^']*M21 6H8/)
+
+  assert.match(toolbar, /<AppIcon name="format" size=\{16\} \/>/)
+  assert.match(toolbar, /<AppIcon name="command" size=\{16\} \/>/)
+  assert.match(toolbar, /<AppIcon name="wysiwyg" size=\{16\} \/>/)
+  assert.doesNotMatch(toolbar, /data-toolbar-action="command-palette"[\s\S]*?<AppIcon name="keyboard"/)
+
+  assert.match(palette, /case 'view\.wysiwyg':\s*return <SvgBadge name="wysiwyg" \/>/)
+  assert.match(palette, /mode === 'file' \? <AppIcon name="file" size=\{16\} \/> : <AppIcon name="command" size=\{16\} \/>/)
+  assert.doesNotMatch(palette, /case 'view\.wysiwyg':[\s\S]{0,80}sparkles/)
+})
+
+test('global chrome styling stays quiet for a desktop writing tool', async () => {
+  const css = await readFile(new URL('../src/global.css', import.meta.url), 'utf8')
+
+  assert.match(css, /\.glass-panel \{[\s\S]*blur\(10px\) saturate\(120%\)/)
+  assert.match(css, /\.sidebar-surface \{[\s\S]*border-radius: 12px;/)
+  assert.match(css, /\.hover-scale:hover \{[\s\S]*box-shadow:/)
+  assert.doesNotMatch(css, /blur\(28px\) saturate\(190%\)/)
+  assert.doesNotMatch(css, /border-radius: 28px;/)
+  assert.doesNotMatch(css, /transform: scale\(1\.04\);/)
+  assert.doesNotMatch(css, /transform: scale\(0\.96\);/)
+})
+
 test('theme panel is anchored in a portal instead of the toolbar DOM subtree', async () => {
   const panel = await readFile(new URL('../src/components/ThemePanel/ThemePanel.tsx', import.meta.url), 'utf8')
 

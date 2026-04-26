@@ -102,7 +102,7 @@ test('toolbar AI entry and setup panel locale copy exist across en, ja, and zh',
   ])
 
   const locales = [JSON.parse(enRaw), JSON.parse(jaRaw), JSON.parse(zhRaw)] as Array<Record<string, unknown>>
-  const keys = ['toolbar.aiSetup', 'ai.setup.title']
+  const keys = ['toolbar.aiSetup', 'toolbar.format', 'toolbar.wysiwyg', 'ai.setup.title']
 
   for (const locale of locales) {
     for (const key of keys) {
