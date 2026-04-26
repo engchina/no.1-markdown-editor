@@ -1,83 +1,87 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.18.4`.
+This document is a draft for the next public release after `v0.18.5`.
 
 It is intentionally written in release-note language rather than implementation language.
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.18.5`
+`No.1 Markdown Editor v0.18.6`
 
 ## Short Summary
 
-This release tightens the desktop writing chrome around the editor. The toolbar is calmer, more keyboard-friendly, and clearer about the difference between formatting, command palette, outline, and WYSIWYG actions.
+This release makes WYSIWYG mode more faithful for rich Markdown structures. Mermaid diagrams and HTML `<details>` blocks now behave more like preview while still keeping the source easy to reach.
 
-WYSIWYG table editing also gets more legible controls, replacing text glyphs with consistent icons for row, column, delete, and alignment operations.
+Clipboard fidelity also improves for copied disclosure blocks and Qiita link cards, reducing the amount of source cleanup needed after pasting from documentation pages.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- The main toolbar now keeps common writing actions visible while grouping lower-frequency formatting tools into one formatting menu.
-- Toolbar menus now support proper menu semantics, arrow-key navigation, and Escape focus restoration.
-- WYSIWYG table editing controls now use consistent SVG icons for row, column, delete, and alignment actions.
-- Command palette and toolbar icons now better distinguish command, formatting, outline, and WYSIWYG actions.
-- Alignment controls in WYSIWYG tables now expose pressed state only where it represents an active alignment choice.
+- WYSIWYG mode now renders inactive Mermaid fences as inline diagrams while keeping the Mermaid source one click or keypress away.
+- WYSIWYG mode now renders block-level HTML `<details>` disclosures as preview-like collapsible blocks.
+- Preview copying now preserves collapsed `<details>` bodies by expanding the copied range around the full disclosure.
+- Pasting browser-copied collapsed `<details>` blocks now warns when the browser only supplied the summary.
+- HTML paste now recovers Qiita link-card iframe targets as Markdown links.
 
 ### Why This Release Matters
 
-Markdown editors are used in long sessions, so chrome that is slightly noisy or ambiguous adds friction quickly. This release reduces toolbar density, makes menu behavior more predictable from the keyboard, and gives table-editing controls clearer visual affordances.
+Markdown documents increasingly mix plain prose with diagrams, disclosure blocks, generated documentation snippets, and pasted web content. This release narrows the gap between writing in WYSIWYG, checking preview, and preserving the original Markdown source.
 
-The result is a calmer desktop writing surface that still keeps Markdown structure and formatting tools close at hand.
+The result is a smoother cleanup workflow: diagrams stay readable inline, details blocks keep their structure visible, and pasted documentation keeps more of the information users expected to copy.
 
 ### User-Facing Improvements
 
 #### Writing and Editing
 
-- The toolbar now presents a more compact desktop layout with everyday actions visible and secondary formatting tools grouped together.
-- WYSIWYG and focus mode controls now use labeled mode buttons so their state is easier to scan.
-- WYSIWYG table row, column, delete, and alignment controls now use iconography that reads as table operations instead of symbolic text.
+- Mermaid code fences render as centered WYSIWYG diagrams when inactive, then reveal the original source when activated.
+- HTML `<details>` blocks render as collapsible WYSIWYG disclosures with Markdown body rendering for lists, tables, and code.
+- WYSIWYG gutter behavior now hides the source-only lines used by rendered Mermaid and details blocks without disturbing the editable source when selected.
 
 #### Markdown Workspace
 
-- Command palette and outline iconography is clearer, reducing confusion between navigation, command execution, and visual editing modes.
+- Pasted Qiita link-card iframes now become normal Markdown autolinks so documentation references remain usable after paste.
+- Copying collapsed details from preview now keeps the hidden body instead of producing a summary-only fragment.
 
 #### Performance and Reliability
 
-- Toolbar menus now behave more like desktop application menus with predictable arrow-key movement and Escape handling.
-- Regression tests now cover toolbar accessibility semantics, quiet chrome styling, icon usage, localized labels, and table toolbar behavior.
+- Mermaid rendering now reuses the shared renderer for preview, export, and WYSIWYG surfaces.
+- Mermaid SVGs stay within the editor width and scroll horizontally for oversized diagrams.
+- The editor warns when a browser clipboard payload omitted the body of a collapsed details block.
+- i18n initialization now works in the Node test runtime without browser storage.
 
 #### AI and Writing Quality
 
-- No AI workflow changes in this release; the focus is editor chrome, keyboard behavior, and WYSIWYG table controls.
+- No AI workflow changes in this release; the focus is Markdown rendering fidelity and clipboard reliability.
 
 ### Recommended Screenshots For Release Page
 
-- Main editor toolbar showing the compact formatting menu and labeled WYSIWYG/focus controls
-- WYSIWYG table with the floating table toolbar visible
-- Command palette showing the updated command iconography
+- WYSIWYG Mermaid diagram rendered inline beside equivalent preview output
+- WYSIWYG `<details>` disclosure opened and collapsed
+- Preview copy/paste flow for a documentation page with collapsed details and a Qiita link card
 
 ### Suggested "Upgrade Notes" Section
 
-- Users who rely on toolbar formatting should find the most common actions in the same immediate area, with less frequent actions under the formatting menu.
-- Keyboard users can move through toolbar menus with arrow keys and close them with Escape while returning focus to the trigger.
+- Users who write Mermaid diagrams in WYSIWYG mode should now see rendered diagrams without switching to preview.
+- Users copying from documentation pages should see fewer missing disclosure bodies and dropped link cards.
 
 ### Suggested "Who Should Update" Section
 
 This release is especially relevant for users who:
 
-- write primarily from the desktop toolbar
-- edit Markdown tables in WYSIWYG mode
-- use keyboard navigation for menus and command palette workflows
+- write Mermaid-heavy Markdown documents
+- paste technical documentation from web pages
+- rely on WYSIWYG and preview staying visually consistent
+- use HTML `<details>` blocks in Markdown notes
 
 ## Packaging Checklist Before Release
 
-- Run `npm run release:prepare -- 0.18.5` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:prepare -- 0.18.6` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
 - Confirm the final version in:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
 - Run `npm run release:validate` after the version bump so local metadata checks, changelog checks, and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.18.5` if you want to inspect the generated GitHub release body before pushing the tag.
-- Capture fresh screenshots if the release page will highlight toolbar or table-editing changes.
-- After the release is published, run `npm run release:draft:advance -- 0.18.5` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:notes:preview -- 0.18.6` if you want to inspect the generated GitHub release body before pushing the tag.
+- Capture fresh screenshots if the release page will highlight WYSIWYG Mermaid diagrams or details blocks.
+- After the release is published, run `npm run release:draft:advance -- 0.18.6` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

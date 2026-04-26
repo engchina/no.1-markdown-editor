@@ -890,6 +890,8 @@
     "assetPathPropagationFailedMessage": "アセット移動後に対象文書を安全に書き換えられませんでした。",
     "copyHtmlSuccessTitle": "HTML をコピーしました",
     "copyHtmlSuccessMessage": "レンダリング済み HTML をクリップボードにコピーしました。",
+    "collapsedDetailsPasteTitle": "折りたたみ内の本文はクリップボードに含まれていません",
+    "collapsedDetailsPasteMessage": "Web ページ上で閉じた <details> をコピーすると、ブラウザーは見出しだけを渡します。元のページでそのブロックを開いてからコピーしてください。",
     "dismissLabel": "通知を閉じる"
   },
   "runtimeError": {

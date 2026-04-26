@@ -19,6 +19,28 @@ test('CodeMirrorEditor routes plain-text clipboard pastes through the shared mar
   assert.match(source, /replaceSelectionWithMarkdown\(activeView, plainText\)/)
 })
 
+test('CodeMirrorEditor warns when pasted html contains closed details that the browser copied without a body', async () => {
+  const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /hasCollapsedDetailsWithOmittedBody/)
+  assert.match(source, /const collapsedDetailsOmittedBody = \/<details\\b\/i\.test\(html\) && hasCollapsedDetailsWithOmittedBody\(html\)/)
+  assert.match(
+    source,
+    /pushInfoNotice\('notices\.collapsedDetailsPasteTitle', 'notices\.collapsedDetailsPasteMessage'\)/
+  )
+})
+
+test('collapsed details paste notice keys exist in all locales', async () => {
+  const locales = ['en', 'zh', 'ja']
+  for (const locale of locales) {
+    const text = await readFile(new URL(`../src/i18n/locales/${locale}.json`, import.meta.url), 'utf8')
+    const json = JSON.parse(text) as { notices: Record<string, string> }
+
+    assert.ok(json.notices.collapsedDetailsPasteTitle, `${locale}: collapsedDetailsPasteTitle`)
+    assert.ok(json.notices.collapsedDetailsPasteMessage, `${locale}: collapsedDetailsPasteMessage`)
+  }
+})
+
 test('CodeMirrorEditor aborts async paste writes when the original editor view is no longer active', async () => {
   const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
 

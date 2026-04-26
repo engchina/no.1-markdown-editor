@@ -568,6 +568,26 @@ export function getMermaidRenderErrorMessage(
   return getMermaidErrorMessage(error, fallbackMessage)
 }
 
+export async function renderMermaidToSvg(
+  source: string,
+  theme: MermaidTheme,
+  idPrefix = 'mermaid'
+): Promise<string> {
+  const cachedSvg = getCachedMermaidSvg(source, theme)
+  if (cachedSvg) return cachedSvg
+
+  const mermaid = await loadConfiguredMermaid()
+  await ensureMermaidDiagramSupport(mermaid, source)
+  mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' })
+
+  const { svg } = await mermaid.render(
+    `${idPrefix}-${Date.now()}-${mermaidRenderSequence++}`,
+    getRenderableMermaidSource(source)
+  )
+  cacheMermaidSvg(source, theme, svg)
+  return svg
+}
+
 function applyRenderedMermaidShell(shell: HTMLElement, svg: string, labels: MermaidShellLabels): void {
   const surface = shell.querySelector<HTMLElement>('.mermaid-render-surface')
   const code = shell.querySelector<HTMLElement>('.mermaid-card-code')
@@ -672,8 +692,6 @@ export async function renderMermaidShells(
   const shells = getRenderableShells(root, options.targets, options.renderedOnly)
   if (shells.length === 0) return false
 
-  let mermaid: MermaidModule['default'] | null = null
-
   for (const [index, shell] of shells.entries()) {
     if (options.isCancelled?.()) return false
 
@@ -686,7 +704,6 @@ export async function renderMermaidShells(
     if (!surface) continue
 
     const source = decodeMermaidSource(encodedSource)
-    const renderableSource = getRenderableMermaidSource(source)
     const cachedSvg = getCachedMermaidSvg(source, theme)
     if (cachedSvg) {
       applyRenderedMermaidShell(shell, cachedSvg, {
@@ -701,17 +718,9 @@ export async function renderMermaidShells(
 
     try {
       clearMermaidShellStatus(shell)
-      mermaid ??= await loadConfiguredMermaid()
-      await ensureMermaidDiagramSupport(mermaid, source)
-      mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' })
-
-      const { svg } = await mermaid.render(
-        `mermaid-${Date.now()}-${mermaidRenderSequence++}-${index}`,
-        renderableSource
-      )
+      const svg = await renderMermaidToSvg(source, theme, `mermaid-${index}`)
       if (options.isCancelled?.()) return false
 
-      cacheMermaidSvg(source, theme, svg)
       surface.innerHTML = ''
       applyRenderedMermaidShell(shell, svg, {
         label: shell.querySelector<HTMLElement>('.mermaid-card-label')?.textContent ?? '',
@@ -760,30 +769,15 @@ export async function renderMermaidInHtml(html: string, theme: MermaidTheme): Pr
 
   const template = document.createElement('template')
   template.innerHTML = html
-  let mermaid: MermaidModule['default'] | null = null
 
   const blocks = Array.from(template.content.querySelectorAll('code.language-mermaid'))
   for (const [index, block] of blocks.entries()) {
     const source = block.textContent ?? ''
-    const renderableSource = getRenderableMermaidSource(source)
     const pre = block.parentElement
     if (!pre) continue
 
     try {
-      const cachedSvg = getCachedMermaidSvg(source, theme)
-      const svg = cachedSvg
-        ? cachedSvg
-        : (
-            mermaid ??= await loadConfiguredMermaid(),
-            await ensureMermaidDiagramSupport(mermaid, source),
-            mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' }),
-            (await mermaid.render(
-              `mermaid-export-${Date.now()}-${mermaidRenderSequence++}-${index}`,
-              renderableSource
-            )).svg
-          )
-
-      if (!cachedSvg) cacheMermaidSvg(source, theme, svg)
+      const svg = await renderMermaidToSvg(source, theme, `mermaid-export-${index}`)
       const container = document.createElement('div')
       container.className = 'mermaid'
       container.innerHTML = svg

@@ -1103,6 +1103,11 @@ a:focus-visible {
   padding: 16px 0;
 }
 
+.markdown-preview .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
 .markdown-preview .mermaid-shell {
   margin: 1.5em 0;
 }
@@ -1185,6 +1190,14 @@ a:focus-visible {
 
 .markdown-preview .mermaid-render-surface {
   padding: 16px;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.markdown-preview .mermaid-render-surface svg {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
 }
 
 .preview-diagram-toolbar {

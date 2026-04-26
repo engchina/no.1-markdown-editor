@@ -896,6 +896,8 @@
     "assetPathPropagationFailedMessage": "The editor couldn't safely rewrite the affected documents after the asset move.",
     "copyHtmlSuccessTitle": "HTML copied",
     "copyHtmlSuccessMessage": "The rendered HTML is now on the clipboard.",
+    "collapsedDetailsPasteTitle": "Collapsed details body was not copied",
+    "collapsedDetailsPasteMessage": "When a webpage copies a closed <details> block, the browser only puts the summary on the clipboard. Expand that block on the webpage and copy again.",
     "dismissLabel": "Dismiss notification"
   },
   "runtimeError": {

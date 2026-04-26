@@ -1,8 +1,8 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
-import en from './locales/en.json'
-import ja from './locales/ja.json'
-import zh from './locales/zh.json'
+import en from './locales/en.json' with { type: 'json' }
+import ja from './locales/ja.json' with { type: 'json' }
+import zh from './locales/zh.json' with { type: 'json' }
 
 export type Language = 'en' | 'ja' | 'zh'
 
@@ -12,7 +12,18 @@ export const LANGUAGES: { code: Language; label: string; nativeLabel: string }[]
   { code: 'zh', label: 'Chinese', nativeLabel: '中文' },
 ]
 
-const savedLang = (localStorage.getItem('language') as Language) || 'en'
+function resolveSavedLanguage(): Language {
+  if (typeof localStorage === 'undefined') return 'en'
+
+  const savedLanguage = localStorage.getItem('language')
+  return isLanguage(savedLanguage) ? savedLanguage : 'en'
+}
+
+function isLanguage(value: string | null): value is Language {
+  return value === 'en' || value === 'ja' || value === 'zh'
+}
+
+const savedLang = resolveSavedLanguage()
 
 i18n
   .use(initReactI18next)

@@ -890,6 +890,8 @@
     "assetPathPropagationFailedMessage": "资源移动后，编辑器无法安全改写受影响的文档。",
     "copyHtmlSuccessTitle": "HTML 已复制",
     "copyHtmlSuccessMessage": "渲染后的 HTML 已复制到剪贴板。",
+    "collapsedDetailsPasteTitle": "折叠内容没有包含在剪贴板中",
+    "collapsedDetailsPasteMessage": "网页在折叠状态下复制 <details> 时，浏览器只会提供标题。请先在网页中展开该块，再复制。",
     "dismissLabel": "关闭通知"
   },
   "runtimeError": {

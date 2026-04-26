@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { parseFragment } from 'parse5'
-import { convertPreviewSelectionHtmlToMarkdown } from '../src/lib/previewClipboard.ts'
+import {
+  convertPreviewSelectionHtmlToMarkdown,
+  shouldExpandClosedDetailsSelection,
+} from '../src/lib/previewClipboard.ts'
 
 interface Parse5Node {
   nodeName: string
@@ -79,6 +82,71 @@ test('convertPreviewSelectionHtmlToMarkdown prefers preview image source metadat
   } finally {
     globalThis.DOMParser = originalDomParser
   }
+})
+
+test('convertPreviewSelectionHtmlToMarkdown preserves a collapsed details body copied from its summary', () => {
+  const originalDomParser = globalThis.DOMParser
+  globalThis.DOMParser = FakeDOMParser as unknown as typeof DOMParser
+
+  try {
+    const markdown = convertPreviewSelectionHtmlToMarkdown(
+      [
+        '<details>',
+        '<summary>営業フォロー候補の顧客</summary>',
+        '<div>',
+        '<p>「キャンペーンに反応していて、口座残高も高いが、売上がまだ低め」の顧客を探します。</p>',
+        '<div class="code-frame" data-lang="sql">',
+        '<div class="code-copy"><button class="code-copy__button" style="display: none;">copy</button></div>',
+        '<pre><code>SELECT CUSTOMER_NAME\nFROM V_CUSTOMER_360;</code></pre>',
+        '</div>',
+        '</div>',
+        '</details>',
+      ].join(''),
+      '営業フォロー候補の顧客'
+    )
+
+    assert.equal(
+      markdown,
+      [
+        '<details>',
+        '<summary>営業フォロー候補の顧客</summary>',
+        '',
+        '「キャンペーンに反応していて、口座残高も高いが、売上がまだ低め」の顧客を探します。',
+        '',
+        '```sql',
+        'SELECT CUSTOMER_NAME',
+        'FROM V_CUSTOMER_360;',
+        '```',
+        '',
+        '</details>',
+      ].join('\n')
+    )
+  } finally {
+    globalThis.DOMParser = originalDomParser
+  }
+})
+
+test('shouldExpandClosedDetailsSelection only expands closed details when the summary intersects selection', () => {
+  const summary = {}
+  const range = {
+    intersectsNode: (node: Node) => node === summary,
+  } as unknown as Range
+  const closedDetails = {
+    open: false,
+    querySelector: (selector: string) => (selector === ':scope > summary' ? summary : null),
+  } as unknown as HTMLDetailsElement
+  const openDetails = {
+    open: true,
+    querySelector: (selector: string) => (selector === ':scope > summary' ? summary : null),
+  } as unknown as HTMLDetailsElement
+  const closedDetailsWithoutSummary = {
+    open: false,
+    querySelector: () => null,
+  } as unknown as HTMLDetailsElement
+
+  assert.equal(shouldExpandClosedDetailsSelection(range, closedDetails), true)
+  assert.equal(shouldExpandClosedDetailsSelection(range, openDetails), false)
+  assert.equal(shouldExpandClosedDetailsSelection(range, closedDetailsWithoutSummary), false)
 })
 
 class FakeDOMParser {

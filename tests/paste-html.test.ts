@@ -4,6 +4,7 @@ import { parseFragment } from 'parse5'
 import { renderMarkdown } from '../src/lib/markdown.ts'
 import {
   convertClipboardHtmlToMarkdown,
+  hasCollapsedDetailsWithOmittedBody,
   renderClipboardHtmlAstToMarkdown,
   type ClipboardHtmlAstNode,
 } from '../src/lib/pasteHtml.ts'
@@ -276,6 +277,67 @@ test('convertClipboardHtmlToMarkdown preserves Qiita details code-frame indentat
         '```',
         '',
         '</details>',
+      ].join('\n')
+    )
+  } finally {
+    globalThis.DOMParser = originalDomParser
+  }
+})
+
+test('hasCollapsedDetailsWithOmittedBody detects browser-copied closed details without hidden content', () => {
+  const originalDomParser = globalThis.DOMParser
+  globalThis.DOMParser = FakeDOMParser as unknown as typeof DOMParser
+
+  try {
+    assert.equal(
+      hasCollapsedDetailsWithOmittedBody('<details><summary>営業フォロー候補の顧客</summary></details>'),
+      true
+    )
+    assert.equal(
+      hasCollapsedDetailsWithOmittedBody(
+        '<details><summary>営業フォロー候補の顧客</summary><p>本文</p></details>'
+      ),
+      false
+    )
+    assert.equal(
+      hasCollapsedDetailsWithOmittedBody('<details open><summary>営業フォロー候補の顧客</summary></details>'),
+      false
+    )
+  } finally {
+    globalThis.DOMParser = originalDomParser
+  }
+})
+
+test('convertClipboardHtmlToMarkdown preserves Qiita link-card iframe target links', () => {
+  const originalDomParser = globalThis.DOMParser
+  globalThis.DOMParser = FakeDOMParser as unknown as typeof DOMParser
+
+  try {
+    const text = 'この記事は、SnowflakeのIcebergテーブルをOCI Autonomous DatabaseからSELECT AIで自然言語検索してみた の続編です。'
+    const html = `
+      <p data-sourcepos="2:1-2:144">${text}</p>
+      <p data-sourcepos="4:1-4:54">
+        <iframe
+          id="qiita-embed-content__8410dedece4aad55e83cc85fdc8fdb2d"
+          src="https://qiita.com/embed-contents/link-card#qiita-embed-content__8410dedece4aad55e83cc85fdc8fdb2d"
+          data-content="https%3A%2F%2Fqiita.com%2Fyushibats%2Fitems%2F291660e52d775b8b995c"
+          frameborder="0"
+          scrolling="no"
+          loading="lazy"
+          style="width:100%;"
+          height="111"
+        ></iframe>
+      </p>
+    `
+
+    const markdown = convertClipboardHtmlToMarkdown(html, text)
+
+    assert.equal(
+      markdown,
+      [
+        text,
+        '',
+        '<https://qiita.com/yushibats/items/291660e52d775b8b995c>',
       ].join('\n')
     )
   } finally {

@@ -20,6 +20,27 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.18.6 - 2026-04-26
+
+### Added
+
+- WYSIWYG mode now renders inactive Mermaid fences as inline diagrams while keeping the original source one click or keypress away.
+- WYSIWYG mode now renders block-level HTML `<details>` disclosures as preview-like collapsible blocks, including nested Markdown, tables, and code.
+
+### Changed
+
+- Mermaid diagrams in preview and WYSIWYG now stay centered, scale to the editor width, and scroll horizontally when a diagram is wider than the writing surface.
+
+### Fixed
+
+- Copying a collapsed `<details>` block from preview now preserves the hidden body by expanding the copied range around the full disclosure.
+- Pasting a browser-copied collapsed `<details>` block now warns when the browser omitted the hidden body, so users know to expand the source block and copy again.
+- HTML paste now recovers Qiita link-card iframe targets as Markdown links instead of dropping the embedded card target.
+
+### Internal
+
+- i18n initialization now works in the Node test runtime without browser storage, with regression coverage for WYSIWYG details, Mermaid rendering, and clipboard fidelity.
+
 ## 0.18.5 - 2026-04-26
 
 ### Added

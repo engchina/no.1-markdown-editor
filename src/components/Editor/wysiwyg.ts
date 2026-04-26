@@ -51,9 +51,16 @@ import {
 } from './wysiwygFootnote.ts'
 import {
   collectWysiwygCodeBlockDecorations,
+  isRenderableWysiwygMermaidCodeBlock,
   type WysiwygDecorationView,
 } from './wysiwygCodeBlock.ts'
 import { collectInactiveWysiwygMathBlocks } from './wysiwygMathBlock.ts'
+import {
+  collectInactiveWysiwygDetailsBlocks,
+  collectWysiwygDetailsBlocks,
+  renderWysiwygDetailsMarkdown,
+  type WysiwygDetailsBlock,
+} from './wysiwygDetails.ts'
 import { detectDocumentLanguage, resolveDocumentSpellcheckConfig } from '../../lib/documentLanguage.ts'
 import { hasTerminalBlankLine } from '../../lib/editorTerminalBlankLine.ts'
 import { stripFrontMatter, type FrontMatterMeta } from '../../lib/markdownShared.ts'
@@ -172,6 +179,41 @@ class BlockMathWidget extends WidgetType {
   }
   ignoreEvent() { return false }
   eq(other: BlockMathWidget) { return this.latex === other.latex && this.editAnchor === other.editAnchor }
+}
+
+class DetailsWidget extends WidgetType {
+  private readonly detailsBlock: WysiwygDetailsBlock
+  private readonly context: WysiwygDocumentContext
+
+  constructor(detailsBlock: WysiwygDetailsBlock, context: WysiwygDocumentContext) {
+    super()
+    this.detailsBlock = detailsBlock
+    this.context = context
+  }
+
+  toDOM() {
+    const details = document.createElement('div')
+    syncDetailsWidgetDom(details, this.detailsBlock, this.context)
+    return details
+  }
+
+  updateDOM(dom: HTMLElement) {
+    if (!(dom instanceof HTMLElement)) return false
+    syncDetailsWidgetDom(dom, this.detailsBlock, this.context)
+    return true
+  }
+
+  ignoreEvent() { return false }
+
+  eq(other: DetailsWidget) {
+    return this.detailsBlock.open === other.detailsBlock.open &&
+      this.detailsBlock.summaryMarkdown === other.detailsBlock.summaryMarkdown &&
+      this.detailsBlock.bodyMarkdown === other.detailsBlock.bodyMarkdown &&
+      this.detailsBlock.editAnchor === other.detailsBlock.editAnchor &&
+      this.context.documentPath === other.context.documentPath &&
+      JSON.stringify(this.context.frontMatter) === JSON.stringify(other.context.frontMatter) &&
+      this.context.referenceDefinitionsMarkdown === other.context.referenceDefinitionsMarkdown
+  }
 }
 
 class TableWidget extends WidgetType {
@@ -1028,6 +1070,109 @@ function syncInlineRenderedFragmentDom(
   hydrateInlineRenderedFragmentImages(wrapper, context)
 }
 
+function syncDetailsWidgetDom(
+  details: HTMLElement,
+  detailsBlock: WysiwygDetailsBlock,
+  context: WysiwygDocumentContext
+): void {
+  const previousFrom = details.dataset.detailsFrom
+  const previousTo = details.dataset.detailsTo
+  const previousSourceOpen = details.dataset.detailsSourceOpen
+  const nextFrom = String(detailsBlock.from)
+  const nextTo = String(detailsBlock.to)
+  const nextSourceOpen = String(detailsBlock.open)
+  const preserveRuntimeOpen = previousFrom === nextFrom &&
+    previousTo === nextTo &&
+    previousSourceOpen === nextSourceOpen
+  const nextOpen = preserveRuntimeOpen ? details.dataset.detailsOpen === 'true' : detailsBlock.open
+
+  details.className = 'cm-wysiwyg-details'
+  details.dataset.detailsEditAnchor = String(detailsBlock.editAnchor)
+  details.dataset.detailsFrom = nextFrom
+  details.dataset.detailsTo = nextTo
+  details.dataset.detailsSourceOpen = nextSourceOpen
+  details.setAttribute('role', 'group')
+  details.setAttribute('aria-label', 'Details block')
+
+  let summary = details.querySelector<HTMLElement>(':scope > .cm-wysiwyg-details__summary')
+  if (!summary) {
+    details.replaceChildren()
+    summary = document.createElement('div')
+    summary.className = 'cm-wysiwyg-details__summary'
+    details.appendChild(summary)
+  }
+
+  let toggle = summary.querySelector<HTMLButtonElement>(':scope > .cm-wysiwyg-details__toggle')
+  if (!toggle) {
+    summary.replaceChildren()
+    toggle = document.createElement('button')
+    toggle.className = 'cm-wysiwyg-details__toggle'
+    toggle.type = 'button'
+    const icon = document.createElement('span')
+    icon.className = 'cm-wysiwyg-details__toggle-icon'
+    icon.setAttribute('aria-hidden', 'true')
+    toggle.appendChild(icon)
+    summary.appendChild(toggle)
+  }
+
+  let summaryContent = summary.querySelector<HTMLElement>(':scope > .cm-wysiwyg-details__summary-content')
+  if (!summaryContent) {
+    summaryContent = document.createElement('span')
+    summaryContent.className = 'cm-wysiwyg-details__summary-content cm-wysiwyg-details__edit-target'
+    summaryContent.setAttribute('role', 'button')
+    summaryContent.setAttribute('aria-label', 'Edit details block')
+    summaryContent.setAttribute('aria-keyshortcuts', 'Enter Space')
+    summaryContent.tabIndex = 0
+    summary.appendChild(summaryContent)
+  }
+
+  summaryContent.innerHTML = renderInlineMarkdownFragment(detailsBlock.summaryMarkdown || 'Details', {
+    referenceDefinitionsMarkdown: context.referenceDefinitionsMarkdown,
+  })
+
+  let body = summary.nextElementSibling instanceof HTMLDivElement ? summary.nextElementSibling : null
+  if (!body || !body.classList.contains('cm-wysiwyg-details__body')) {
+    while (summary.nextSibling) details.removeChild(summary.nextSibling)
+    body = document.createElement('div')
+    body.className = 'cm-wysiwyg-details__body cm-wysiwyg-details__edit-target'
+    details.appendChild(body)
+  }
+
+  body.innerHTML = renderDetailsBodyHtml(detailsBlock.bodyMarkdown, context)
+  hydrateInlineRenderedFragmentImages(body, context)
+  setDetailsWidgetOpen(details, nextOpen)
+}
+
+function setDetailsWidgetOpen(details: HTMLElement, open: boolean): void {
+  details.dataset.detailsOpen = String(open)
+  details.setAttribute('aria-expanded', String(open))
+
+  const toggle = details.querySelector<HTMLButtonElement>(':scope .cm-wysiwyg-details__toggle')
+  toggle?.setAttribute('aria-expanded', String(open))
+  toggle?.setAttribute('aria-label', open ? 'Collapse details' : 'Expand details')
+
+  const body = details.querySelector<HTMLElement>(':scope > .cm-wysiwyg-details__body')
+  body?.setAttribute('aria-hidden', String(!open))
+}
+
+function renderDetailsBodyHtml(markdown: string, context: WysiwygDocumentContext): string {
+  const previewOrigin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
+  const rendered = renderWysiwygDetailsMarkdown(markdown)
+  const withResolvedRoots = rewriteRenderedHtmlImageSources(rendered, { frontMatter: context.frontMatter })
+  const withLocalImages = rewritePreviewHtmlLocalImages(withResolvedRoots, { documentPath: context.documentPath })
+  return rewritePreviewHtmlExternalImages(
+    withLocalImages,
+    {
+      blockedLabel: i18n.t('preview.externalImageBlocked'),
+      clickLabel: i18n.t('preview.externalImageClickToLoad'),
+    },
+    previewOrigin,
+    {
+      enableDirectExternalImageFallback: isTauriRuntime(),
+    }
+  )
+}
+
 function renderInlineRenderedFragmentHtml(markdown: string, context: WysiwygDocumentContext): string {
   const previewOrigin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
   const rendered = renderInlineMarkdownFragment(markdown, {
@@ -1170,11 +1315,34 @@ function queueDecoration(
   decorations.push({ from, to, value })
 }
 
+function queueDetailsGapLineDecoration(
+  decorations: DecorationSpec[],
+  view: WysiwygDecorationView,
+  lineNumber: number,
+  queuedLineStarts: Set<number>
+): void {
+  const { doc } = view.state
+  if (lineNumber < 1 || lineNumber > doc.lines) return
+
+  const line = doc.line(lineNumber)
+  if (line.text.trim().length > 0 || cursorIsOnLine(view, line.from, line.to)) return
+  if (queuedLineStarts.has(line.from)) return
+  queuedLineStarts.add(line.from)
+
+  queueDecoration(
+    decorations,
+    line.from,
+    line.from,
+    Decoration.line({ attributes: { class: 'cm-wysiwyg-details-gap-line' } })
+  )
+}
+
 export function buildWysiwygDecorations(
   view: WysiwygDecorationView,
   fencedCodeBlocks: readonly FencedCodeBlock[],
   mathBlocks: readonly MathBlock[],
   tables: readonly MarkdownTableBlock[],
+  detailsBlocks: readonly WysiwygDetailsBlock[],
   footnoteIndices: Map<string, number>
 ): DecorationSet {
   // Mixed replace/mark decorations often start at the same position.
@@ -1185,6 +1353,49 @@ export function buildWysiwygDecorations(
   let fenceIndex = 0
   let mathIndex = 0
   let tableIndex = 0
+  let detailsIndex = 0
+  const detailsGapLineStarts = new Set<number>()
+
+  for (const detailsBlock of collectInactiveWysiwygDetailsBlocks(view, detailsBlocks)) {
+    const openingLine = doc.lineAt(detailsBlock.from)
+    const closingLine = doc.lineAt(detailsBlock.to)
+
+    queueDetailsGapLineDecoration(decorations, view, openingLine.number - 1, detailsGapLineStarts)
+
+    queueDecoration(
+      decorations,
+      openingLine.from,
+      openingLine.from,
+      Decoration.line({ attributes: { class: 'cm-wysiwyg-details-anchor-line' } })
+    )
+
+    queueDecoration(
+      decorations,
+      openingLine.from,
+      openingLine.to,
+      Decoration.replace({ widget: new DetailsWidget(detailsBlock, documentContext) })
+    )
+
+    let hiddenLineFrom = openingLine.to + 1
+    while (hiddenLineFrom <= closingLine.to) {
+      const hiddenLine = doc.lineAt(hiddenLineFrom)
+      queueDecoration(
+        decorations,
+        hiddenLine.from,
+        hiddenLine.from,
+        Decoration.line({ attributes: { class: 'cm-wysiwyg-details-hidden-line' } })
+      )
+      queueDecoration(
+        decorations,
+        hiddenLine.from,
+        hiddenLine.to,
+        Decoration.replace({})
+      )
+      hiddenLineFrom = hiddenLine.to + 1
+    }
+
+    queueDetailsGapLineDecoration(decorations, view, closingLine.number + 1, detailsGapLineStarts)
+  }
 
   for (const mathBlock of collectInactiveWysiwygMathBlocks(view, mathBlocks)) {
     const openingLine = doc.lineAt(mathBlock.from)
@@ -1242,6 +1453,9 @@ export function buildWysiwygDecorations(
       while (tableIndex < tables.length && tables[tableIndex].to < lineFrom) {
         tableIndex += 1
       }
+      while (detailsIndex < detailsBlocks.length && detailsBlocks[detailsIndex].to < lineFrom) {
+        detailsIndex += 1
+      }
 
       const fencedCodeBlock = fencedCodeBlocks[fenceIndex]
       if (fencedCodeBlock && lineFrom >= fencedCodeBlock.from && lineFrom <= fencedCodeBlock.to) {
@@ -1257,6 +1471,12 @@ export function buildWysiwygDecorations(
 
       const table = tables[tableIndex]
       if (table && lineFrom >= table.from && lineFrom <= table.to) {
+        pos = line.to + 1
+        continue
+      }
+
+      const detailsBlock = detailsBlocks[detailsIndex]
+      if (detailsBlock && lineFrom >= detailsBlock.from && lineFrom <= detailsBlock.to) {
         pos = line.to + 1
         continue
       }
@@ -1491,10 +1711,11 @@ function safeBuildDecorations(
   fencedCodeBlocks: readonly FencedCodeBlock[],
   mathBlocks: readonly MathBlock[],
   tables: readonly MarkdownTableBlock[],
+  detailsBlocks: readonly WysiwygDetailsBlock[],
   footnoteIndices: Map<string, number>
 ): DecorationSet {
   try {
-    return buildWysiwygDecorations(view, fencedCodeBlocks, mathBlocks, tables, footnoteIndices)
+    return buildWysiwygDecorations(view, fencedCodeBlocks, mathBlocks, tables, detailsBlocks, footnoteIndices)
   } catch {
     return Decoration.none
   }
@@ -1519,21 +1740,78 @@ function stateSelectionTouchesRange(
   return state.selection.ranges.some((range) => range.from <= to && range.to >= from)
 }
 
+interface WysiwygStructuralBlocks {
+  fencedCodeBlocks: FencedCodeBlock[]
+  mathBlocks: MathBlock[]
+  tables: MarkdownTableBlock[]
+  detailsBlocks: WysiwygDetailsBlock[]
+}
+
+function collectWysiwygStructuralBlocks(markdown: string): WysiwygStructuralBlocks {
+  const allFencedCodeBlocks = collectFencedCodeBlocks(markdown)
+  const allMathBlocks = collectMathBlocks(markdown, allFencedCodeBlocks)
+  const detailsBlocks = collectWysiwygDetailsBlocks(markdown, [
+    ...allFencedCodeBlocks,
+    ...allMathBlocks,
+  ])
+  const ignoredTableRanges = [
+    ...allFencedCodeBlocks,
+    ...allMathBlocks,
+    ...detailsBlocks,
+  ].sort((left, right) => left.from - right.from || left.to - right.to)
+
+  return {
+    fencedCodeBlocks: allFencedCodeBlocks.filter((block) => !rangeIntersectsAnyRange(block, detailsBlocks)),
+    mathBlocks: allMathBlocks.filter((block) => !rangeIntersectsAnyRange(block, detailsBlocks)),
+    tables: collectMarkdownTableBlocks(markdown, ignoredTableRanges),
+    detailsBlocks,
+  }
+}
+
+function rangeIntersectsAnyRange(range: { from: number; to: number }, ranges: readonly { from: number; to: number }[]): boolean {
+  return ranges.some((candidate) => range.from <= candidate.to && range.to >= candidate.from)
+}
+
+function markDetailsGapGutterLine(
+  state: CodeMirrorState,
+  markers: Map<number, GutterMarker>,
+  lineNumber: number
+): void {
+  const { doc } = state
+  if (lineNumber < 1 || lineNumber > doc.lines) return
+
+  const line = doc.line(lineNumber)
+  if (line.text.trim().length > 0 || stateSelectionTouchesRange(state, line.from, line.to)) return
+  if (!markers.has(line.from)) markers.set(line.from, hiddenGutterMarker)
+}
+
 function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarker> {
   const markdown = state.doc.toString()
-  const fencedCodeBlocks = collectFencedCodeBlocks(markdown)
-  const mathBlocks = collectMathBlocks(markdown, fencedCodeBlocks)
-  const tables = collectMarkdownTableBlocks(markdown, [...fencedCodeBlocks, ...mathBlocks])
+  const { fencedCodeBlocks, mathBlocks, tables, detailsBlocks } = collectWysiwygStructuralBlocks(markdown)
   const { doc } = state
   const markers = new Map<number, GutterMarker>()
   const nonTextBlockRanges = [
     ...fencedCodeBlocks.map(({ from, to }) => ({ from, to })),
     ...mathBlocks.map(({ from, to }) => ({ from, to })),
     ...tables.map(({ from, to }) => ({ from, to })),
+    ...detailsBlocks.map(({ from, to }) => ({ from, to })),
   ].sort((left, right) => left.from - right.from)
 
   for (const fence of fencedCodeBlocks) {
     if (stateSelectionTouchesRange(state, fence.from, fence.to)) continue
+
+    if (isRenderableWysiwygMermaidCodeBlock(fence)) {
+      const openingLine = doc.lineAt(fence.from)
+      const closingLine = doc.lineAt(fence.to)
+      let nextFrom = openingLine.to + 1
+      while (nextFrom <= closingLine.to) {
+        const hiddenLine = doc.lineAt(nextFrom)
+        if (!markers.has(hiddenLine.from)) markers.set(hiddenLine.from, hiddenGutterMarker)
+        nextFrom = hiddenLine.to + 1
+      }
+      continue
+    }
+
     const closingFrom = fence.closingLineFrom
     if (closingFrom === null || closingFrom === undefined) continue
     markers.set(doc.lineAt(closingFrom).from, reservedHiddenGutterMarker)
@@ -1560,6 +1838,20 @@ function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarke
       if (!markers.has(hiddenLine.from)) markers.set(hiddenLine.from, hiddenGutterMarker)
       nextFrom = hiddenLine.to + 1
     }
+  }
+
+  for (const detailsBlock of detailsBlocks) {
+    if (stateSelectionTouchesRange(state, detailsBlock.from, detailsBlock.to)) continue
+    const openingLine = doc.lineAt(detailsBlock.from)
+    const closingLine = doc.lineAt(detailsBlock.to)
+    markDetailsGapGutterLine(state, markers, openingLine.number - 1)
+    let nextFrom = openingLine.to + 1
+    while (nextFrom <= closingLine.to) {
+      const hiddenLine = doc.lineAt(nextFrom)
+      if (!markers.has(hiddenLine.from)) markers.set(hiddenLine.from, hiddenGutterMarker)
+      nextFrom = hiddenLine.to + 1
+    }
+    markDetailsGapGutterLine(state, markers, closingLine.number + 1)
   }
 
   let nonTextBlockIndex = 0
@@ -1700,9 +1992,7 @@ interface WysiwygTableDecorationState {
 
 function buildWysiwygTableDecorationState(state: CodeMirrorState): WysiwygTableDecorationState {
   const markdown = state.doc.toString()
-  const fencedCodeBlocks = collectFencedCodeBlocks(markdown)
-  const mathBlocks = collectMathBlocks(markdown, fencedCodeBlocks)
-  const tables = collectMarkdownTableBlocks(markdown, [...fencedCodeBlocks, ...mathBlocks])
+  const { tables } = collectWysiwygStructuralBlocks(markdown)
   const activeTableCell = resolveActiveTableCellFromSelection(state, tables)
   const spellcheckConfig = resolveDocumentSpellcheckConfig(
     detectDocumentLanguage(markdown),
@@ -2110,6 +2400,16 @@ function isPlainMathWidgetActivationKey(event: KeyboardEvent): boolean {
   )
 }
 
+function isPlainMermaidWidgetActivationKey(event: KeyboardEvent): boolean {
+  return (
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.key === ' ' || event.key === 'Enter')
+  )
+}
+
 function isPlainFootnoteWidgetActivationKey(event: KeyboardEvent): boolean {
   return (
     !event.altKey &&
@@ -2142,13 +2442,16 @@ class WysiwygPluginValue {
   fencedCodeBlocks: FencedCodeBlock[]
   mathBlocks: MathBlock[]
   tables: MarkdownTableBlock[]
+  detailsBlocks: WysiwygDetailsBlock[]
   footnoteIndices: Map<string, number>
   activeTableCell: ActiveWysiwygTableCell | null
 
   constructor(view: EditorView) {
-    this.fencedCodeBlocks = collectFencedCodeBlocks(view.state.doc.toString())
-    this.mathBlocks = collectMathBlocks(view.state.doc.toString(), this.fencedCodeBlocks)
-    this.tables = collectMarkdownTableBlocks(view.state.doc.toString(), [...this.fencedCodeBlocks, ...this.mathBlocks])
+    const structuralBlocks = collectWysiwygStructuralBlocks(view.state.doc.toString())
+    this.fencedCodeBlocks = structuralBlocks.fencedCodeBlocks
+    this.mathBlocks = structuralBlocks.mathBlocks
+    this.tables = structuralBlocks.tables
+    this.detailsBlocks = structuralBlocks.detailsBlocks
     this.footnoteIndices = collectFootnoteIndices(view.state.doc.toString())
     this.activeTableCell = null
     this.syncActiveTableCell(view)
@@ -2158,15 +2461,18 @@ class WysiwygPluginValue {
       this.fencedCodeBlocks,
       this.mathBlocks,
       this.tables,
+      this.detailsBlocks,
       this.footnoteIndices
     )
   }
 
   update(update: ViewUpdate) {
     if (update.docChanged) {
-      this.fencedCodeBlocks = collectFencedCodeBlocks(update.state.doc.toString())
-      this.mathBlocks = collectMathBlocks(update.state.doc.toString(), this.fencedCodeBlocks)
-      this.tables = collectMarkdownTableBlocks(update.state.doc.toString(), [...this.fencedCodeBlocks, ...this.mathBlocks])
+      const structuralBlocks = collectWysiwygStructuralBlocks(update.state.doc.toString())
+      this.fencedCodeBlocks = structuralBlocks.fencedCodeBlocks
+      this.mathBlocks = structuralBlocks.mathBlocks
+      this.tables = structuralBlocks.tables
+      this.detailsBlocks = structuralBlocks.detailsBlocks
       this.footnoteIndices = collectFootnoteIndices(update.state.doc.toString())
       pruneTableColumnWidthSnapshots(this.tables)
     }
@@ -2199,6 +2505,7 @@ class WysiwygPluginValue {
         this.fencedCodeBlocks,
         this.mathBlocks,
         this.tables,
+        this.detailsBlocks,
         this.footnoteIndices
       )
     }
@@ -2880,6 +3187,22 @@ function activateMathTarget(view: EditorView, target: EventTarget | null): boole
   return true
 }
 
+function activateMermaidTarget(view: EditorView, target: EventTarget | null): boolean {
+  const mermaidTarget = (target as HTMLElement | null)?.closest<HTMLElement>('.cm-wysiwyg-mermaid')
+  if (!mermaidTarget) return false
+
+  const editAnchor = Number(mermaidTarget.dataset.mermaidEditAnchor)
+  if (!Number.isFinite(editAnchor)) return false
+
+  view.dispatch({
+    selection: { anchor: editAnchor },
+    userEvent: 'select.pointer',
+    scrollIntoView: true,
+  })
+  view.focus()
+  return true
+}
+
 function activateFootnoteTarget(view: EditorView, target: EventTarget | null): boolean {
   const footnoteTarget = (target as HTMLElement | null)?.closest<HTMLElement>('.cm-wysiwyg-footnote-ref, .cm-wysiwyg-footnote-def')
   if (!footnoteTarget) return false
@@ -2921,6 +3244,49 @@ function activateInlineRenderedFragmentTarget(view: EditorView, target: EventTar
   return true
 }
 
+function getDetailsToggleButton(target: EventTarget | null): HTMLButtonElement | null {
+  return (target as HTMLElement | null)?.closest<HTMLButtonElement>('.cm-wysiwyg-details__toggle') ?? null
+}
+
+function isPlainDetailsToggleKey(event: KeyboardEvent): boolean {
+  return (
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.key === ' ' || event.key === 'Enter')
+  )
+}
+
+function toggleDetailsDisclosureTarget(target: EventTarget | null): boolean {
+  const toggle = getDetailsToggleButton(target)
+  if (!toggle) return false
+
+  const details = toggle.closest<HTMLElement>('.cm-wysiwyg-details')
+  if (!details) return false
+
+  setDetailsWidgetOpen(details, details.dataset.detailsOpen !== 'true')
+  return true
+}
+
+function activateDetailsTarget(view: EditorView, target: EventTarget | null): boolean {
+  if (getDetailsToggleButton(target)) return false
+
+  const detailsTarget = (target as HTMLElement | null)?.closest<HTMLElement>('.cm-wysiwyg-details')
+  if (!detailsTarget) return false
+
+  const editAnchor = Number(detailsTarget.dataset.detailsEditAnchor)
+  if (!Number.isFinite(editAnchor)) return false
+
+  view.dispatch({
+    selection: { anchor: editAnchor },
+    userEvent: 'select.pointer',
+    scrollIntoView: true,
+  })
+  view.focus()
+  return true
+}
+
 // ── Plugin definition ──────────────────────────────────────────────────────
 
 export const wysiwygPlugin = ViewPlugin.fromClass(
@@ -2938,7 +3304,19 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
           event.preventDefault()
           return true
         }
+        if (getDetailsToggleButton(event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateDetailsTarget(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
         if (activateFootnoteTarget(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateMermaidTarget(view, event.target)) {
           event.preventDefault()
           return true
         }
@@ -2963,7 +3341,19 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
           event.preventDefault()
           return true
         }
+        if (toggleDetailsDisclosureTarget(event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateDetailsTarget(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
         if (activateFootnoteTarget(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateMermaidTarget(view, event.target)) {
           event.preventDefault()
           return true
         }
@@ -3019,10 +3409,34 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
           return true
         }
 
+        const mermaidTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-mermaid')
+        if (mermaidTarget) {
+          if (!isPlainMermaidWidgetActivationKey(event)) return false
+          if (!activateMermaidTarget(view, event.target)) return false
+          event.preventDefault()
+          return true
+        }
+
         const inlineFragmentTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-inline-fragment')
         if (inlineFragmentTarget) {
           if (!isPlainInlineRenderedFragmentActivationKey(event)) return false
           if (!activateInlineRenderedFragmentTarget(view, event.target)) return false
+          event.preventDefault()
+          return true
+        }
+
+        const detailsToggleTarget = getDetailsToggleButton(event.target)
+        if (detailsToggleTarget) {
+          if (!isPlainDetailsToggleKey(event)) return false
+          if (!toggleDetailsDisclosureTarget(event.target)) return false
+          event.preventDefault()
+          return true
+        }
+
+        const detailsTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-details')
+        if (detailsTarget) {
+          if (!isPlainInlineRenderedFragmentActivationKey(event)) return false
+          if (!activateDetailsTarget(view, event.target)) return false
           event.preventDefault()
           return true
         }
@@ -3288,6 +3702,61 @@ export const wysiwygTheme = EditorView.baseTheme({
     boxSizing: 'border-box',
     fontSize: '0',
     lineHeight: '0',
+  },
+  '.cm-wysiwyg-mermaid-anchor-line': {
+    padding: '0 !important',
+  },
+  '.cm-wysiwyg-mermaid-hidden-line': {
+    height: '0',
+    minHeight: '0',
+    padding: '0 !important',
+    lineHeight: '0',
+    fontSize: '0',
+    overflow: 'hidden',
+  },
+  '.cm-wysiwyg-mermaid': {
+    display: 'block',
+    width: '100%',
+    cursor: 'text',
+  },
+  '.cm-wysiwyg-mermaid__surface': {
+    margin: `0.5em ${PROSE_BLOCK_INSET}`,
+    padding: `16px ${CODE_BLOCK_PADDING_INLINE}`,
+    borderRadius: '8px',
+    border: '1px solid transparent',
+    backgroundColor: 'transparent',
+    boxSizing: 'border-box',
+    overflowX: 'auto',
+    textAlign: 'center',
+    transition: 'background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease',
+  },
+  '.cm-wysiwyg-mermaid:hover .cm-wysiwyg-mermaid__surface': {
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 58%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--border) 74%, transparent)',
+    boxShadow: 'var(--shadow-sm)',
+  },
+  '.cm-wysiwyg-mermaid:focus-visible .cm-wysiwyg-mermaid__surface': {
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 78%, var(--bg-primary))',
+    borderColor: 'color-mix(in srgb, var(--accent) 42%, transparent)',
+    boxShadow: '0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent)',
+  },
+  '.cm-wysiwyg-mermaid__surface svg': {
+    display: 'inline-block',
+    maxWidth: '100%',
+    height: 'auto',
+  },
+  '.cm-wysiwyg-mermaid__status': {
+    color: 'var(--text-muted)',
+    fontFamily: 'var(--font-ui, inherit)',
+    fontSize: '0.8rem',
+    lineHeight: '1.45',
+    textAlign: 'center',
+  },
+  '.cm-wysiwyg-mermaid[data-mermaid-state="error"] .cm-wysiwyg-mermaid__status': {
+    color: '#b91c1c',
+  },
+  '.dark .cm-wysiwyg-mermaid[data-mermaid-state="error"] .cm-wysiwyg-mermaid__status': {
+    color: '#fca5a5',
   },
   '.cm-wysiwyg-table-anchor-line': {
     padding: '0 !important',
@@ -3659,5 +4128,198 @@ export const wysiwygTheme = EditorView.baseTheme({
     margin: '0',
     padding: '8px 0',
     overflowX: 'auto',
+  },
+  '.cm-wysiwyg-details-anchor-line': {
+    padding: '0 !important',
+    lineHeight: PROSE_LINE_HEIGHT,
+  },
+  '.cm-wysiwyg-details-hidden-line': {
+    height: '0',
+    minHeight: '0',
+    padding: '0 !important',
+    lineHeight: '0',
+    fontSize: '0',
+    overflow: 'hidden',
+  },
+  '.cm-wysiwyg-details-gap-line': {
+    height: 'var(--md-block-space, 0.75em)',
+    minHeight: 'var(--md-block-space, 0.75em)',
+    padding: '0 !important',
+    lineHeight: '0',
+    fontSize: 'inherit',
+    overflow: 'hidden',
+  },
+  '.cm-wysiwyg-details': {
+    display: 'inline-block',
+    width: 'calc(100% - (2 * var(--md-block-shell-inset, 32px)))',
+    boxSizing: 'border-box',
+    margin: `0 ${PROSE_BLOCK_INSET}`,
+    padding: '0',
+    borderRadius: '8px',
+    border: '0 solid transparent',
+    backgroundColor: 'transparent',
+    color: 'var(--preview-text)',
+    fontFamily: PREVIEW_FONT_FAMILY,
+    lineHeight: PROSE_LINE_HEIGHT,
+    whiteSpace: 'normal',
+    cursor: 'text',
+    userSelect: 'none',
+    verticalAlign: 'top',
+    transition: 'background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease',
+  },
+  '.cm-wysiwyg-details:hover': {
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 46%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--border) 70%, transparent)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent)',
+  },
+  '.cm-wysiwyg-details:focus-visible': {
+    outline: '2px solid color-mix(in srgb, var(--accent) 72%, transparent)',
+    outlineOffset: '2px',
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 62%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--accent) 42%, transparent)',
+    boxShadow: '0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent)',
+  },
+  '.cm-wysiwyg-details[data-details-open="false"] .cm-wysiwyg-details__body': {
+    display: 'none',
+  },
+  '.cm-wysiwyg-details__summary': {
+    display: 'flex',
+    alignItems: 'baseline',
+    cursor: 'text',
+    color: 'var(--text-primary)',
+    fontWeight: '500',
+    padding: '0',
+    overflowWrap: 'anywhere',
+    whiteSpace: 'normal',
+  },
+  '.cm-wysiwyg-details__toggle': {
+    appearance: 'none',
+    width: '1.2em',
+    minWidth: '1.2em',
+    height: '1.8em',
+    margin: '0 0.25em 0 0',
+    padding: '0',
+    border: '0',
+    borderRadius: '3px',
+    backgroundColor: 'transparent',
+    color: 'var(--text-primary)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: '0 0 auto',
+    cursor: 'pointer',
+    lineHeight: '1',
+  },
+  '.cm-wysiwyg-details__toggle:hover': {
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 62%, transparent)',
+  },
+  '.cm-wysiwyg-details__toggle:focus-visible': {
+    outline: '2px solid color-mix(in srgb, var(--accent) 72%, transparent)',
+    outlineOffset: '1px',
+  },
+  '.cm-wysiwyg-details__toggle-icon': {
+    width: '0',
+    height: '0',
+    borderTop: '0.32em solid transparent',
+    borderBottom: '0.32em solid transparent',
+    borderLeft: '0.48em solid currentColor',
+    transformOrigin: '35% 50%',
+    transition: 'transform 120ms ease',
+  },
+  '.cm-wysiwyg-details[data-details-open="true"] .cm-wysiwyg-details__toggle-icon': {
+    transform: 'rotate(90deg)',
+  },
+  '.cm-wysiwyg-details__summary-content': {
+    display: 'inline',
+    cursor: 'text',
+    overflowWrap: 'anywhere',
+  },
+  '.cm-wysiwyg-details__summary-content:focus-visible': {
+    outline: '2px solid color-mix(in srgb, var(--accent) 72%, transparent)',
+    outlineOffset: '2px',
+    borderRadius: '3px',
+  },
+  '.cm-wysiwyg-details__body': {
+    marginTop: 'var(--md-block-space, 0.75em)',
+    color: 'var(--preview-text)',
+    cursor: 'text',
+    overflowWrap: 'anywhere',
+    whiteSpace: 'normal',
+  },
+  '.cm-wysiwyg-details__body > :first-child': {
+    marginTop: '0',
+  },
+  '.cm-wysiwyg-details__body > :last-child': {
+    marginBottom: '0',
+  },
+  '.cm-wysiwyg-details__body p': {
+    margin: '0',
+    whiteSpace: 'pre-line',
+  },
+  '.cm-wysiwyg-details__body ul, .cm-wysiwyg-details__body ol': {
+    paddingLeft: 'var(--md-list-indent, 1.75em)',
+    margin: '0',
+  },
+  '.cm-wysiwyg-details__body ul': {
+    listStyleType: 'disc',
+  },
+  '.cm-wysiwyg-details__body ul ul': {
+    listStyleType: 'circle',
+  },
+  '.cm-wysiwyg-details__body ul ul ul': {
+    listStyleType: 'square',
+  },
+  '.cm-wysiwyg-details__body ol': {
+    listStyleType: 'decimal',
+  },
+  '.cm-wysiwyg-details__body li': {
+    margin: '0',
+  },
+  '.cm-wysiwyg-details__body li + li': {
+    marginTop: 'var(--md-list-item-space, 0.2em)',
+  },
+  '.cm-wysiwyg-details__body li > ul, .cm-wysiwyg-details__body li > ol': {
+    marginTop: 'var(--md-list-nested-space, 0.2em)',
+    marginBottom: '0',
+  },
+  '.cm-wysiwyg-details__body li:not(:has(> :is(p, ul, ol, pre, blockquote, details, table, hr, img, h1, h2, h3, h4, h5, h6, div, section, .front-matter)))': {
+    whiteSpace: 'pre-line',
+  },
+  '.cm-wysiwyg-details__body code': {
+    fontFamily: MONO_FONT_FAMILY,
+    fontSize: 'var(--md-inline-code-font-size, 0.875em)',
+    backgroundColor: 'var(--bg-tertiary)',
+    borderRadius: 'var(--md-inline-code-radius, 4px)',
+    padding: 'var(--md-inline-code-padding, 0.125em 0.375em)',
+  },
+  '.cm-wysiwyg-details__body pre': {
+    margin: '0',
+    padding: 'var(--md-code-block-padding-block, 16px) var(--md-code-block-padding-inline, 16px)',
+    borderRadius: CODE_BLOCK_RADIUS,
+    backgroundColor: 'var(--md-code-block-bg, #18181b)',
+    color: 'var(--md-code-block-text, #d4d4d8)',
+    overflowX: 'auto',
+    whiteSpace: 'pre',
+  },
+  '.cm-wysiwyg-details__body pre code': {
+    backgroundColor: 'transparent',
+    padding: '0',
+    color: 'inherit',
+  },
+  '.cm-wysiwyg-details__body table': {
+    width: '100%',
+    borderCollapse: 'collapse',
+    margin: '0',
+  },
+  '.cm-wysiwyg-details__body th, .cm-wysiwyg-details__body td': {
+    border: '1px solid var(--border)',
+    padding: '8px 16px',
+    textAlign: 'left',
+    verticalAlign: 'top',
+    whiteSpace: 'pre-line',
+  },
+  '.cm-wysiwyg-details__body th': {
+    backgroundColor: 'var(--bg-secondary)',
+    fontWeight: '600',
   },
 })

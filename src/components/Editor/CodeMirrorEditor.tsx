@@ -97,7 +97,7 @@ import {
   shouldInsertTerminalBlankLineOnArrowDown,
   shouldInsertTerminalBlankLineOnClickBelowDocumentEnd,
 } from '../../lib/editorTerminalBlankLine.ts'
-import { convertClipboardHtmlToMarkdown } from '../../lib/pasteHtml'
+import { convertClipboardHtmlToMarkdown, hasCollapsedDetailsWithOmittedBody } from '../../lib/pasteHtml'
 import { pushErrorNotice, pushInfoNotice } from '../../lib/notices'
 import {
   primeAIUndoHistorySnapshot,
@@ -1059,11 +1059,15 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       if (hasHtml) {
         const html = await readClipboardStringBestEffort(clipboardData, 'text/html', clipboardApi)
         const plainText = await readClipboardStringBestEffort(clipboardData, 'text/plain', clipboardApi)
+        const collapsedDetailsOmittedBody = /<details\b/i.test(html) && hasCollapsedDetailsWithOmittedBody(html)
         const markdownText = convertClipboardHtmlToMarkdown(html, plainText)
         if (markdownText) {
           const activeView = resolveActivePasteView()
           if (!activeView) return
           replaceSelectionWithMarkdown(activeView, markdownText)
+          if (collapsedDetailsOmittedBody) {
+            pushInfoNotice('notices.collapsedDetailsPasteTitle', 'notices.collapsedDetailsPasteMessage')
+          }
           queuePasteCursorBottomGapSync()
           return
         }

@@ -143,6 +143,11 @@ export function convertClipboardHtmlToMarkdown(html: string, plainText = ''): st
   return convertedMarkdown
 }
 
+export function hasCollapsedDetailsWithOmittedBody(html: string): boolean {
+  const root = parseClipboardHtml(html)
+  return root ? hasCollapsedDetailsWithOmittedBodyNode(root) : false
+}
+
 export function renderClipboardHtmlAstToMarkdown(root: ClipboardHtmlAstNode): string {
   return serializeBlocks(root.children, { listDepth: 0 }).join('\n\n')
 }
@@ -178,12 +183,17 @@ function domNodeToAst(node: Node): ClipboardHtmlAstNode | null {
 
   const element = node as Element
   const tagName = element.tagName.toLowerCase()
-  if (SKIPPED_TAGS.has(tagName)) return null
-
   const attributes = Array.from(element.attributes).reduce<Record<string, string>>((acc, attribute) => {
     acc[attribute.name.toLowerCase()] = attribute.value
     return acc
   }, {})
+
+  if (tagName === 'iframe') {
+    if (shouldSkipElementByVisibility(tagName, attributes)) return null
+    return recoverQiitaLinkCardIframe(attributes)
+  }
+
+  if (SKIPPED_TAGS.has(tagName)) return null
 
   // Skip decorative / hidden elements that documentation sites inject into headings and content:
   //   - aria-hidden="true"   (screen-reader hidden, typically icons)
@@ -191,15 +201,7 @@ function domNodeToAst(node: Node): ClipboardHtmlAstNode | null {
   //   - role="presentation" / "none"
   //   - inline style "display:none" or "visibility:hidden"
   // Images keep their own semantics (alt text) so we don't strip them here.
-  if (tagName !== 'img') {
-    if ((attributes['aria-hidden'] ?? '').toLowerCase() === 'true') return null
-    if ('hidden' in attributes) return null
-    const role = (attributes['role'] ?? '').toLowerCase()
-    if (role === 'presentation' || role === 'none') return null
-    const style = attributes['style'] ?? ''
-    if (/(?:^|;)\s*display\s*:\s*none\b/i.test(style)) return null
-    if (/(?:^|;)\s*visibility\s*:\s*hidden\b/i.test(style)) return null
-  }
+  if (shouldSkipElementByVisibility(tagName, attributes)) return null
 
   // Anchor targets: <a id="..."></a> or <a name="..."></a> with no href. These are landmarks,
   // not links, and should be dropped (mirrors Typora's paste behavior).
@@ -218,6 +220,64 @@ function domNodeToAst(node: Node): ClipboardHtmlAstNode | null {
       .map((child) => domNodeToAst(child))
       .filter((child): child is ClipboardHtmlAstNode => child !== null),
   }
+}
+
+function shouldSkipElementByVisibility(tagName: string, attributes: Record<string, string>): boolean {
+  if (tagName === 'img') return false
+  if ((attributes['aria-hidden'] ?? '').toLowerCase() === 'true') return true
+  if ('hidden' in attributes) return true
+
+  const role = (attributes['role'] ?? '').toLowerCase()
+  if (role === 'presentation' || role === 'none') return true
+
+  const style = attributes['style'] ?? ''
+  if (/(?:^|;)\s*display\s*:\s*none\b/i.test(style)) return true
+  if (/(?:^|;)\s*visibility\s*:\s*hidden\b/i.test(style)) return true
+
+  return false
+}
+
+function recoverQiitaLinkCardIframe(attributes: Record<string, string>): ClipboardHtmlAstNode | null {
+  const src = sanitizeUrl(attributes.src)
+  if (!/^(?:https?:)?\/\/qiita\.com\/embed-contents\/link-card(?:[/?#]|$)/i.test(src)) return null
+
+  const href = extractQiitaLinkCardTarget(attributes['data-content'])
+  if (!href) return null
+
+  return {
+    type: 'element',
+    tagName: 'a',
+    attributes: { href },
+    children: [
+      {
+        type: 'text',
+        textContent: href,
+        children: [],
+      },
+    ],
+  }
+}
+
+function extractQiitaLinkCardTarget(value?: string): string {
+  const decoded = decodeUriComponentBestEffort(value?.trim() ?? '')
+  const href = sanitizeUrl(decoded)
+  return /^https?:\/\//i.test(href) ? href : ''
+}
+
+function decodeUriComponentBestEffort(value: string): string {
+  let decoded = value
+
+  for (let index = 0; index < 2; index += 1) {
+    try {
+      const nextValue = decodeURIComponent(decoded)
+      if (nextValue === decoded) break
+      decoded = nextValue
+    } catch {
+      break
+    }
+  }
+
+  return decoded
 }
 
 function shouldPreferPlainText(root: ClipboardHtmlAstNode, plainText: string): boolean {
@@ -545,6 +605,7 @@ function serializeLink(node: ClipboardHtmlAstNode, context: { listDepth: number 
     if (/^#/.test(href) || isDecorativeAnchor(node)) return ''
     return `<${href}>`
   }
+  if (content === href) return `<${href}>`
   return `[${content}](${formatMarkdownDestination(href)})`
 }
 
@@ -591,6 +652,26 @@ function serializeDetailsNode(node: ClipboardHtmlAstNode, context: { listDepth: 
 
   lines.push('</details>')
   return lines.join('\n')
+}
+
+function hasCollapsedDetailsWithOmittedBodyNode(node: ClipboardHtmlAstNode): boolean {
+  if (node.type === 'element' && node.tagName === 'details' && !hasAttribute(node.attributes, 'open', '')) {
+    const summaryNode = node.children.find(
+      (child): child is ClipboardHtmlAstNode => child.type === 'element' && child.tagName === 'summary'
+    )
+    const bodyChildren = node.children.filter((child) => child !== summaryNode)
+
+    if (summaryNode && bodyChildren.every(isEmptyClipboardHtmlNode)) {
+      return true
+    }
+  }
+
+  return node.children.some((child) => hasCollapsedDetailsWithOmittedBodyNode(child))
+}
+
+function isEmptyClipboardHtmlNode(node: ClipboardHtmlAstNode): boolean {
+  if (node.type === 'text') return (node.textContent ?? '').trim() === ''
+  return node.children.every(isEmptyClipboardHtmlNode)
 }
 
 function serializeCodeBlock(node: ClipboardHtmlAstNode, languageHint = ''): string {
