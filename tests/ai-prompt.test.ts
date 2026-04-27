@@ -101,7 +101,7 @@ test('buildAIRequestMessages does not expose explicit attached context sections 
   assert.doesNotMatch(messages[1].content, /Attached workspace search/u)
 })
 
-test('buildAIRequestMessages includes hidden slash-command prefix context without exposing it as selected text', () => {
+test('buildAIRequestMessages sends only the user instruction when there is no explicit input context', () => {
   const messages = buildAIRequestMessages({
     prompt: 'Continue from here.',
     context: {
@@ -111,44 +111,32 @@ test('buildAIRequestMessages includes hidden slash-command prefix context withou
       outputTarget: 'at-cursor',
       selectedText: undefined,
       selectedTextRole: undefined,
-      slashCommandContext: {
-        strategy: 'before-trigger',
-        text: '# Intro\n\nLead paragraph.',
-        isEmpty: false,
-      },
     },
   })
 
-  assert.match(messages[1].content, /Input source: slash-prefix/u)
-  assert.match(messages[1].content, /Input role: continuation-context/u)
-  assert.match(messages[1].content, /<input_content>/u)
-  assert.match(messages[1].content, /Lead paragraph\./u)
+  assert.match(messages[1].content, /User instruction:\nContinue from here\./u)
+  assert.doesNotMatch(messages[1].content, /Input source:/u)
+  assert.doesNotMatch(messages[1].content, /Input role:/u)
+  assert.doesNotMatch(messages[1].content, /<input_content>/u)
   assert.doesNotMatch(messages[1].content, /Selected text/u)
   assert.doesNotMatch(messages[1].content, /Before context/u)
-  assert.doesNotMatch(messages[1].content, /Slash command context \(hidden from the composer UI, content before the "\/" trigger\):/u)
 })
 
-test('buildAIRequestMessages prioritizes slash-prefix input over selected text when both are present', () => {
+test('buildAIRequestMessages keeps selected text as the only implicit input context', () => {
   const messages = buildAIRequestMessages({
-    prompt: 'Continue from here.',
+    prompt: 'Explain this.',
     context: {
       ...baseContext,
-      selectedText: 'This selection should be ignored.',
+      selectedText: 'This selection should be used.',
       selectedTextRole: 'reference-only',
-      slashCommandContext: {
-        strategy: 'before-trigger',
-        text: '# Intro\n\nLead paragraph.',
-        isEmpty: false,
-      },
     },
   })
 
-  assert.match(messages[1].content, /Input source: slash-prefix/u)
-  assert.match(messages[1].content, /Input role: continuation-context/u)
-  assert.match(messages[1].content, /Lead paragraph\./u)
-  assert.doesNotMatch(messages[1].content, /This selection should be ignored\./u)
-  assert.doesNotMatch(messages[1].content, /Input source: selected-text/u)
-  assert.doesNotMatch(messages[1].content, /Input role: reference-only/u)
+  assert.match(messages[1].content, /Input source: selected-text/u)
+  assert.match(messages[1].content, /Input role: reference-only/u)
+  assert.match(messages[1].content, /This selection should be used\./u)
+  assert.doesNotMatch(messages[1].content, /slash-prefix/u)
+  assert.doesNotMatch(messages[1].content, /continuation-context/u)
 })
 
 test('normalizeAIDraftText removes surrounding markdown fences for insertion targets', () => {

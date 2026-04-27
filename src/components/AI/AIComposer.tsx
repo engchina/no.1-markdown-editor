@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAIStore } from '../../store/ai'
 import { useActiveTab, useEditorStore } from '../../store/editor'
-import { dispatchEditorAIApply } from '../../lib/ai/events.ts'
+import { dispatchEditorAIApply, dispatchEditorAISetupOpen } from '../../lib/ai/events.ts'
 import { diffTextByLine } from '../../lib/lineDiff.ts'
 import { buildAIComposerContextPacket } from '../../lib/ai/context.ts'
 import { normalizeAIDraftText } from '../../lib/ai/prompt.ts'
@@ -23,7 +23,15 @@ import { focusElementWithoutScroll } from '../../hooks/useDialogFocusRestore'
 import AIWorkspaceExecutionPanel from './AIWorkspaceExecutionPanel'
 import { useAIWorkspaceExecution } from './useAIWorkspaceExecution'
 import { useAIComposerRuntime } from './useAIComposerRuntime'
-import AIComposerCoreView, { type AIComposerContentTypography } from './AIComposerCoreView'
+import AIComposerCoreView, {
+  type AIComposerContentTypography,
+  type AIComposerFrameBounds,
+} from './AIComposerCoreView'
+
+type AIResultPrimaryAction = 'replace' | 'insert' | 'new-note'
+
+const AI_COMPOSER_SOURCE_SURFACE_SELECTOR = '[data-source-editor-surface="true"], .cm-editor'
+const DEFAULT_AI_COMPOSER_FRAME_BOUNDS: AIComposerFrameBounds = { top: 0, bottom: 0 }
 
 function resolveAIComposerContentLineHeight(fontSize: number): number {
   if (fontSize <= 12) return 1.55
@@ -54,8 +62,10 @@ export default function AIComposer() {
   const { t } = useTranslation()
   const activeTab = useActiveTab()
   const viewMode = useEditorStore((state) => state.viewMode)
+  const zoom = useEditorStore((state) => state.zoom)
   const fontSize = useEditorStore((state) => state.fontSize)
   const aiDefaultWriteTarget = useEditorStore((state) => state.aiDefaultWriteTarget)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pendingPromptSelectionRef = useRef<number | null>(null)
   const {
@@ -70,6 +80,9 @@ export default function AIComposer() {
   const initialTemplatePromptRef = useRef<string | null>(composer.prompt)
   const [resultView, setResultView] = useState<AIResultView>('draft')
   const [retrievalPanelOpen, setRetrievalPanelOpen] = useState(false)
+  const [composerFrameBounds, setComposerFrameBounds] = useState<AIComposerFrameBounds>(() =>
+    resolveAIComposerSourceFrameBounds()
+  )
 
   const effectivePrompt = composer.prompt.trim()
   const hasSelection = !!composer.context?.selectedText
@@ -88,9 +101,7 @@ export default function AIComposer() {
   const replaceActionTarget: Extract<AIInsertTarget, 'replace-selection' | 'replace-current-block'> | null =
     hasSelection ? 'replace-selection' : hasCurrentBlock ? 'replace-current-block' : null
   const canReplaceCurrentTarget = replaceActionTarget !== null && composer.draftFormat !== 'sql'
-  const slashCommandContext = effectiveContext?.slashCommandContext ?? null
-  const hasSlashCommandContext = slashCommandContext !== null && !slashCommandContext.isEmpty
-  const showSlashCommandHint = composer.source === 'slash-command' && slashCommandContext !== null
+  const showPromptOnlyContextHint = composer.source === 'slash-command' && !effectiveContext?.selectedText
   const normalizedDraft =
     composer.draftFormat === 'sql'
       ? composer.draftText.trim()
@@ -195,10 +206,15 @@ export default function AIComposer() {
       : composer.outputTarget === 'new-note'
         ? 'new-note'
         : 'insert'
-  const currentDocumentResultActionStyle = {
+  const currentDocumentPrimaryResultActionStyle = {
     background: 'var(--accent)',
     color: 'white',
     border: '1px solid var(--accent)',
+  }
+  const currentDocumentSecondaryResultActionStyle = {
+    background: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)',
+    color: 'var(--text-primary)',
+    border: '1px solid color-mix(in srgb, var(--border) 88%, transparent)',
   }
   const runShortcutLabel = formatPrimaryShortcut('Enter')
   const applyShortcutLabel = formatPrimaryShortcut('Enter', { shift: true })
@@ -212,6 +228,57 @@ export default function AIComposer() {
 
   useEffect(() => {
     focusElementWithoutScroll(textareaRef.current)
+  }, [])
+
+  useLayoutEffect(() => {
+    let resizeObserver: ResizeObserver | null = null
+    let rafId: number | null = null
+
+    const updateFrameBounds = () => {
+      rafId = null
+      const nextBounds = resolveAIComposerSourceFrameBounds()
+      setComposerFrameBounds((currentBounds) =>
+        areAIComposerFrameBoundsEqual(currentBounds, nextBounds) ? currentBounds : nextBounds
+      )
+    }
+
+    const scheduleFrameBoundsUpdate = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(updateFrameBounds)
+    }
+
+    updateFrameBounds()
+    window.addEventListener('resize', scheduleFrameBoundsUpdate)
+    window.addEventListener('orientationchange', scheduleFrameBoundsUpdate)
+
+    const sourceSurface = getAIComposerSourceSurface()
+    if (sourceSurface && typeof ResizeObserver === 'function') {
+      resizeObserver = new ResizeObserver(scheduleFrameBoundsUpdate)
+      resizeObserver.observe(sourceSurface)
+    }
+
+    return () => {
+      window.removeEventListener('resize', scheduleFrameBoundsUpdate)
+      window.removeEventListener('orientationchange', scheduleFrameBoundsUpdate)
+      resizeObserver?.disconnect()
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
+  }, [viewMode, zoom])
+
+  useEffect(() => {
+    const onFocusIn = (event: FocusEvent) => {
+      const dialog = dialogRef.current
+      if (!dialog) return
+
+      const target = event.target
+      if (target instanceof Node && dialog.contains(target)) return
+
+      const focusTarget = getAIComposerFocusableElements(dialog)[0] ?? dialog
+      focusElementWithoutScroll(focusTarget)
+    }
+
+    document.addEventListener('focusin', onFocusIn)
+    return () => document.removeEventListener('focusin', onFocusIn)
   }, [])
 
   useEffect(() => {
@@ -250,6 +317,8 @@ export default function AIComposer() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (trapAIComposerTabFocus(event, dialogRef.current)) return
+
       if (event.key === 'Escape') {
         event.preventDefault()
         void handleCloseComposer()
@@ -279,11 +348,18 @@ export default function AIComposer() {
     closeComposer()
   }
 
+  async function handleOpenAISetup() {
+    if (composer.requestState === 'streaming') {
+      await handleCancelRequest()
+    }
+    closeComposer()
+    dispatchEditorAISetupOpen()
+  }
+
   function applyTemplate(template: AITemplateModel) {
     const resolution = resolveAIComposerTemplateResolution(template, {
       hasSelection,
       hasCurrentBlock,
-      hasSlashCommandContext,
       aiDefaultWriteTarget,
     })
     if (!resolution.enabled) return
@@ -295,6 +371,12 @@ export default function AIComposer() {
     pendingPromptSelectionRef.current = nextPrompt.length
     setPrompt(nextPrompt)
     setResultView('draft')
+  }
+
+  function getCurrentDocumentResultActionStyle(action: AIResultPrimaryAction) {
+    return preferredResultAction === action
+      ? currentDocumentPrimaryResultActionStyle
+      : currentDocumentSecondaryResultActionStyle
   }
 
   function handleApply() {
@@ -347,14 +429,15 @@ export default function AIComposer() {
 
   return (
     <AIComposerCoreView
+      dialogRef={dialogRef}
+      composerFrameBounds={composerFrameBounds}
       composer={composer}
       promptPlaceholder={promptPlaceholder}
       composerContentTypography={composerContentTypography}
       showConnectionHint={showConnectionHint}
       connectionHintTitle={connectionHintTitle}
       connectionHintMessage={connectionHintMessage}
-      showSlashCommandHint={showSlashCommandHint}
-      slashCommandContext={slashCommandContext}
+      showPromptOnlyContextHint={showPromptOnlyContextHint}
       oracleProviderConfig={oracleProviderConfig}
       knowledgeType={knowledgeType}
       hasWorkspaceExecutionTasks={hasWorkspaceExecutionTasks}
@@ -369,7 +452,6 @@ export default function AIComposer() {
       normalizedDraft={normalizedDraft}
       hasSelection={hasSelection}
       hasCurrentBlock={hasCurrentBlock}
-      hasSlashCommandContext={hasSlashCommandContext}
       aiDefaultWriteTarget={aiDefaultWriteTarget}
       templateModels={templateModels}
       resultView={resultView}
@@ -387,11 +469,12 @@ export default function AIComposer() {
       replaceActionTarget={replaceActionTarget}
       defaultInsertTarget={defaultInsertTarget}
       preferredResultAction={preferredResultAction}
-      currentDocumentResultActionStyle={currentDocumentResultActionStyle}
+      getCurrentDocumentResultActionStyle={getCurrentDocumentResultActionStyle}
       runShortcutLabel={runShortcutLabel}
       applyShortcutLabel={applyShortcutLabel}
       selectedHostedAgentProfileId={composer.hostedAgentProfileId}
       onClose={handleCloseComposer}
+      onOpenAISetup={handleOpenAISetup}
       onCancelRequest={handleCancelRequest}
       onRun={handleSubmit}
       onResetAndClose={() => {
@@ -422,9 +505,103 @@ export default function AIComposer() {
     />
   )
 }
+
+function getAIComposerSourceSurface(): HTMLElement | null {
+  if (typeof document === 'undefined') return null
+  return document.querySelector<HTMLElement>(AI_COMPOSER_SOURCE_SURFACE_SELECTOR)
+}
+
+function resolveAIComposerSourceFrameBounds(): AIComposerFrameBounds {
+  if (typeof window === 'undefined') return DEFAULT_AI_COMPOSER_FRAME_BOUNDS
+
+  const sourceSurface = getAIComposerSourceSurface()
+  if (!sourceSurface) return DEFAULT_AI_COMPOSER_FRAME_BOUNDS
+
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) {
+    return DEFAULT_AI_COMPOSER_FRAME_BOUNDS
+  }
+
+  const rect = sourceSurface.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) {
+    return DEFAULT_AI_COMPOSER_FRAME_BOUNDS
+  }
+
+  const top = clampAIComposerFrameInset(Math.round(rect.top), viewportHeight)
+  const bottom = clampAIComposerFrameInset(Math.round(viewportHeight - rect.bottom), viewportHeight)
+
+  if (top + bottom >= viewportHeight) return DEFAULT_AI_COMPOSER_FRAME_BOUNDS
+  return { top, bottom }
+}
+
+function clampAIComposerFrameInset(value: number, viewportHeight: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(Math.max(value, 0), viewportHeight)
+}
+
+function areAIComposerFrameBoundsEqual(
+  currentBounds: AIComposerFrameBounds,
+  nextBounds: AIComposerFrameBounds
+): boolean {
+  return currentBounds.top === nextBounds.top && currentBounds.bottom === nextBounds.bottom
+}
+
 function buildTemplatePromptDraft(prompt: string): string {
   const trimmedPrompt = prompt.trimEnd()
   if (!trimmedPrompt) return ''
   return `${trimmedPrompt}\n`
+}
+
+function getAIComposerFocusableElements(dialog: HTMLElement): HTMLElement[] {
+  const focusableSelector = [
+    'a[href]',
+    'button:not([disabled])',
+    'textarea:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(',')
+
+  return Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => {
+    if (element.getAttribute('aria-hidden') === 'true') return false
+    return element.getClientRects().length > 0
+  })
+}
+
+function trapAIComposerTabFocus(event: KeyboardEvent, dialog: HTMLElement | null): boolean {
+  if (event.key !== 'Tab' || !dialog) return false
+
+  const focusableElements = getAIComposerFocusableElements(dialog)
+  const fallbackFocusTarget = focusableElements[0] ?? dialog
+  const activeElement = document.activeElement
+
+  if (!(activeElement instanceof HTMLElement) || !dialog.contains(activeElement)) {
+    event.preventDefault()
+    focusElementWithoutScroll(fallbackFocusTarget)
+    return true
+  }
+
+  if (focusableElements.length === 0) {
+    event.preventDefault()
+    focusElementWithoutScroll(dialog)
+    return true
+  }
+
+  const firstElement = focusableElements[0]
+  const lastElement = focusableElements[focusableElements.length - 1]
+
+  if (event.shiftKey && activeElement === firstElement) {
+    event.preventDefault()
+    focusElementWithoutScroll(lastElement)
+    return true
+  }
+
+  if (!event.shiftKey && activeElement === lastElement) {
+    event.preventDefault()
+    focusElementWithoutScroll(firstElement)
+    return true
+  }
+
+  return false
 }
 

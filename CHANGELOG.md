@@ -20,6 +20,25 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.19.2 - 2026-04-27
+
+### Added
+
+- The AI Composer desktop-only fallback now includes a direct Open AI Setup action, so users can move from a blocked AI request to provider configuration without hunting through general settings.
+
+### Changed
+
+- The AI Composer dialog now stays vertically bounded inside the source editor surface and keeps result actions wrapped on compact screens.
+- Slash-command AI entry now stays prompt-only unless explicit editor context is attached, preventing text before the `/` trigger from being sent as hidden request context.
+
+### Fixed
+
+- AI Composer keyboard focus now remains inside the modal while it is open, improving keyboard navigation and preventing accidental focus leaks back into the editor.
+
+### Internal
+
+- Added AI smoke, i18n smoke, manual QA capture, and wiring coverage for the setup shortcut, source-bounded composer frame, mobile result actions, modal focus containment, and prompt-only slash-command behavior.
+
 ## 0.19.1 - 2026-04-26
 
 ### Added

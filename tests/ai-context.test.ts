@@ -108,7 +108,7 @@ test('buildAIContextPacket captures selection, heading path, front matter, and n
   assert.match(packet.afterText ?? '', /Another line\./u)
 })
 
-test('buildAIComposerContextPacket rebuilds current-block transform context from the captured snapshot', () => {
+test('buildAIComposerContextPacket rebuilds current-block transform context from the captured snapshot without slash-prefix carryover', () => {
   const from = sampleDocument.indexOf('Target sentence for editing.')
   const to = from + 'Target sentence for editing.'.length
   const baseContext = buildAIContextPacket({
@@ -119,11 +119,6 @@ test('buildAIComposerContextPacket rebuilds current-block transform context from
     outputTarget: 'replace-selection',
     selection: { from, to },
   })
-  baseContext.slashCommandContext = {
-    strategy: 'before-trigger',
-    text: '# Intro\n\nLead paragraph.',
-    isEmpty: false,
-  }
   const context = buildAIComposerContextPacket({
     baseContext,
     sourceSnapshot: {
@@ -145,7 +140,7 @@ test('buildAIComposerContextPacket rebuilds current-block transform context from
   assert.equal(context?.outputTarget, 'replace-current-block')
   assert.equal(context?.selectedText, undefined)
   assert.equal(context?.currentBlock, ['Target sentence for editing.', 'Another line.'].join('\n'))
-  assert.equal(context?.slashCommandContext?.text, '# Intro\n\nLead paragraph.')
+  assert.equal('slashCommandContext' in (context ?? {}), false)
 })
 
 test('parseAIPromptMentions strips explicit context directives from the user instruction', () => {

@@ -299,7 +299,8 @@
   },
   "ai": {
     "setup": {
-      "title": "AI Setup"
+      "title": "AI Setup",
+      "open": "Open AI Setup"
     },
     "title": "AI Composer",
     "promptLabel": "Prompt",
@@ -362,10 +363,6 @@
       "command-palette": "Command Palette",
       "slash-command": "Slash Command"
     },
-    "slashContext": {
-      "attachedMessage": "Text before \"/\" is sent as hidden context.",
-      "emptyMessage": "No text before \"/\" to attach."
-    },
     "context": {
       "selection": "Selection",
       "block": "Block",
@@ -373,7 +370,8 @@
       "note": "Note",
       "search": "Search",
       "language": "Document Language",
-      "frontMatter": "Front Matter"
+      "frontMatter": "Front Matter",
+      "promptOnly": "No context attached. AI will only receive your instruction."
     },
     "documentLanguageValue": {
       "en": "English",
@@ -399,9 +397,8 @@
     "target": {
       "selection": "Selection",
       "currentBlock": "Current Block",
-      "slashContext": "Slash Context",
       "unavailable": "No Target",
-      "transformHint": "Select text, place the cursor inside a block, or keep non-empty content before the \"/\" trigger to use these actions."
+      "transformHint": "Select text or place the cursor inside a processable text block to use these actions."
     },
     "preferences": {
       "defaultWriteTarget": "Default Write Target",
@@ -837,7 +834,7 @@
     "openMultipleFilesErrorTitle": "Some files couldn't be opened",
     "openMultipleFilesErrorMessage": "{{count}} of {{total}} files failed to open. Check the file paths and try again.",
     "aiProviderMissingTitle": "AI setup required",
-    "aiProviderMissingMessage": "Open Settings and finish your AI provider setup before running AI actions.",
+    "aiProviderMissingMessage": "Open AI Setup and finish your provider configuration before running AI actions.",
     "aiDesktopOnlyTitle": "Desktop app required",
     "aiDesktopOnlyMessage": "AI provider settings and requests are only available in the desktop app right now.",
     "aiConnectionSavedTitle": "AI connection saved",

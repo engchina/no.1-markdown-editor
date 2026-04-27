@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.19.0`.
+This document is a draft for the next public release after `v0.19.1`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,71 +8,79 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.19.1`
+`No.1 Markdown Editor v0.19.2`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.19.1 improves source fidelity for WYSIWYG blockquotes and keeps update prompts usable on smaller windows. It is a focused patch for writers who rely on Markdown quote structure and need release notes or update actions to stay reachable in constrained desktop layouts.
+No.1 Markdown Editor v0.19.2 improves the AI Composer flow for compact editor layouts, setup recovery, and slash-command privacy. It is a focused patch for writers using AI-assisted editing who need the composer to stay inside the writing surface, keep actions reachable, avoid accidental hidden context, and move directly to provider setup when the desktop AI bridge is required.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- WYSIWYG blockquotes now keep lazy paragraph continuation lines visually quoted.
-- The update available dialog now keeps release notes scrollable and action buttons reachable in compact window heights.
-- Regression coverage now guards lazy blockquote continuations and compact update dialog layout.
+- The AI Composer now stays vertically bounded inside the source editor surface.
+- Compact and mobile-width composer result actions now wrap without horizontal overflow.
+- Desktop-only AI fallback messaging now includes a direct Open AI Setup action.
+- Keyboard focus now remains contained inside the AI Composer while the modal is open.
+- Slash-command AI entry now sends only the typed instruction unless explicit editor context is attached.
 
 ### Why This Release Matters
 
-Markdown blockquotes can span paragraph continuation lines without repeating `>` markers. This release makes the WYSIWYG surface follow that Markdown structure more closely, while also keeping update prompts practical on short laptop or split-screen windows.
+AI-assisted editing should feel like part of the writing surface rather than an overlay that escapes it. This release keeps the composer aligned with the editor, makes action rows more resilient in tight windows, and removes hidden slash-prefix context so users can see what the AI will receive.
 
 ### User-Facing Improvements
 
 #### Writing and Editing
 
-- Lazy continuation lines inside Markdown blockquotes stay visually connected to the quote in WYSIWYG mode.
-- Nested quote continuation depth is preserved when only part of the quote marker sequence appears on the following line.
+- The AI Composer frame now respects the source editor's vertical bounds.
+- Result actions such as retry, copy, replace, insert, and new note remain usable on compact viewports.
+- Tab and Shift+Tab navigation stay within the AI Composer until the dialog is closed.
+- Slash commands now act as command triggers only; text before the `/` trigger is no longer attached as hidden request context.
 
 #### Markdown Workspace
 
-- No workspace-surface changes in this patch release.
+- No Markdown workspace file-model changes in this patch release.
 
 #### Performance and Reliability
 
-- Update release notes scroll within the dialog so download, skip, and cancel actions remain reachable on compact screens.
+- Web-mode AI fallback now points directly to AI Setup, keeping provider configuration easier to find.
+- AI smoke coverage now checks source-bounded layout, focus containment, mobile overflow, setup-panel routing, and prompt-only slash-command behavior.
 
 #### AI and Writing Quality
 
-- No AI-surface changes in this patch release.
+- AI setup copy is updated across English, Japanese, and Chinese locales.
 
 ### Recommended Screenshots For Release Page
 
-- WYSIWYG blockquote with a lazy continuation line beside preview.
-- Update available dialog in a short window showing scrollable release notes and visible actions.
+- AI Composer open in a short editor window, visibly bounded inside the source editor.
+- AI Composer result actions on a mobile-width viewport.
+- Desktop-only fallback message with the Open AI Setup action.
+- Slash-command AI Composer showing the prompt-only context hint.
 
 ### Suggested "Upgrade Notes" Section
 
 - No migration steps are required.
-- This release keeps existing editing modes and update actions unchanged while improving their behavior.
+- Existing AI provider settings and editor documents are unchanged.
 
 ### Suggested "Who Should Update" Section
 
 This release is especially relevant for users who:
 
-- maintain multi-note Markdown projects
-- care about source fidelity and desktop reliability
-- write quoted Markdown prose with lazy continuation lines
+- use AI Composer in split-screen, short-window, or mobile-width layouts
+- configure AI providers from the desktop app
+- rely on keyboard navigation inside modal workflows
+- prefer visible, explicit AI context over hidden slash-prefix carryover
 
 ## Packaging Checklist Before Release
 
 - Fill this draft using the current `CHANGELOG.md` `## Unreleased` section.
-- Run `npm run release:prepare -- 0.19.1` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:prepare -- 0.19.2` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
 - Confirm the final version in:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
 - Run `npm run release:validate` after the version bump so local metadata checks, changelog checks, and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.19.1` if you want to inspect the generated GitHub release body before pushing the tag.
-- Review the `0.19.1` release notes before tagging.
+- Run `npm run release:notes:preview -- 0.19.2` if you want to inspect the generated GitHub release body before pushing the tag.
+- Review the `0.19.2` release notes before tagging.
 - Capture fresh screenshots for the product surfaces this release highlights.
-- After the release is published, run `npm run release:draft:advance -- 0.19.1` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- After the release is published, run `npm run release:draft:advance -- 0.19.2` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

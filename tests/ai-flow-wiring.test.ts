@@ -19,6 +19,9 @@ test('AIComposer exposes draft and diff result views plus explicit replace, inse
   assert.match(core, /data-ai-action="insert"/)
   assert.match(core, /data-ai-action="new-note"/)
   assert.match(composer, /replaceActionTarget/)
+  assert.match(composer, /currentDocumentPrimaryResultActionStyle/)
+  assert.match(composer, /currentDocumentSecondaryResultActionStyle/)
+  assert.match(composer, /preferredResultAction === action/)
   assert.match(composer, /handleApplyToTarget\(defaultInsertTarget\)/)
   assert.match(composer, /handleApplyToTarget\('new-note'\)/)
   assert.match(core, /data-ai-current-output-target="true"/)
@@ -33,6 +36,52 @@ test('AIComposer exposes retry, discard, stop, and copy actions in the toolbar',
   assert.match(core, /t\('ai\.discard'\)/)
   assert.match(core, /t\('ai\.stop'\)/)
   assert.match(core, /t\('ai\.copy'\)/)
+})
+
+test('AI Playwright smoke scripts track current composer fallback and manual QA result state', async () => {
+  const [smoke, i18nSmoke, manualCapture] = await Promise.all([
+    readFile(new URL('../scripts/run-ai-smoke.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../scripts/run-ai-i18n-smoke.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../scripts/run-ai-manual-qa-capture.mjs', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(smoke, /Desktop app required/)
+  assert.match(smoke, /AI provider settings and requests are only available in the desktop app right now\./)
+  assert.match(smoke, /assertAIComposerMobileResultLayout\(page\)/)
+  assert.match(smoke, /MOBILE_VIEWPORT = \{ width: 375, height: 812 \}/)
+  assert.match(smoke, /waitForNoHorizontalOverflow\(page, '\[data-ai-result-actions="true"\]'\)/)
+  assert.match(smoke, /waitForAIComposerWithinSourceEditor\(page\)/)
+  assert.match(smoke, /assertAIComposerTabFocusContained\(page\)/)
+  assert.match(smoke, /async function isEditorFocused\(page\)/)
+  assert.match(smoke, /if \(!\(await isEditorFocused\(page\)\)\)/)
+  assert.match(i18nSmoke, /composerFallbackLabel/)
+  assert.match(i18nSmoke, /openSetupLabel/)
+  assert.match(i18nSmoke, /await expectLocatorText\(composer, locale\.composerFallbackLabel\)/)
+  assert.match(i18nSmoke, /data-ai-action="open-ai-setup"/)
+  assert.match(manualCapture, /const applyVisible = hasResultTargets/)
+  assert.match(manualCapture, /applyVisible,/)
+  assert.match(manualCapture, /composerWithinSourceBounds/)
+})
+
+test('AIComposer bounds its modal frame to the source editor surface with vertical edge gaps', async () => {
+  const [composer, core, editor] = await Promise.all([
+    readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/AI/AIComposerCoreView.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(editor, /data-source-editor-surface="true"/)
+  assert.match(composer, /AI_COMPOSER_SOURCE_SURFACE_SELECTOR = '\[data-source-editor-surface="true"\], \.cm-editor'/)
+  assert.match(composer, /resolveAIComposerSourceFrameBounds\(\)/)
+  assert.match(composer, /composerFrameBounds=\{composerFrameBounds\}/)
+  assert.match(core, /const AI_COMPOSER_SOURCE_EDGE_GAP_PX = 16/)
+  assert.match(core, /data-ai-composer-frame="source-editor"/)
+  assert.match(core, /top: `\$\{composerFrameBounds\.top\}px`/)
+  assert.match(core, /bottom: `\$\{composerFrameBounds\.bottom\}px`/)
+  assert.match(core, /paddingTop: `\$\{AI_COMPOSER_SOURCE_EDGE_GAP_PX\}px`/)
+  assert.match(core, /paddingBottom: `\$\{AI_COMPOSER_SOURCE_EDGE_GAP_PX\}px`/)
+  assert.match(core, /minHeight: 'min\(540px, 100%\)'/)
+  assert.match(core, /maxHeight: '100%'/)
 })
 
 test('AIComposer separates the form scroller from the bounded result panel', async () => {
@@ -52,6 +101,9 @@ test('AIComposer separates the form scroller from the bounded result panel', asy
   assert.match(core, /<AppIcon name="chevronRight" size=\{16\} \/>/)
   assert.match(core, /data-ai-result-panel="true"/)
   assert.match(core, /data-ai-result-body="true"/)
+  assert.match(core, /data-ai-result-actions="true"/)
+  assert.match(core, /className="flex min-w-0 flex-1 basis-full flex-wrap items-center gap-1\.5 sm:flex-none sm:basis-auto sm:justify-end"/)
+  assert.match(core, /className="max-w-full shrink-0 truncate rounded-lg/)
   assert.match(core, /showResultPanel && hasRetrievalDetails && !composer\.errorMessage && !workspaceExecutionPanel/)
   assert.match(composer, /const promptRows = showResultPanel \? 3 : 4/)
   assert.match(composer, /const promptMinHeight = showResultPanel \? '96px' : '124px'/)
@@ -70,6 +122,10 @@ test('AIComposer keeps AI connection setup in a dedicated AI setup panel and rem
   ])
 
   assert.match(core, /data-ai-setup-hint="true"/)
+  assert.match(core, /data-ai-action="open-ai-setup"/)
+  assert.match(core, /t\('ai\.setup\.open'\)/)
+  assert.match(composer, /dispatchEditorAISetupOpen/)
+  assert.match(composer, /async function handleOpenAISetup\(\)/)
   assert.doesNotMatch(core, /setConnectionOpen\(/)
   assert.doesNotMatch(core, /t\('ai\.connection\.toggle'\)/)
   assert.doesNotMatch(core, /t\('ai\.connection\.save'\)/)

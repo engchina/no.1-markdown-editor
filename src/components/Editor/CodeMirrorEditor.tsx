@@ -54,7 +54,6 @@ import {
   type EditorAIOpenDetail,
 } from '../../lib/ai/events.ts'
 import { matchAISlashCommandQuery } from '../../lib/ai/slashCommands.ts'
-import { buildAISlashCommandContext } from '../../lib/ai/slashCommands.ts'
 import { resolveAIOpenOutputTarget, resolveAISelectedTextRole } from '../../lib/ai/opening.ts'
 import {
   DEFAULT_AI_SELECTION_BUBBLE_SIZE,
@@ -1215,12 +1214,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
           scope: finalScope,
         }
       }
-      if (detail.source === 'slash-command') {
-        context = {
-          ...context,
-          slashCommandContext: buildAISlashCommandContext(snapshot.docText, snapshot.anchorOffset),
-        }
-      }
       const threadId = useAIStore.getState().getThreadId(activeTab.id, activeTab.path)
       aiComposerRestoreSnapshotRef.current = {
         selection: view.state.selection,
@@ -1583,7 +1576,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   }, [cancelGhostTextRequest])
 
   return (
-    <div ref={shellRef} className="relative h-full flex flex-col overflow-hidden">
+    <div ref={shellRef} data-source-editor-surface="true" className="relative h-full flex flex-col overflow-hidden">
       {searchOpen && (
         <SearchBar
           editorView={viewRef.current}

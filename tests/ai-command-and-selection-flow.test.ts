@@ -64,6 +64,10 @@ test('AIComposer exposes explicit replace, insert, and new-note result actions w
   assert.match(core, /data-ai-action="insert"/)
   assert.match(core, /data-ai-action="new-note"/)
   assert.match(composer, /replaceActionTarget/)
+  assert.match(composer, /function getCurrentDocumentResultActionStyle\(action: AIResultPrimaryAction\)/)
+  assert.match(core, /style=\{getCurrentDocumentResultActionStyle\('replace'\)\}/)
+  assert.match(core, /style=\{getCurrentDocumentResultActionStyle\('insert'\)\}/)
+  assert.match(core, /style=\{getCurrentDocumentResultActionStyle\('new-note'\)\}/)
   assert.match(composer, /handleApplyToTarget\(defaultInsertTarget\)/)
   assert.match(composer, /handleApplyToTarget\('new-note'\)/)
   assert.match(core, /data-ai-current-output-target="true"/)
@@ -79,7 +83,7 @@ test('AIComposer rebuilds effective context from the captured snapshot while kee
   assert.match(composer, /resolveAIComposerTemplateResolution\(/)
   assert.match(composer, /setScope\(resolution\.scope\)/)
   assert.match(composer, /setOutputTarget\(resolution\.outputTarget\)/)
-  assert.match(composer, /hasSlashCommandContext/)
+  assert.doesNotMatch(composer, /hasSlashCommandContext/)
   assert.match(core, /data-ai-template-hint="transform-target-required"/)
   assert.match(core, /disabled=\{!resolution\.enabled\}/)
   assert.doesNotMatch(core, /data-ai-template-target=/)
@@ -106,7 +110,7 @@ test('AIComposer template chips append a trailing newline and place the caret on
   assert.match(composer, /textarea\.setSelectionRange\(caret, caret\)/)
 })
 
-test('slash-command AI entry keeps the hidden context explanation while removing the extra title chrome', async () => {
+test('slash-command AI entry stays prompt-only and never sends slash-prefix text as context', async () => {
   const [composer, core, editor, app, prompt] = await Promise.all([
     readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/AI/AIComposerCoreView.tsx', import.meta.url), 'utf8'),
@@ -115,18 +119,16 @@ test('slash-command AI entry keeps the hidden context explanation while removing
     readFile(new URL('../src/lib/ai/prompt.ts', import.meta.url), 'utf8'),
   ])
 
-  assert.match(editor, /buildAISlashCommandContext\(snapshot\.docText, snapshot\.anchorOffset\)/)
-  assert.match(app, /buildAISlashCommandContext\(fallbackTab\.content, offset\)/)
-  assert.match(core, /data-ai-slash-context=\{slashCommandContext\.isEmpty \? 'empty' : 'attached'\}/)
+  assert.doesNotMatch(editor, /buildAISlashCommandContext/)
+  assert.doesNotMatch(app, /buildAISlashCommandContext/)
+  assert.match(composer, /showPromptOnlyContextHint/)
+  assert.match(core, /data-ai-context-state="prompt-only"/)
   assert.doesNotMatch(composer, /buildAIContextChipModels\(/)
-  assert.match(core, /t\('ai\.slashContext\.attachedMessage'\)/)
-  assert.match(core, /t\('ai\.slashContext\.emptyMessage'\)/)
-  assert.match(core, /className="m-0 truncate whitespace-nowrap"/)
-  assert.doesNotMatch(core, /t\('ai\.slashContext\.attachedTitle'\)/)
-  assert.doesNotMatch(core, /t\('ai\.slashContext\.emptyTitle'\)/)
-  assert.match(prompt, /Input source: slash-prefix/)
-  assert.match(prompt, /Input role: continuation-context/)
-  assert.match(prompt, /<input_content>/)
+  assert.match(core, /t\('ai\.context\.promptOnly'\)/)
+  assert.doesNotMatch(core, /ai\.slashContext/)
+  assert.doesNotMatch(core, /data-ai-slash-context/)
+  assert.doesNotMatch(prompt, /Input source: slash-prefix/)
+  assert.doesNotMatch(prompt, /Input role: continuation-context/)
   assert.doesNotMatch(prompt, /Slash command context \(hidden from the composer UI, content before the "\/" trigger\):/)
 })
 
@@ -139,6 +141,14 @@ test('AIComposer exposes keyboard shortcuts for run and apply, and the editor re
 
   assert.match(composer, /matchesPrimaryShortcut\(event, \{ key: 'enter', shift: true \}\) && canApplyDraft/)
   assert.match(composer, /matchesPrimaryShortcut\(event, \{ key: 'enter' \}\) && canSubmit/)
+  assert.match(composer, /const dialogRef = useRef<HTMLDivElement>\(null\)/)
+  assert.match(composer, /trapAIComposerTabFocus\(event, dialogRef\.current\)/)
+  assert.match(composer, /document\.addEventListener\('focusin', onFocusIn\)/)
+  assert.match(composer, /function getAIComposerFocusableElements\(dialog: HTMLElement\): HTMLElement\[]/)
+  assert.match(composer, /function trapAIComposerTabFocus\(event: KeyboardEvent, dialog: HTMLElement \| null\): boolean/)
+  assert.match(composer, /dialogRef=\{dialogRef\}/)
+  assert.match(composer, /onOpenAISetup=\{handleOpenAISetup\}/)
+  assert.match(core, /tabIndex=\{-1\}/)
   assert.match(core, /aria-keyshortcuts="Control\+Enter Meta\+Enter"/)
   assert.match(core, /Control\+Shift\+Enter Meta\+Shift\+Enter/)
   assert.match(editor, /const wasComposerOpen = previousAIComposerOpenRef\.current/)

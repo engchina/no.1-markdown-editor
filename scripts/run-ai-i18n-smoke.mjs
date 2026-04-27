@@ -32,6 +32,8 @@ const LOCALES = [
   {
     code: 'en',
     quickAction: 'Translate',
+    composerFallbackLabel: 'Desktop app required',
+    openSetupLabel: 'Open AI Setup',
     connectionLabel: 'Connection',
     hiddenWriteTargetLabel: 'Default Write Target',
     hiddenRoleLabel: 'Selected Text Role',
@@ -39,6 +41,8 @@ const LOCALES = [
   {
     code: 'ja',
     quickAction: '翻訳',
+    composerFallbackLabel: 'デスクトップ版が必要です',
+    openSetupLabel: 'AI設定を開く',
     connectionLabel: '接続',
     hiddenWriteTargetLabel: '既定の書き込み先',
     hiddenRoleLabel: '選択テキストの役割',
@@ -46,6 +50,8 @@ const LOCALES = [
   {
     code: 'zh',
     quickAction: '翻译',
+    composerFallbackLabel: '需要桌面版应用',
+    openSetupLabel: '打开 AI 设置',
     connectionLabel: '连接',
     hiddenWriteTargetLabel: '默认写入目标',
     hiddenRoleLabel: '选中文本角色',
@@ -255,15 +261,15 @@ async function main() {
 
       const composer = page.getByRole('dialog', { name: 'AI Composer' })
       await composer.waitFor()
-      await expectLocatorText(composer, locale.connectionLabel)
+      await expectLocatorText(composer, locale.composerFallbackLabel)
+      await expectLocatorText(composer, locale.openSetupLabel)
       await waitForNoHorizontalOverflow(page, '[data-ai-composer="true"]')
-      await page.keyboard.press('Escape')
+      await composer.locator('[data-ai-action="open-ai-setup"]').click()
       await waitForCondition(
         async () => (await page.getByRole('dialog', { name: 'AI Composer' }).count()) === 0,
-        `AI composer to close for locale ${locale.code}`
+        `AI composer to close through setup shortcut for locale ${locale.code}`
       )
 
-      await page.locator('[data-toolbar-action="ai-setup"]').click()
       await expectText(page, '[data-ai-setup-panel="true"]', locale.connectionLabel)
       await waitForNoHorizontalOverflow(page, '[data-ai-setup-panel="true"]')
       await page.mouse.click(1200, 900)

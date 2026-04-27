@@ -210,6 +210,7 @@ Default P0 rules:
 - If there is a selection, attach `selectedText`.
 - Always show attached context as visible chips.
 - Do not send the whole document by default.
+- Slash commands are command triggers only; never attach text before the `/` trigger as request context.
 - Add only a small window of `beforeText` and `afterText`.
 - Include `headingPath` when available.
 - Include `selectedTextRole` explicitly.

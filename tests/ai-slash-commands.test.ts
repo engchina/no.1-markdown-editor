@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 import {
-  buildAISlashCommandContext,
   createAISlashCommandEntries,
   matchAISlashCommandQuery,
   resolveAISlashCommandTrigger,
@@ -74,26 +73,14 @@ test('resolveAISlashCommandTrigger only returns exact AI slash commands', () => 
   })
 })
 
-test('buildAISlashCommandContext captures the full document prefix before the slash trigger and flags empty prefixes', () => {
-  const multiBlock = '# Intro\n\nFirst block.\n\nSecond block.\n/ai'
+test('slash commands do not expose a helper for attaching text before the slash trigger', async () => {
+  const slashCommands = await readFile(new URL('../src/lib/ai/slashCommands.ts', import.meta.url), 'utf8')
+  const prompt = await readFile(new URL('../src/lib/ai/prompt.ts', import.meta.url), 'utf8')
 
-  assert.deepEqual(buildAISlashCommandContext(multiBlock, multiBlock.indexOf('/ai')), {
-    strategy: 'before-trigger',
-    text: '# Intro\n\nFirst block.\n\nSecond block.\n',
-    isEmpty: false,
-  })
-
-  assert.deepEqual(buildAISlashCommandContext('Hello\n/ai', 6), {
-    strategy: 'before-trigger',
-    text: 'Hello\n',
-    isEmpty: false,
-  })
-
-  assert.deepEqual(buildAISlashCommandContext('/ai', 0), {
-    strategy: 'before-trigger',
-    text: '',
-    isEmpty: true,
-  })
+  assert.doesNotMatch(slashCommands, /buildAISlashCommandContext/)
+  assert.doesNotMatch(slashCommands, /before-trigger/)
+  assert.doesNotMatch(prompt, /slash-prefix/)
+  assert.doesNotMatch(prompt, /continuation-context/)
 })
 
 test('editor autocomplete includes slash-triggered AI command entries that dispatch the shared AI open event', async () => {

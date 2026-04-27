@@ -29,6 +29,8 @@ test('AIComposer avoids desktop provider loading in web mode and shows desktop-o
   assert.match(runtime, /pushInfoNotice\('notices\.aiDesktopOnlyTitle', 'notices\.aiDesktopOnlyMessage'\)/)
   assert.match(runtime, /desktopOnlyMode\s*\?\s*t\('notices\.aiDesktopOnlyMessage'\)/)
   assert.match(coreView, /data-ai-setup-hint="true"/)
+  assert.match(coreView, /data-ai-action="open-ai-setup"/)
+  assert.match(coreView, /t\('ai\.setup\.open'\)/)
   assert.match(coreView, /\{connectionHintMessage\}/)
 })
 

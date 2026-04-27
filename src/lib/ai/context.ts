@@ -105,16 +105,10 @@ export function buildAIComposerContextPacket(options: {
     selection,
   })
 
-  if (!baseContext.explicitContextAttachments?.length) {
-    return {
-      ...context,
-      ...(baseContext.slashCommandContext ? { slashCommandContext: baseContext.slashCommandContext } : {}),
-    }
-  }
+  if (!baseContext.explicitContextAttachments?.length) return context
 
   return {
     ...context,
-    ...(baseContext.slashCommandContext ? { slashCommandContext: baseContext.slashCommandContext } : {}),
     explicitContextAttachments: baseContext.explicitContextAttachments,
   }
 }

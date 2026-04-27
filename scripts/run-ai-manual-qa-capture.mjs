@@ -278,14 +278,29 @@ async function captureLocaleMode(browser, origin, locale, mode) {
       const composer = document.querySelector('[data-ai-composer="true"]')
       const preview = document.querySelector('.markdown-preview')
       const editor = document.querySelector('.cm-content')
+      const sourceSurface = document.querySelector('[data-source-editor-surface="true"]')
       const bodyWidth = document.documentElement.scrollWidth
       const viewportWidth = window.innerWidth
+      const composerWithinSourceBounds =
+        composer instanceof HTMLElement && sourceSurface instanceof HTMLElement
+          ? (() => {
+              const composerRect = composer.getBoundingClientRect()
+              const sourceRect = sourceSurface.getBoundingClientRect()
+              const minimumGap = 10
+
+              return (
+                composerRect.top >= sourceRect.top + minimumGap &&
+                composerRect.bottom <= sourceRect.bottom - minimumGap
+              )
+            })()
+          : null
 
       return {
         composerOpen: !!composer,
         editorVisible: !!editor,
         previewVisible: !!preview,
         horizontalOverflow: bodyWidth > viewportWidth,
+        composerWithinSourceBounds,
       }
     })
 
@@ -293,6 +308,7 @@ async function captureLocaleMode(browser, origin, locale, mode) {
     const insertVisible = (await composer.locator('[data-ai-action="insert"]').count()) > 0
     const newNoteVisible = (await composer.locator('[data-ai-action="new-note"]').count()) > 0
     const hasResultTargets = replaceVisible || insertVisible || newNoteVisible
+    const applyVisible = hasResultTargets
     const languageLabel = await composer.locator('text=/Document Language:|文書言語:|文档语言:/').count().catch(() => 0)
     const promptText = await composer.locator('textarea').inputValue()
     const draftText = await readComposerDraftText(composer)
@@ -305,9 +321,11 @@ async function captureLocaleMode(browser, origin, locale, mode) {
       assert.equal(summary.editorVisible, true)
       assert.equal(summary.previewVisible, true)
       assert.equal(hasResultTargets, true)
+      assert.equal(summary.composerWithinSourceBounds, true)
     } else {
       assert.equal(summary.editorVisible, true)
       assert.equal(hasResultTargets, true)
+      assert.equal(summary.composerWithinSourceBounds, true)
     }
 
     assert.equal(summary.composerOpen, true)

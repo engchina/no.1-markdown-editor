@@ -294,7 +294,8 @@
   },
   "ai": {
     "setup": {
-      "title": "AI 设置"
+      "title": "AI 设置",
+      "open": "打开 AI 设置"
     },
     "title": "AI Composer",
     "promptLabel": "提示词",
@@ -357,10 +358,6 @@
       "command-palette": "命令面板",
       "slash-command": "Slash 命令"
     },
-    "slashContext": {
-      "attachedMessage": "“/”前的内容会作为隐藏上下文发送。",
-      "emptyMessage": "“/”前没有可附加的内容。"
-    },
     "context": {
       "selection": "选区",
       "block": "块",
@@ -368,7 +365,8 @@
       "note": "笔记",
       "search": "搜索",
       "language": "文档语言",
-      "frontMatter": "Front Matter"
+      "frontMatter": "Front Matter",
+      "promptOnly": "未附加上下文。AI 只会收到你输入的指令。"
     },
     "documentLanguageValue": {
       "en": "英语",
@@ -394,9 +392,8 @@
     "target": {
       "selection": "选区",
       "currentBlock": "当前块",
-      "slashContext": "Slash 上下文",
       "unavailable": "无可用目标",
-      "transformHint": "请先选择文本、将光标放在可处理的文本块中，或确保“/”之前有非空内容。"
+      "transformHint": "请先选择文本，或将光标放在可处理的文本块中。"
     },
     "preferences": {
       "defaultWriteTarget": "默认写入目标",
@@ -831,7 +828,7 @@
     "openMultipleFilesErrorTitle": "部分文件无法打开",
     "openMultipleFilesErrorMessage": "{{total}} 个文件中有 {{count}} 个打开失败，请检查路径后重试。",
     "aiProviderMissingTitle": "需要先完成 AI 设置",
-    "aiProviderMissingMessage": "运行 AI 操作前，请先到设置里完成 AI provider 配置。",
+    "aiProviderMissingMessage": "运行 AI 操作前，请先打开 AI 设置并完成 provider 配置。",
     "aiDesktopOnlyTitle": "需要桌面版应用",
     "aiDesktopOnlyMessage": "AI provider 设置和请求执行目前只能在桌面版应用中使用。",
     "aiConnectionSavedTitle": "AI 连接已保存",

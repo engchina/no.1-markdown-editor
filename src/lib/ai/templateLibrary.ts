@@ -33,7 +33,7 @@ export interface AIComposerTemplateResolution {
   scope: AIScope
   outputTarget: AIOutputTarget
   enabled: boolean
-  targetKind: 'selection' | 'current-block' | 'slash-context' | null
+  targetKind: 'selection' | 'current-block' | null
 }
 
 const TEMPLATE_DEFINITIONS: AITemplateDefinition[] = [
@@ -108,7 +108,6 @@ export function resolveAIComposerTemplateResolution(
   options: {
     hasSelection: boolean
     hasCurrentBlock: boolean
-    hasSlashCommandContext: boolean
     aiDefaultWriteTarget: AIDefaultWriteTarget
   }
 ): AIComposerTemplateResolution {
@@ -130,16 +129,6 @@ export function resolveAIComposerTemplateResolution(
         outputTarget: template.id === 'explain' ? 'chat-only' : 'replace-current-block',
         enabled: true,
         targetKind: 'current-block',
-      }
-    }
-
-    if (options.hasSlashCommandContext) {
-      return {
-        intent: template.intent,
-        scope: 'document',
-        outputTarget: template.id === 'explain' ? 'chat-only' : 'at-cursor',
-        enabled: true,
-        targetKind: 'slash-context',
       }
     }
 
@@ -166,9 +155,7 @@ export function resolveAIComposerTemplateResolution(
       ? 'selection'
       : options.hasCurrentBlock
         ? 'current-block'
-        : options.hasSlashCommandContext
-          ? 'slash-context'
-          : null,
+        : null,
   }
 }
 

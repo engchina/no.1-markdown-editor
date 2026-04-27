@@ -50,16 +50,6 @@ function buildAIUserPrompt(prompt: string, context: AIContextPacket): string {
 }
 
 function buildAIInputSection(context: AIContextPacket): string | null {
-  if (context.slashCommandContext && !context.slashCommandContext.isEmpty) {
-    return [
-      'Input source: slash-prefix',
-      'Input role: continuation-context',
-      '<input_content>',
-      context.slashCommandContext.text,
-      '</input_content>',
-    ].join('\n')
-  }
-
   if (context.selectedText) {
     return [
       'Input source: selected-text',

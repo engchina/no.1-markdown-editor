@@ -58,12 +58,6 @@ export type AIPromptMentionErrorCode =
   | 'search-empty-query'
   | 'search-no-results'
 
-export interface AISlashCommandContext {
-  strategy: 'before-trigger'
-  text: string
-  isEmpty: boolean
-}
-
 export interface AIExplicitContextAttachment {
   id: string
   kind: AIExplicitContextKind
@@ -114,7 +108,6 @@ export interface AIContextPacket {
   currentBlock?: string
   headingPath?: string[]
   frontMatter?: string | null
-  slashCommandContext?: AISlashCommandContext
   explicitContextAttachments?: AIExplicitContextAttachment[]
 }
 

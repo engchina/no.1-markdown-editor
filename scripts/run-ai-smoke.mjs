@@ -9,6 +9,8 @@ const HOST = '127.0.0.1'
 const LOCAL_STORAGE_KEY = 'editor-settings'
 const AI_MOCK_PROVIDER_KEY = 'no1-ai-mock-provider'
 const FAILURE_SCREENSHOT_PATH = resolve('output/playwright/ai-smoke-failure.png')
+const DEFAULT_VIEWPORT = { width: 1280, height: 720 }
+const MOBILE_VIEWPORT = { width: 375, height: 812 }
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -207,7 +209,7 @@ async function main() {
     browser = launchResult.browser
     console.log(`AI smoke browser: ${launchResult.browserLabel}`)
 
-    context = await browser.newContext()
+    context = await browser.newContext({ viewport: DEFAULT_VIEWPORT })
     page = await context.newPage()
     page.on('console', (message) => {
       if (message.type() === 'error') {
@@ -277,7 +279,9 @@ async function main() {
     await page.getByText('Translate', { exact: true }).click()
     const composer = page.getByRole('dialog', { name: 'AI Composer' })
     await composer.waitFor()
-    await expectLocatorText(composer, 'AI provider secrets can only be configured in the desktop app right now.')
+    await expectLocatorText(composer, 'Desktop app required')
+    await expectLocatorText(composer, 'AI provider settings and requests are only available in the desktop app right now.')
+    await expectLocatorText(composer, 'Open AI Setup')
     await expectLocatorText(composer, 'Selection')
     await expectLocatorText(composer, 'Response Mode')
     await expectLocatorText(composer, 'Replace Selection')
@@ -286,6 +290,7 @@ async function main() {
     assert.equal(await composer.getByText('Insert Below', { exact: true }).count(), 0)
     await expectNoText(page, 'body', 'Insert Under Heading')
     assert.equal(await composer.getByText('New Note', { exact: true }).count(), 0)
+    await waitForAIComposerWithinSourceEditor(page)
     const promptValue = await composer.locator('textarea').inputValue()
     assert.equal(promptValue, 'Translate the input content.\n')
     assert.deepEqual(
@@ -299,11 +304,14 @@ async function main() {
       }
     )
 
-    await page.keyboard.press('Escape')
-    await waitForCondition(async () => (await page.getByRole('dialog', { name: 'AI Composer' }).count()) === 0, 'AI composer to close after bubble action')
+    await composer.locator('[data-ai-action="open-ai-setup"]').click()
+    await waitForCondition(async () => (await page.getByRole('dialog', { name: 'AI Composer' }).count()) === 0, 'AI composer to close after setup shortcut')
+    await expectText(page, '[data-ai-setup-panel="true"]', 'Connection')
+    await expectText(page, '[data-ai-setup-panel="true"]', 'AI provider secrets can only be configured in the desktop app right now.')
+    await page.mouse.click(1200, 900)
 
-    await page.locator('button[title="Appearance"]').click()
-    await expectText(page, 'body', 'Appearance')
+    await page.locator('[data-toolbar-action="settings"]').click()
+    await expectText(page, '[data-theme-panel="true"]', 'Settings')
     await page.evaluate(() => {
       const containers = Array.from(document.querySelectorAll('.p-4.space-y-5'))
       for (const container of containers) {
@@ -312,10 +320,11 @@ async function main() {
         }
       }
     })
-    await expectNoText(page, 'body', 'Default Write Target')
-    await expectNoText(page, 'body', 'Selected Text Role')
-    await expectNoText(page, 'body', 'Provider History Ranking')
-    await expectText(page, 'body', 'AI provider secrets can only be configured in the desktop app right now.')
+    await expectNoText(page, '[data-theme-panel="true"]', 'Default Write Target')
+    await expectNoText(page, '[data-theme-panel="true"]', 'Selected Text Role')
+    await expectNoText(page, '[data-theme-panel="true"]', 'Provider History Ranking')
+    await expectNoText(page, '[data-theme-panel="true"]', 'Connection')
+    await expectNoText(page, '[data-theme-panel="true"]', 'AI provider secrets can only be configured in the desktop app right now.')
 
     await page.locator('label').filter({ hasText: 'WYSIWYG (Live Preview)' }).locator('button').click()
     const storedState = await page.evaluate((storageKey) => {
@@ -385,6 +394,10 @@ async function main() {
     await page.evaluate((mockKey) => {
       localStorage.setItem(mockKey, '1')
     }, AI_MOCK_PROVIDER_KEY)
+    await expectEditorContent(page, AI_SMOKE_MARKDOWN)
+    await assertAIComposerMobileResultLayout(page)
+    await page.setViewportSize(DEFAULT_VIEWPORT)
+    await resetEditor(page, { mockProvider: true })
     await expectEditorContent(page, AI_SMOKE_MARKDOWN)
 
     await page.locator('button[title^="Command Palette"]').click()
@@ -619,6 +632,127 @@ async function expectNoText(page, selector, text) {
   )
 }
 
+async function assertAIComposerMobileResultLayout(page) {
+  await page.setViewportSize(MOBILE_VIEWPORT)
+  await resetEditor(page, { mockProvider: true })
+
+  await page.evaluate(() => {
+    document.dispatchEvent(
+      new CustomEvent('editor:ai-open', {
+        detail: { source: 'command-palette', intent: 'generate', outputTarget: 'insert-below' },
+        cancelable: true,
+      })
+    )
+  })
+  const composer = page.getByRole('dialog', { name: 'AI Composer' })
+  await composer.waitFor()
+  await composer.locator('textarea').fill('Continue writing the next paragraph in a concise style.')
+  await waitForCondition(
+    async () => await composer.locator('[data-ai-action="run"]').isEnabled(),
+    'AI run button to become enabled for mobile result layout'
+  )
+  await composer.locator('[data-ai-action="run"]').click()
+  await expectLocatorText(composer, 'Mock continuation paragraph.')
+  await expectText(page, '[data-ai-result-actions="true"]', 'Insert')
+
+  await waitForDocumentNoHorizontalOverflow(page)
+  await waitForNoHorizontalOverflow(page, '[data-ai-composer="true"]')
+  await waitForNoHorizontalOverflow(page, '[data-ai-result-panel="true"]')
+  await waitForNoHorizontalOverflow(page, '[data-ai-result-actions="true"]')
+  await waitForAIComposerWithinSourceEditor(page)
+  await assertAIComposerTabFocusContained(page)
+
+  await page.keyboard.press('Escape')
+  await waitForCondition(
+    async () => (await page.getByRole('dialog', { name: 'AI Composer' }).count()) === 0,
+    'AI composer to close after mobile result layout check'
+  )
+}
+
+async function waitForDocumentNoHorizontalOverflow(page) {
+  await waitForCondition(
+    async () =>
+      page.evaluate(() => {
+        const documentWidth = document.documentElement.scrollWidth
+        const bodyWidth = document.body?.scrollWidth ?? documentWidth
+        return Math.max(documentWidth, bodyWidth) <= window.innerWidth + 1
+      }),
+    'document to avoid horizontal overflow'
+  )
+}
+
+async function waitForNoHorizontalOverflow(page, selector) {
+  await waitForCondition(
+    async () => {
+      const summary = await page.locator(selector).evaluate((element) => {
+        const target = element instanceof HTMLElement ? element : null
+        if (!target) return null
+        const rect = target.getBoundingClientRect()
+        return {
+          clientWidth: target.clientWidth,
+          scrollWidth: target.scrollWidth,
+          left: rect.left,
+          right: rect.right,
+          viewportWidth: window.innerWidth,
+        }
+      })
+
+      if (!summary) return false
+      return (
+        summary.scrollWidth <= summary.clientWidth + 1 &&
+        summary.left >= -1 &&
+        summary.right <= summary.viewportWidth + 1
+      )
+    },
+    `${selector} to avoid horizontal overflow`
+  )
+}
+
+async function waitForAIComposerWithinSourceEditor(page) {
+  await waitForCondition(
+    async () =>
+      page.evaluate(() => {
+        const composer = document.querySelector('[data-ai-composer="true"]')
+        const sourceSurface = document.querySelector('[data-source-editor-surface="true"]')
+        if (!(composer instanceof HTMLElement) || !(sourceSurface instanceof HTMLElement)) return false
+
+        const composerRect = composer.getBoundingClientRect()
+        const sourceRect = sourceSurface.getBoundingClientRect()
+        const minimumGap = 10
+
+        return (
+          composerRect.top >= sourceRect.top + minimumGap &&
+          composerRect.bottom <= sourceRect.bottom - minimumGap
+        )
+      }),
+    'AI composer to stay inside source editor vertical bounds'
+  )
+}
+
+async function assertAIComposerTabFocusContained(page) {
+  for (let index = 0; index < 18; index += 1) {
+    await page.keyboard.press('Tab')
+  }
+  await waitForAIComposerFocusContained(page, 'forward tab cycle')
+
+  for (let index = 0; index < 6; index += 1) {
+    await page.keyboard.press('Shift+Tab')
+  }
+  await waitForAIComposerFocusContained(page, 'reverse tab cycle')
+}
+
+async function waitForAIComposerFocusContained(page, description) {
+  await waitForCondition(
+    async () =>
+      page.evaluate(() => {
+        const composer = document.querySelector('[data-ai-composer="true"]')
+        const activeElement = document.activeElement
+        return activeElement instanceof Node && composer instanceof HTMLElement && composer.contains(activeElement)
+      }),
+    `AI composer focus to remain contained after ${description}`
+  )
+}
+
 async function resetEditor(page, options = {}) {
   await page.evaluate(({ persistedState, storageKey, mockKey, mockProvider }) => {
     localStorage.setItem(storageKey, JSON.stringify(persistedState))
@@ -636,6 +770,16 @@ async function resetEditor(page, options = {}) {
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.waitForSelector('.cm-content')
+  await page.evaluate(({ mockKey, mockProvider }) => {
+    if (mockProvider) {
+      localStorage.setItem(mockKey, '1')
+    } else {
+      localStorage.removeItem(mockKey)
+    }
+  }, {
+    mockKey: AI_MOCK_PROVIDER_KEY,
+    mockProvider: options.mockProvider === true,
+  })
 }
 
 async function readEditorMarkdown(page) {
@@ -672,8 +816,18 @@ async function dispatchAIApply(page, detail) {
   }, detail)
 }
 
+async function isEditorFocused(page) {
+  return page.evaluate(() => {
+    const editor = document.querySelector('.cm-editor')
+    const activeElement = document.activeElement
+    return activeElement instanceof Node && editor instanceof HTMLElement && editor.contains(activeElement)
+  })
+}
+
 async function undoEditor(page, modifier) {
-  await page.locator('.cm-content').click()
+  if (!(await isEditorFocused(page))) {
+    await page.locator('.cm-content').click()
+  }
   await page.keyboard.press(`${modifier}+Z`)
 }
 

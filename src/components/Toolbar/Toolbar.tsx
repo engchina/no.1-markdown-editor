@@ -7,6 +7,7 @@ import { useFileOps } from '../../hooks/useFileOps'
 import { useAnchoredOverlayStyle } from '../../hooks/useAnchoredOverlayStyle'
 import { useExport } from '../../hooks/useExport'
 import { formatPrimaryShortcut } from '../../lib/platform'
+import { EDITOR_AI_SETUP_OPEN_EVENT } from '../../lib/ai/events'
 import type { FormatAction } from '../Editor/formatCommands'
 import AppIcon, { type IconName } from '../Icons/AppIcon'
 
@@ -364,6 +365,18 @@ export default function Toolbar({ onOpenPalette, saving }: { onOpenPalette?: () 
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [newFile, openFile, saveFile, saveFileAs])
+
+  useEffect(() => {
+    const openAISetupPanel = () => {
+      setShowAISetup(true)
+      setShowTheme(false)
+      setShowAbout(false)
+      window.requestAnimationFrame(() => aiSetupButtonRef.current?.focus())
+    }
+
+    document.addEventListener(EDITOR_AI_SETUP_OPEN_EVENT, openAISetupPanel)
+    return () => document.removeEventListener(EDITOR_AI_SETUP_OPEN_EVENT, openAISetupPanel)
+  }, [])
 
   const headingItems: ToolbarMenuItem[] = [
     { id: 'h1', label: t('toolbar.h1'), textIcon: 'H1', action: () => emitFormat('h1') },

@@ -108,7 +108,7 @@ test('AI locale prompt templates keep task intent while removing repeated Markdo
   )
 })
 
-test('AI composer template resolution prefers selection, falls back to current block, enables slash-context transforms, and disables block-aware actions when no target is available', () => {
+test('AI composer template resolution prefers selection, falls back to current block, and disables block-aware actions when no target is available', () => {
   const models = getAITemplateModels(t)
   const translate = models.find((model) => model.id === 'translate')
   const explain = models.find((model) => model.id === 'explain')
@@ -119,7 +119,6 @@ test('AI composer template resolution prefers selection, falls back to current b
     resolveAIComposerTemplateResolution(translate!, {
       hasSelection: true,
       hasCurrentBlock: true,
-      hasSlashCommandContext: true,
       aiDefaultWriteTarget: 'insert-below',
     }),
     {
@@ -134,7 +133,6 @@ test('AI composer template resolution prefers selection, falls back to current b
     resolveAIComposerTemplateResolution(translate!, {
       hasSelection: false,
       hasCurrentBlock: true,
-      hasSlashCommandContext: true,
       aiDefaultWriteTarget: 'insert-below',
     }),
     {
@@ -149,7 +147,6 @@ test('AI composer template resolution prefers selection, falls back to current b
     resolveAIComposerTemplateResolution(explain!, {
       hasSelection: false,
       hasCurrentBlock: true,
-      hasSlashCommandContext: true,
       aiDefaultWriteTarget: 'insert-below',
     }),
     {
@@ -164,37 +161,6 @@ test('AI composer template resolution prefers selection, falls back to current b
     resolveAIComposerTemplateResolution(translate!, {
       hasSelection: false,
       hasCurrentBlock: false,
-      hasSlashCommandContext: true,
-      aiDefaultWriteTarget: 'insert-below',
-    }),
-    {
-      intent: 'edit',
-      scope: 'document',
-      outputTarget: 'at-cursor',
-      enabled: true,
-      targetKind: 'slash-context',
-    }
-  )
-  assert.deepEqual(
-    resolveAIComposerTemplateResolution(explain!, {
-      hasSelection: false,
-      hasCurrentBlock: false,
-      hasSlashCommandContext: true,
-      aiDefaultWriteTarget: 'insert-below',
-    }),
-    {
-      intent: 'ask',
-      scope: 'document',
-      outputTarget: 'chat-only',
-      enabled: true,
-      targetKind: 'slash-context',
-    }
-  )
-  assert.deepEqual(
-    resolveAIComposerTemplateResolution(translate!, {
-      hasSelection: false,
-      hasCurrentBlock: false,
-      hasSlashCommandContext: false,
       aiDefaultWriteTarget: 'insert-below',
     }),
     {

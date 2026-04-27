@@ -12,7 +12,6 @@ import ErrorFallback from './components/ErrorBoundary/ErrorFallback'
 import { buildAIContextPacket, resolveCurrentBlockRange } from './lib/ai/context'
 import { dispatchEditorAIOpen, EDITOR_AI_OPEN_EVENT, type EditorAIOpenDetail } from './lib/ai/events'
 import { resolveAIOpenOutputTarget } from './lib/ai/opening'
-import { buildAISlashCommandContext } from './lib/ai/slashCommands'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useDocumentDrop } from './hooks/useDocumentDrop'
 import { useExternalFileChanges } from './hooks/useExternalFileChanges'
@@ -259,13 +258,6 @@ export default function App() {
           anchorOffset: offset,
           selection: undefined,
         })
-        const enrichedContext =
-          detail.source === 'slash-command'
-            ? {
-                ...context,
-                slashCommandContext: buildAISlashCommandContext(fallbackTab.content, offset),
-              }
-            : context
         const blockRange = resolveCurrentBlockRange(fallbackTab.content, offset) ?? {
           from: offset,
           to: offset,
@@ -275,13 +267,13 @@ export default function App() {
         useAIStore.getState().openComposer({
           source: detail.source,
           intent,
-          scope: enrichedContext.scope,
+          scope: context.scope,
           outputTarget,
           prompt: detail.prompt ?? '',
-          context: enrichedContext,
+          context,
           draftText: '',
           explanationText: '',
-          diffBaseText: outputTarget === 'replace-current-block' ? enrichedContext.currentBlock ?? null : null,
+          diffBaseText: outputTarget === 'replace-current-block' ? context.currentBlock ?? null : null,
           threadId,
           errorMessage: null,
           requestState: 'idle',

@@ -107,7 +107,7 @@ test('AI locales remove sidebar-specific copy while keeping the remaining source
   }
 })
 
-test('AI slash-context copy stays concise across locales for single-line composer hints', async () => {
+test('AI prompt-only context copy stays concise across locales for single-line composer hints', async () => {
   const [enRaw, jaRaw, zhRaw] = await Promise.all([
     readFile(new URL('../src/i18n/locales/en.json', import.meta.url), 'utf8'),
     readFile(new URL('../src/i18n/locales/ja.json', import.meta.url), 'utf8'),
@@ -119,14 +119,13 @@ test('AI slash-context copy stays concise across locales for single-line compose
   const zh = JSON.parse(zhRaw) as Record<string, unknown>
 
   for (const locale of [en, ja, zh]) {
-    const attachedMessage = getNestedValue(locale, 'ai.slashContext.attachedMessage')
-    const emptyMessage = getNestedValue(locale, 'ai.slashContext.emptyMessage')
+    const promptOnlyMessage = getNestedValue(locale, 'ai.context.promptOnly')
 
-    assert.equal(typeof attachedMessage, 'string')
-    assert.equal(typeof emptyMessage, 'string')
-    assert.equal((attachedMessage as string).includes('\n'), false)
-    assert.equal((emptyMessage as string).includes('\n'), false)
-    assert.ok((attachedMessage as string).length <= 48)
-    assert.ok((emptyMessage as string).length <= 32)
+    assert.equal(typeof promptOnlyMessage, 'string')
+    assert.equal((promptOnlyMessage as string).includes('\n'), false)
+    assert.ok((promptOnlyMessage as string).length <= 72)
+    assert.equal(JSON.stringify(locale).includes('hidden context'), false)
+    assert.equal(JSON.stringify(locale).includes('隐藏上下文'), false)
+    assert.equal(JSON.stringify(locale).includes('非表示コンテキスト'), false)
   }
 })

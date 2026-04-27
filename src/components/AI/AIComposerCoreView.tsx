@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties, type ReactNode } from 'react'
+import { useMemo, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import AppIcon from '../Icons/AppIcon'
 import {
@@ -26,15 +26,23 @@ export interface AIComposerContentTypography {
   code: CSSProperties
 }
 
+export interface AIComposerFrameBounds {
+  top: number
+  bottom: number
+}
+
+const AI_COMPOSER_SOURCE_EDGE_GAP_PX = 16
+
 interface Props {
+  dialogRef: RefObject<HTMLDivElement>
+  composerFrameBounds: AIComposerFrameBounds
   composer: AIComposerState
   promptPlaceholder: string
   composerContentTypography: AIComposerContentTypography
   showConnectionHint: boolean
   connectionHintTitle: string
   connectionHintMessage: string
-  showSlashCommandHint: boolean
-  slashCommandContext: { isEmpty: boolean } | null
+  showPromptOnlyContextHint: boolean
   oracleProviderConfig: AIOCIResponsesProviderConfig | null
   knowledgeType: AIKnowledgeType
   hasWorkspaceExecutionTasks: boolean
@@ -49,7 +57,6 @@ interface Props {
   normalizedDraft: string
   hasSelection: boolean
   hasCurrentBlock: boolean
-  hasSlashCommandContext: boolean
   aiDefaultWriteTarget: 'replace-selection' | 'at-cursor' | 'insert-below'
   templateModels: AITemplateModel[]
   resultView: AIResultView
@@ -67,11 +74,12 @@ interface Props {
   replaceActionTarget: Extract<AIInsertTarget, 'replace-selection' | 'replace-current-block'> | null
   defaultInsertTarget: AIInsertTarget
   preferredResultAction: 'replace' | 'insert' | 'new-note'
-  currentDocumentResultActionStyle: CSSProperties
+  getCurrentDocumentResultActionStyle: (action: 'replace' | 'insert' | 'new-note') => CSSProperties
   runShortcutLabel: string
   applyShortcutLabel: string
   selectedHostedAgentProfileId: string | null
   onClose: () => void
+  onOpenAISetup: () => void
   onCancelRequest: () => Promise<void>
   onRun: () => Promise<void>
   onResetAndClose: () => void
@@ -94,14 +102,15 @@ interface Props {
 }
 
 export default function AIComposerCoreView({
+  dialogRef,
+  composerFrameBounds,
   composer,
   promptPlaceholder,
   composerContentTypography,
   showConnectionHint,
   connectionHintTitle,
   connectionHintMessage,
-  showSlashCommandHint,
-  slashCommandContext,
+  showPromptOnlyContextHint,
   oracleProviderConfig,
   knowledgeType,
   hasWorkspaceExecutionTasks,
@@ -116,7 +125,6 @@ export default function AIComposerCoreView({
   normalizedDraft,
   hasSelection,
   hasCurrentBlock,
-  hasSlashCommandContext,
   aiDefaultWriteTarget,
   templateModels,
   resultView,
@@ -134,11 +142,12 @@ export default function AIComposerCoreView({
   replaceActionTarget,
   defaultInsertTarget,
   preferredResultAction,
-  currentDocumentResultActionStyle,
+  getCurrentDocumentResultActionStyle,
   runShortcutLabel,
   applyShortcutLabel,
   selectedHostedAgentProfileId,
   onClose,
+  onOpenAISetup,
   onCancelRequest,
   onRun,
   onResetAndClose,
@@ -162,62 +171,75 @@ export default function AIComposerCoreView({
   const { t } = useTranslation()
   const showResultPanel =
     composer.requestState !== 'idle' || normalizedDraft.trim().length > 0 || composer.errorMessage !== null
+  const composerFrameStyle: CSSProperties = {
+    top: `${composerFrameBounds.top}px`,
+    bottom: `${composerFrameBounds.bottom}px`,
+    paddingTop: `${AI_COMPOSER_SOURCE_EDGE_GAP_PX}px`,
+    paddingBottom: `${AI_COMPOSER_SOURCE_EDGE_GAP_PX}px`,
+  }
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center px-4 py-6"
+      className="fixed inset-0 z-[110]"
       style={{ background: 'rgba(0, 0, 0, 0.24)', backdropFilter: 'blur(6px)' }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) void onClose()
       }}
     >
       <div
-        data-ai-composer="true"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('ai.title')}
-        className="glass-panel flex w-full flex-col overflow-hidden rounded-[20px] border shadow-2xl"
-        style={{
-          maxWidth: 'min(960px, calc(100vw - 4rem))',
-          minHeight: '540px',
-          maxHeight: '85vh',
-          background: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
-          borderColor: 'color-mix(in srgb, var(--accent) 18%, var(--border))',
-        }}
+        data-ai-composer-frame="source-editor"
+        className="pointer-events-none fixed inset-x-0 flex items-center justify-center px-4 sm:px-6"
+        style={composerFrameStyle}
       >
         <div
-          className="flex items-center gap-3 px-5 py-3.5"
-          style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 82%, transparent)' }}
+          ref={dialogRef}
+          data-ai-composer="true"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('ai.title')}
+          tabIndex={-1}
+          className="glass-panel pointer-events-auto flex w-full flex-col overflow-hidden rounded-[20px] border shadow-2xl"
+          style={{
+            maxWidth: 'min(960px, calc(100vw - 4rem))',
+            minHeight: 'min(540px, 100%)',
+            maxHeight: '100%',
+            background: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
+            borderColor: 'color-mix(in srgb, var(--accent) 18%, var(--border))',
+          }}
         >
-          <span
-            className="flex h-8 w-8 items-center justify-center rounded-full"
-            style={{
-              background: 'color-mix(in srgb, var(--accent) 16%, transparent)',
-              color: 'var(--accent)',
-            }}
+          <div
+            className="flex items-center gap-3 px-5 py-3.5"
+            style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 82%, transparent)' }}
           >
-            <AppIcon name="sparkles" size={16} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {t('ai.title')}
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-full"
+              style={{
+                background: 'color-mix(in srgb, var(--accent) 16%, transparent)',
+                color: 'var(--accent)',
+              }}
+            >
+              <AppIcon name="sparkles" size={16} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {t('ai.title')}
+              </div>
             </div>
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded-full transition-colors"
+              style={{ color: 'var(--text-muted)' }}
+              onClick={() => void onClose()}
+              aria-label={t('dialog.cancel')}
+            >
+              <span className="block text-base leading-none">×</span>
+            </button>
           </div>
-          <button
-            type="button"
-            className="flex h-7 w-7 items-center justify-center rounded-full transition-colors"
-            style={{ color: 'var(--text-muted)' }}
-            onClick={() => void onClose()}
-            aria-label={t('dialog.cancel')}
-          >
-            <span className="block text-base leading-none">×</span>
-          </button>
-        </div>
 
-        <div
-          data-ai-composer-scroll="form"
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-5 py-4"
-        >
+          <div
+            data-ai-composer-scroll="form"
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-5 py-4"
+          >
           {showConnectionHint && (
             <div
               data-ai-setup-hint="true"
@@ -242,32 +264,37 @@ export default function AIComposerCoreView({
                 <div className="mt-0.5 text-xs leading-5" style={{ color: 'var(--text-secondary)' }}>
                   {connectionHintMessage}
                 </div>
+                <button
+                  type="button"
+                  data-ai-action="open-ai-setup"
+                  onClick={() => void onOpenAISetup()}
+                  className="mt-2 inline-flex min-h-8 max-w-full cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors"
+                  style={{
+                    borderColor: 'color-mix(in srgb, var(--accent) 32%, var(--border))',
+                    background: 'color-mix(in srgb, var(--accent) 10%, var(--bg-primary))',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <AppIcon name="sparkles" size={13} />
+                  <span className="min-w-0 truncate">{t('ai.setup.open')}</span>
+                </button>
               </div>
             </div>
           )}
 
-          {showSlashCommandHint && slashCommandContext && (
+          {showPromptOnlyContextHint && (
             <div
-              data-ai-slash-context={slashCommandContext.isEmpty ? 'empty' : 'attached'}
-              className="rounded-2xl border px-4 py-3 text-xs leading-5"
-              style={
-                slashCommandContext.isEmpty
-                  ? {
-                      borderColor: 'color-mix(in srgb, #f59e0b 28%, var(--border))',
-                      background: 'color-mix(in srgb, #f59e0b 10%, var(--bg-secondary))',
-                      color: 'var(--text-primary)',
-                    }
-                  : {
-                      borderColor: 'color-mix(in srgb, var(--accent) 16%, var(--border))',
-                      background: 'color-mix(in srgb, var(--bg-secondary) 74%, transparent)',
-                      color: 'var(--text-primary)',
-                    }
-              }
+              data-ai-context-state="prompt-only"
+              className="flex items-center gap-2 rounded-2xl border px-4 py-3 text-xs leading-5"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--border) 86%, transparent)',
+                background: 'color-mix(in srgb, var(--bg-secondary) 70%, transparent)',
+                color: 'var(--text-secondary)',
+              }}
             >
-              <p className="m-0 truncate whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
-                {slashCommandContext.isEmpty
-                  ? t('ai.slashContext.emptyMessage')
-                  : t('ai.slashContext.attachedMessage')}
+              <AppIcon name="infoCircle" size={13} />
+              <p className="m-0 min-w-0 truncate whitespace-nowrap">
+                {t('ai.context.promptOnly')}
               </p>
             </div>
           )}
@@ -430,7 +457,6 @@ export default function AIComposerCoreView({
             composerPrompt={effectivePrompt}
             hasSelection={hasSelection}
             hasCurrentBlock={hasCurrentBlock}
-            hasSlashCommandContext={hasSlashCommandContext}
             aiDefaultWriteTarget={aiDefaultWriteTarget}
             onSelectTemplate={onSelectTemplate}
           />
@@ -508,10 +534,10 @@ export default function AIComposerCoreView({
               }}
             >
               <div
-                className="flex flex-wrap items-center gap-1.5 px-4 py-2"
+                className="flex flex-wrap items-start gap-2 px-4 py-2"
                 style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 82%, transparent)' }}
               >
-                <div className="flex items-center gap-0.5">
+                <div className="flex shrink-0 items-center gap-0.5">
                   {(
                     [
                       { view: 'draft', label: t('ai.result.draft') },
@@ -537,10 +563,10 @@ export default function AIComposerCoreView({
                     </button>
                   ))}
                 </div>
-                <div className="flex-1" />
+                <div className="hidden flex-1 sm:block" />
                 {composer.sourceLabel && (
                   <span
-                    className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                    className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
                     style={{
                       borderColor: 'color-mix(in srgb, var(--border) 72%, transparent)',
                       background: 'color-mix(in srgb, var(--bg-secondary) 76%, transparent)',
@@ -551,12 +577,15 @@ export default function AIComposerCoreView({
                   </span>
                 )}
                 {normalizedDraft && (
-                  <div className="flex items-center gap-1.5">
+                  <div
+                    data-ai-result-actions="true"
+                    className="flex min-w-0 flex-1 basis-full flex-wrap items-center gap-1.5 sm:flex-none sm:basis-auto sm:justify-end"
+                  >
                     <button
                       type="button"
                       onClick={() => void onRetry()}
                       data-ai-action="retry"
-                      className="px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                      className="shrink-0 px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45"
                       style={{ color: 'var(--text-muted)' }}
                       disabled={composer.requestState === 'streaming' || !canSubmit}
                     >
@@ -566,7 +595,7 @@ export default function AIComposerCoreView({
                       type="button"
                       onClick={onDiscard}
                       data-ai-action="discard"
-                      className="rounded-lg border px-2.5 py-1 text-xs transition-colors"
+                      className="max-w-full shrink-0 truncate rounded-lg border px-2.5 py-1 text-xs transition-colors"
                       style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
                     >
                       {t('ai.discard')}
@@ -577,7 +606,7 @@ export default function AIComposerCoreView({
                           type="button"
                           onClick={() => void onRunWorkspaceAgent()}
                           data-ai-action="run-workspace-agent"
-                          className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                          className="max-w-full shrink-0 truncate rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
                           style={{ background: 'var(--accent)', color: 'white' }}
                           disabled={!canRunWorkspaceAgent}
                         >
@@ -588,7 +617,7 @@ export default function AIComposerCoreView({
                             type="button"
                             onClick={onStopWorkspaceAgent}
                             data-ai-action="stop-workspace-agent"
-                            className="rounded-lg border px-2.5 py-1 text-xs transition-colors"
+                            className="max-w-full shrink-0 truncate rounded-lg border px-2.5 py-1 text-xs transition-colors"
                             style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
                           >
                             {t('ai.workspaceExecution.stopAgent')}
@@ -598,7 +627,7 @@ export default function AIComposerCoreView({
                           type="button"
                           onClick={onOpenAllWorkspaceDrafts}
                           data-ai-action="open-all-workspace-drafts"
-                          className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                          className="max-w-full shrink-0 truncate rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
                           style={{
                             background: 'color-mix(in srgb, var(--accent) 12%, var(--bg-primary))',
                             color: 'var(--text-primary)',
@@ -616,7 +645,7 @@ export default function AIComposerCoreView({
                           type="button"
                           onClick={() => void onCopy()}
                           data-ai-action="copy"
-                          className="rounded-lg border px-2.5 py-1 text-xs transition-colors"
+                          className="max-w-full shrink-0 truncate rounded-lg border px-2.5 py-1 text-xs transition-colors"
                           style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
                         >
                           {t('ai.copy')}
@@ -634,8 +663,8 @@ export default function AIComposerCoreView({
                           aria-keyshortcuts={
                             preferredResultAction === 'replace' ? 'Control+Shift+Enter Meta+Shift+Enter' : undefined
                           }
-                          className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
-                          style={currentDocumentResultActionStyle}
+                          className="max-w-full shrink-0 truncate rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                          style={getCurrentDocumentResultActionStyle('replace')}
                           title={
                             preferredResultAction === 'replace'
                               ? `${t('ai.apply')} (${applyShortcutLabel})`
@@ -652,8 +681,8 @@ export default function AIComposerCoreView({
                           aria-keyshortcuts={
                             preferredResultAction === 'insert' ? 'Control+Shift+Enter Meta+Shift+Enter' : undefined
                           }
-                          className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
-                          style={currentDocumentResultActionStyle}
+                          className="max-w-full shrink-0 truncate rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                          style={getCurrentDocumentResultActionStyle('insert')}
                           title={
                             preferredResultAction === 'insert'
                               ? `${t('ai.apply')} (${applyShortcutLabel})`
@@ -670,18 +699,8 @@ export default function AIComposerCoreView({
                           aria-keyshortcuts={
                             preferredResultAction === 'new-note' ? 'Control+Shift+Enter Meta+Shift+Enter' : undefined
                           }
-                          className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
-                          style={{
-                            background:
-                              preferredResultAction === 'new-note'
-                                ? 'var(--accent)'
-                                : 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)',
-                            color: preferredResultAction === 'new-note' ? 'white' : 'var(--text-primary)',
-                            border:
-                              preferredResultAction === 'new-note'
-                                ? '1px solid var(--accent)'
-                                : '1px solid color-mix(in srgb, var(--border) 88%, transparent)',
-                          }}
+                          className="max-w-full shrink-0 truncate rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                          style={getCurrentDocumentResultActionStyle('new-note')}
                           title={
                             preferredResultAction === 'new-note'
                               ? `${t('ai.apply')} (${applyShortcutLabel})`
@@ -762,6 +781,7 @@ export default function AIComposerCoreView({
         </div>
       </div>
     </div>
+  </div>
   )
 }
 
@@ -992,7 +1012,6 @@ function AIQuickChips({
   composerPrompt,
   hasSelection,
   hasCurrentBlock,
-  hasSlashCommandContext,
   aiDefaultWriteTarget,
   onSelectTemplate,
 }: {
@@ -1003,7 +1022,6 @@ function AIQuickChips({
   composerPrompt: string
   hasSelection: boolean
   hasCurrentBlock: boolean
-  hasSlashCommandContext: boolean
   aiDefaultWriteTarget: 'replace-selection' | 'at-cursor' | 'insert-below'
   onSelectTemplate: (template: AITemplateModel) => void
 }) {
@@ -1023,11 +1041,10 @@ function AIQuickChips({
         resolution: resolveAIComposerTemplateResolution(template, {
           hasSelection,
           hasCurrentBlock,
-          hasSlashCommandContext,
           aiDefaultWriteTarget,
         }),
       })),
-    [aiDefaultWriteTarget, chipTemplates, hasCurrentBlock, hasSelection, hasSlashCommandContext]
+    [aiDefaultWriteTarget, chipTemplates, hasCurrentBlock, hasSelection]
   )
   const showTransformHint = resolvedTemplates.some(({ resolution }) => !resolution.enabled)
 

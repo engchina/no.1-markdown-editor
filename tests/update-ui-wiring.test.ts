@@ -22,17 +22,24 @@ test('App lazily mounts rare dialogs while still triggering the automatic update
 })
 
 test('toolbar mounts dedicated AI and About panels while theme settings stay editor-only', async () => {
-  const toolbar = await readFile(new URL('../src/components/Toolbar/Toolbar.tsx', import.meta.url), 'utf8')
-  const panel = await readFile(new URL('../src/components/ThemePanel/ThemePanel.tsx', import.meta.url), 'utf8')
-  const aiPanel = await readFile(new URL('../src/components/AI/AISetupPanel.tsx', import.meta.url), 'utf8')
-  const aboutPanel = await readFile(new URL('../src/components/Updates/AboutPanel.tsx', import.meta.url), 'utf8')
-  const updateSection = await readFile(new URL('../src/components/Updates/UpdateSettingsSection.tsx', import.meta.url), 'utf8')
+  const [toolbar, panel, aiPanel, aboutPanel, updateSection, aiEvents] = await Promise.all([
+    readFile(new URL('../src/components/Toolbar/Toolbar.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/ThemePanel/ThemePanel.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/AI/AISetupPanel.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Updates/AboutPanel.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Updates/UpdateSettingsSection.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/ai/events.ts', import.meta.url), 'utf8'),
+  ])
 
   assert.match(toolbar, /const ThemePanel = lazy\(\(\) => import\('\.\.\/ThemePanel\/ThemePanel'\)\)/)
   assert.match(toolbar, /const AISetupPanel = lazy\(\(\) => import\('\.\.\/AI\/AISetupPanel'\)\)/)
   assert.match(toolbar, /const AboutPanel = lazy\(\(\) => import\('\.\.\/Updates\/AboutPanel'\)\)/)
   assert.match(toolbar, /data-toolbar-action="ai-setup"/)
   assert.match(toolbar, /data-toolbar-action="about"/)
+  assert.match(toolbar, /EDITOR_AI_SETUP_OPEN_EVENT/)
+  assert.match(toolbar, /document\.addEventListener\(EDITOR_AI_SETUP_OPEN_EVENT, openAISetupPanel\)/)
+  assert.match(aiEvents, /export const EDITOR_AI_SETUP_OPEN_EVENT = 'editor:ai-setup-open'/)
+  assert.match(aiEvents, /export function dispatchEditorAISetupOpen\(\): boolean/)
   assert.match(
     toolbar,
     /\{showTheme && \(\s*<Suspense fallback=\{null\}>\s*<ThemePanel onClose=\{\(\) => setShowTheme\(false\)\} triggerRef=\{themeButtonRef\} \/>\s*<\/Suspense>\s*\)\}/
@@ -102,7 +109,7 @@ test('toolbar AI entry and setup panel locale copy exist across en, ja, and zh',
   ])
 
   const locales = [JSON.parse(enRaw), JSON.parse(jaRaw), JSON.parse(zhRaw)] as Array<Record<string, unknown>>
-  const keys = ['toolbar.aiSetup', 'toolbar.format', 'toolbar.wysiwyg', 'ai.setup.title']
+  const keys = ['toolbar.aiSetup', 'toolbar.format', 'toolbar.wysiwyg', 'ai.setup.title', 'ai.setup.open']
 
   for (const locale of locales) {
     for (const key of keys) {

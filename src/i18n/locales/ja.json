@@ -294,7 +294,8 @@
   },
   "ai": {
     "setup": {
-      "title": "AI設定"
+      "title": "AI設定",
+      "open": "AI設定を開く"
     },
     "title": "AI Composer",
     "promptLabel": "プロンプト",
@@ -357,10 +358,6 @@
       "command-palette": "コマンドパレット",
       "slash-command": "スラッシュコマンド"
     },
-    "slashContext": {
-      "attachedMessage": "「/」前の内容は非表示コンテキストとして送信されます。",
-      "emptyMessage": "「/」前に添付できる内容がありません。"
-    },
     "context": {
       "selection": "選択範囲",
       "block": "ブロック",
@@ -368,7 +365,8 @@
       "note": "ノート",
       "search": "検索",
       "language": "文書言語",
-      "frontMatter": "フロントマター"
+      "frontMatter": "フロントマター",
+      "promptOnly": "コンテキストは添付されていません。AI には入力した指示だけが送信されます。"
     },
     "documentLanguageValue": {
       "en": "英語",
@@ -394,9 +392,8 @@
     "target": {
       "selection": "選択範囲",
       "currentBlock": "現在のブロック",
-      "slashContext": "スラッシュコンテキスト",
       "unavailable": "対象なし",
-      "transformHint": "これらの操作を使うには、テキストを選択するか、カーソルを処理可能なブロック内に置くか、「/」の前に空でない内容を残してください。"
+      "transformHint": "これらの操作を使うには、テキストを選択するか、カーソルを処理可能なブロック内に置いてください。"
     },
     "preferences": {
       "defaultWriteTarget": "既定の書き込み先",
@@ -831,7 +828,7 @@
     "openMultipleFilesErrorTitle": "一部のファイルを開けませんでした",
     "openMultipleFilesErrorMessage": "{{total}} 件中 {{count}} 件のファイルを開けませんでした。パスを確認して再試行してください。",
     "aiProviderMissingTitle": "AI 設定が必要です",
-    "aiProviderMissingMessage": "AI 操作を実行する前に、設定で AI プロバイダー設定を完了してください。",
+    "aiProviderMissingMessage": "AI 操作を実行する前に、AI設定でプロバイダー設定を完了してください。",
     "aiDesktopOnlyTitle": "デスクトップ版が必要です",
     "aiDesktopOnlyMessage": "AI プロバイダー設定とリクエスト実行は現在デスクトップ版でのみ利用できます。",
     "aiConnectionSavedTitle": "AI 接続を保存しました",
