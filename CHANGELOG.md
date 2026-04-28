@@ -20,6 +20,28 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.0 - 2026-04-28
+
+### Added
+
+- Added OCI AI setup support for auth profiles, unstructured document stores, structured data stores, hosted agents, and MCP execution profiles.
+- AI Data mode can now prepare SQL drafts and surface structured execution actions from configured MCP tools.
+- Hosted Agent requests now support OCI OAuth token exchange, resolved endpoint previews, and streamed or JSON answer delivery.
+
+### Changed
+
+- AI Composer now keeps Hosted Agent entry points at the top level while moving SQL draft and MCP execution workflows into Data mode.
+- AI result metadata now includes generated SQL, structured execution status, tool names, retrieval query details, and result previews without mixing them into the editable answer text.
+
+### Fixed
+
+- PDF export now encodes output file URIs with spaces before handing them to print backends.
+- MCP execution errors now include clearer remote DNS and offline package-install hints.
+
+### Internal
+
+- Added regression coverage for OCI provider normalization, hosted agent URLs, generated SQL handling, MCP execution wiring, Tauri runner behavior, and the expanded AI Composer flows.
+
 ## 0.19.5 - 2026-04-28
 
 ### Added
