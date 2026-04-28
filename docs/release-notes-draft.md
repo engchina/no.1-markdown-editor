@@ -8,11 +8,11 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.19.5`
+`No.1 Markdown Editor v0.20.0`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.19.5 improves the AI Composer result layout so generated answers stay first while retrieval sources remain easy to inspect. It also adds detailed implementation notes for strict Markdown line break semantics, Typora compatibility, visual soft-break preview, WYSIWYG hard breaks, and export/clipboard separation.
+No.1 Markdown Editor v0.20.0 improves the AI Composer result layout so generated answers stay first while retrieval sources remain easy to inspect. It also adds detailed implementation notes for strict Markdown line break semantics, Typora compatibility, visual soft-break preview, WYSIWYG hard breaks, and export/clipboard separation.
 
 ## Suggested GitHub Release Body
 
@@ -57,13 +57,13 @@ This release is especially relevant for users who:
 ## Packaging Checklist Before Release
 
 - Fill this draft using the current `CHANGELOG.md` `## Unreleased` section.
-- Run `npm run release:prepare -- 0.19.5 --date 2026-04-28` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:prepare -- 0.20.0 --date 2026-04-28` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
 - Confirm the final version in:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
 - Run `npm run release:validate` after the version bump so local metadata checks, changelog checks, and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.19.5` if you want to inspect the generated GitHub release body before pushing the tag.
-- Review the `0.19.5` release notes before tagging.
+- Run `npm run release:notes:preview -- 0.20.0` if you want to inspect the generated GitHub release body before pushing the tag.
+- Review the `0.20.0` release notes before tagging.
 - Capture fresh screenshots for the product surfaces this release highlights.
-- After the release is published, run `npm run release:draft:advance -- 0.19.5` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- After the release is published, run `npm run release:draft:advance -- 0.20.0` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
