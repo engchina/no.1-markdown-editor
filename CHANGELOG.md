@@ -20,6 +20,20 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.1 - 2026-04-29
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Update download dialogs now stay inside the editor's visible area in compact, non-fullscreen windows so the header, release notes, and action buttons remain reachable.
+
+### Internal
+
+- Added regression coverage for compact update-dialog layout, body scrolling, and action reachability.
+
 ## 0.20.0 - 2026-04-28
 
 ### Added
