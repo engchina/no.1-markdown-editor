@@ -325,7 +325,22 @@ fn normalize_launch_arg(arg: &OsStr, cwd: Option<&Path>) -> Option<String> {
         }
     };
 
+    if !is_supported_launch_document_path(&path) {
+        return None;
+    }
+
     Some(path.to_string_lossy().into_owned())
+}
+
+fn is_supported_launch_document_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "md" | "markdown" | "mdx" | "txt"
+            )
+        })
 }
 
 fn focus_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
@@ -434,16 +449,20 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn make_temp_markdown_path(prefix: &str) -> PathBuf {
+    fn make_temp_path(prefix: &str, extension: &str) -> PathBuf {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system clock before unix epoch")
             .as_nanos();
 
         std::env::temp_dir().join(format!(
-            "no1-markdown-editor-{prefix}-{}-{unique}.md",
-            std::process::id()
+            "no1-markdown-editor-{prefix}-{}-{unique}.{extension}",
+            std::process::id(),
         ))
+    }
+
+    fn make_temp_markdown_path(prefix: &str) -> PathBuf {
+        make_temp_path(prefix, "md")
     }
 
     #[test]
@@ -465,6 +484,29 @@ mod tests {
         );
 
         let _ = fs::remove_file(existing_path);
+    }
+
+    #[test]
+    fn collect_launch_paths_ignores_unsupported_existing_files() {
+        let executable_path = make_temp_path("app-argv0", "exe");
+        let markdown_path = make_temp_markdown_path("single-instance-open");
+        fs::write(&executable_path, "fake executable").expect("write temp executable path");
+        fs::write(&markdown_path, "# opened document").expect("write temp markdown path");
+
+        let args = vec![
+            executable_path.as_os_str().to_os_string(),
+            markdown_path.as_os_str().to_os_string(),
+        ];
+
+        let launch_paths = collect_launch_paths_from_args(args, None);
+
+        assert_eq!(
+            launch_paths,
+            vec![markdown_path.to_string_lossy().into_owned()]
+        );
+
+        let _ = fs::remove_file(executable_path);
+        let _ = fs::remove_file(markdown_path);
     }
 
     #[test]

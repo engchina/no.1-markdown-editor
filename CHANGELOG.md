@@ -20,6 +20,20 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.2 - 2026-04-29
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Opening a Markdown document from the OS file association no longer reports a phantom batch-open failure when the desktop shell passes extra launch arguments.
+
+### Internal
+
+- Added regression coverage for filtering unsupported launch arguments before forwarding desktop file-open requests.
+
 ## 0.20.1 - 2026-04-29
 
 ### Added
