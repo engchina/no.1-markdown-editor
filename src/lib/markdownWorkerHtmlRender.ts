@@ -9,6 +9,7 @@ import { finalizeRenderedMarkdownHtml, sanitizeSchema, stripFrontMatter } from '
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
 import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
+import { rehypeSplitHtmlBreakOrderedLists } from './rehypeSplitHtmlBreakOrderedLists.ts'
 import {
   applyMarkdownSyntaxHighlighting,
   type MarkdownSyntaxHighlightEngine,
@@ -27,6 +28,7 @@ async function getHtmlProcessor(engine: MarkdownSyntaxHighlightEngine) {
       .use(remarkGfm, { singleTilde: false })
       .use(remarkRehype, { allowDangerousHtml: true })
       .use(rehypeRaw)
+      .use(rehypeSplitHtmlBreakOrderedLists)
       .use(rehypeSubscriptMarkers)
       .use(rehypeSuperscriptMarkers)
       .use(rehypeHighlightMarkers)

@@ -115,6 +115,80 @@ test('renderMarkdown preserves explicit hard breaks from Markdown and br tags', 
   assert.match(htmlHardBreakHtml, /<p>Line 1<br\s*\/?>\s*Line 2<\/p>/)
 })
 
+test('renderMarkdown splits ordered lists at standalone html break lines', async () => {
+  const markdown = [
+    '1. I luv to raed buks.',
+    '2. The cat is prety and runing verry fast.',
+    '<br />',
+    '',
+    '1. **luhv** (should be love), **raed** (should be read), **buks** (should be books)',
+    '2. **prety** (should be pretty), **runing** (should be running), **verry** (should be very)',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const renderedHtml of [html, workerHtml]) {
+    assert.equal(renderedHtml.match(/<ol/g)?.length, 2)
+    assert.match(renderedHtml, /<\/ol>\s*<br\s*\/?>\s*<ol>\s*<li>\s*<p><strong>luhv<\/strong>/u)
+    assert.doesNotMatch(renderedHtml, /<ol start="3">/u)
+    assert.doesNotMatch(renderedHtml, /<li>\s*<p>The cat is prety and runing verry fast\.<\/p>\s*<br\s*\/?>/u)
+  }
+})
+
+test('renderMarkdown preserves ordered list start after standalone html break split', async () => {
+  const html = await renderMarkdown([
+    '3. First group',
+    '4. Still first group',
+    '<br />',
+    '',
+    '7. Second group',
+    '8. Still second group',
+  ].join('\n'))
+
+  assert.match(html, /<ol start="3">[\s\S]*<\/ol>\s*<br\s*\/?>\s*<ol start="7">/u)
+})
+
+test('renderMarkdown does not split lists at inline html or markdown hard breaks', async () => {
+  const inlineHtmlBreak = await renderMarkdown([
+    '1. A<br />',
+    '2. B',
+  ].join('\n'))
+  const markdownHardBreak = await renderMarkdown([
+    '1. A  ',
+    '   continued',
+    '2. B',
+  ].join('\n'))
+  const unorderedHtmlBreak = await renderMarkdown([
+    '- A',
+    '<br />',
+    '',
+    '- B',
+  ].join('\n'))
+
+  assert.equal(inlineHtmlBreak.match(/<ol/g)?.length, 1)
+  assert.doesNotMatch(inlineHtmlBreak, /<\/ol>\s*<br\s*\/?>\s*<ol/u)
+  assert.equal(markdownHardBreak.match(/<ol/g)?.length, 1)
+  assert.doesNotMatch(markdownHardBreak, /<\/ol>\s*<br\s*\/?>\s*<ol/u)
+  assert.equal(unorderedHtmlBreak.match(/<ul/g)?.length, 1)
+  assert.doesNotMatch(unorderedHtmlBreak, /<\/ul>\s*<br\s*\/?>\s*<ul/u)
+})
+
+test('renderMarkdown splits ordered lists at standalone html breaks on the math html path', async () => {
+  const html = await renderMarkdown([
+    '$x$',
+    '',
+    '1. A',
+    '<br />',
+    '',
+    '1. B',
+  ].join('\n'))
+
+  assert.match(html, /class="katex"/u)
+  assert.equal(html.match(/<ol/g)?.length, 2)
+  assert.match(html, /<\/ol>\s*<br\s*\/?>\s*<ol>/u)
+})
+
 test('renderMarkdown renders angle-bracket URLs and emails in preview and worker output', async () => {
   const markdown = 'For example <i@typora.io> and <https://example.com>'
   const html = await renderMarkdown(markdown)

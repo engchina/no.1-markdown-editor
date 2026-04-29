@@ -11,6 +11,7 @@ import { finalizeRenderedMarkdownHtml, sanitizeSchema, stripFrontMatter } from '
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
 import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
+import { rehypeSplitHtmlBreakOrderedLists } from './rehypeSplitHtmlBreakOrderedLists.ts'
 import {
   applyMarkdownSyntaxHighlighting,
   type MarkdownSyntaxHighlightEngine,
@@ -30,6 +31,7 @@ async function getProcessorWithMathAndHtml(engine: MarkdownSyntaxHighlightEngine
       .use(remarkMath)
       .use(remarkRehype, { allowDangerousHtml: true })
       .use(rehypeRaw)
+      .use(rehypeSplitHtmlBreakOrderedLists)
       .use(rehypeSubscriptMarkers)
       .use(rehypeSuperscriptMarkers)
       .use(rehypeHighlightMarkers)
