@@ -20,6 +20,26 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.3 - 2026-04-30
+
+### Added
+
+- Added Continue to the `/` AI command flow so inline AI writing actions can continue text from the same entry point as ask, rewrite, translate, summarize, and explain.
+
+### Changed
+
+- `/` AI commands now use the text before `/` as optional context, with a `Use / context` toggle in AI Composer.
+- The AI selection bubble now appears only for real text selections, keeping ordinary cursor placement quiet.
+
+### Fixed
+
+- Whitespace-only or `<br />`-only slash prefixes no longer enable `/` context.
+- Removed the duplicate prompt-only context hint from AI Composer.
+
+### Internal
+
+- Added regression coverage for slash-command context handling, AI Composer context toggles, and selection-bubble wiring.
+
 ## 0.20.2 - 2026-04-29
 
 ### Added

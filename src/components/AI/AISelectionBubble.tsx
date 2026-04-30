@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { SelectionBubbleSize } from '../../lib/ai/selectionBubble.ts'
 import AppIcon from '../Icons/AppIcon'
@@ -11,11 +11,13 @@ interface Props {
   onSizeChange?: (size: SelectionBubbleSize) => void
 }
 
-const ACTIONS: AIQuickAction[] = ['ask', 'translate', 'summarize', 'explain', 'rewrite']
+const SELECTION_PRIMARY_ACTIONS: AIQuickAction[] = ['ask', 'rewrite', 'translate']
+const SELECTION_MORE_ACTIONS: AIQuickAction[] = ['summarize', 'explain']
 
 export default function AISelectionBubble({ top, left, onSizeChange }: Props) {
   const { t } = useTranslation()
   const bubbleRef = useRef<HTMLDivElement | null>(null)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   useLayoutEffect(() => {
     if (!onSizeChange) return
@@ -40,10 +42,40 @@ export default function AISelectionBubble({ top, left, onSizeChange }: Props) {
     return () => observer.disconnect()
   }, [onSizeChange])
 
+  const runAction = (action: AIQuickAction) => {
+    setMoreOpen(false)
+    dispatchEditorAIOpen(createAIQuickActionOpenDetail(action, t))
+  }
+
+  const renderActionButton = (action: AIQuickAction, options: { menuItem?: boolean } = {}) => (
+    <button
+      key={action}
+      type="button"
+      role={options.menuItem ? 'menuitem' : undefined}
+      data-ai-selection-action={action}
+      className={
+        options.menuItem
+          ? 'ai-selection-bubble-menu-action'
+          : 'ai-selection-bubble-action rounded-full px-2.5 py-1 text-xs font-medium transition-colors'
+      }
+      style={{
+        color: 'var(--text-secondary)',
+        background: 'transparent',
+      }}
+      onMouseDown={(event) => {
+        event.preventDefault()
+      }}
+      onClick={() => runAction(action)}
+    >
+      {t(`ai.quickActions.${action}`)}
+    </button>
+  )
+
   return (
     <div
       ref={bubbleRef}
       data-ai-selection-bubble="true"
+      data-ai-selection-mode="selection"
       className="pointer-events-none absolute z-20"
       style={{
         top,
@@ -68,26 +100,36 @@ export default function AISelectionBubble({ top, left, onSizeChange }: Props) {
         >
           <AppIcon name="sparkles" size={14} />
         </span>
-        {ACTIONS.map((action) => (
+        {SELECTION_PRIMARY_ACTIONS.map((action) => renderActionButton(action))}
+        <div className="relative">
           <button
-            key={action}
             type="button"
-            data-ai-selection-action={action}
-            className="rounded-full px-2.5 py-1 text-xs font-medium transition-colors"
+            data-ai-selection-more="true"
+            className="ai-selection-bubble-action inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors"
             style={{
               color: 'var(--text-secondary)',
               background: 'transparent',
             }}
+            aria-haspopup="menu"
+            aria-expanded={moreOpen}
             onMouseDown={(event) => {
               event.preventDefault()
             }}
-            onClick={() => {
-              dispatchEditorAIOpen(createAIQuickActionOpenDetail(action, t))
-            }}
+            onClick={() => setMoreOpen((open) => !open)}
           >
-            {t(`ai.quickActions.${action}`)}
+            <span>{t('ai.quickActions.more')}</span>
+            <AppIcon name="chevronDown" size={12} />
           </button>
-        ))}
+          {moreOpen ? (
+            <div
+              role="menu"
+              data-ai-selection-more-menu="true"
+              className="ai-selection-bubble-menu glass-panel absolute right-0 top-full mt-1 min-w-[7.5rem] rounded-lg p-1 shadow-xl"
+            >
+              {SELECTION_MORE_ACTIONS.map((action) => renderActionButton(action, { menuItem: true }))}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   )

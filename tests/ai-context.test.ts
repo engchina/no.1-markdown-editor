@@ -108,7 +108,7 @@ test('buildAIContextPacket captures selection, heading path, front matter, and n
   assert.match(packet.afterText ?? '', /Another line\./u)
 })
 
-test('buildAIComposerContextPacket rebuilds current-block transform context from the captured snapshot without slash-prefix carryover', () => {
+test('buildAIComposerContextPacket rebuilds context and preserves slash-prefix context when enabled', () => {
   const from = sampleDocument.indexOf('Target sentence for editing.')
   const to = from + 'Target sentence for editing.'.length
   const baseContext = buildAIContextPacket({
@@ -119,8 +119,12 @@ test('buildAIComposerContextPacket rebuilds current-block transform context from
     outputTarget: 'replace-selection',
     selection: { from, to },
   })
+  const slashCommandContext = 'Draft paragraph before the slash trigger.'
   const context = buildAIComposerContextPacket({
-    baseContext,
+    baseContext: {
+      ...baseContext,
+      slashCommandContext,
+    },
     sourceSnapshot: {
       tabId: 'tab-1',
       selectionFrom: from,
@@ -133,6 +137,7 @@ test('buildAIComposerContextPacket rebuilds current-block transform context from
     intent: 'edit',
     scope: 'current-block',
     outputTarget: 'replace-current-block',
+    includeSlashCommandContext: true,
   })
 
   assert.ok(context)
@@ -140,7 +145,51 @@ test('buildAIComposerContextPacket rebuilds current-block transform context from
   assert.equal(context?.outputTarget, 'replace-current-block')
   assert.equal(context?.selectedText, undefined)
   assert.equal(context?.currentBlock, ['Target sentence for editing.', 'Another line.'].join('\n'))
-  assert.equal('slashCommandContext' in (context ?? {}), false)
+  assert.equal(context?.slashCommandContext, slashCommandContext)
+
+  const contextWithEmptySlashPrefix = buildAIComposerContextPacket({
+    baseContext: {
+      ...baseContext,
+      slashCommandContext: '  <br />  ',
+    },
+    sourceSnapshot: {
+      tabId: 'tab-1',
+      selectionFrom: from,
+      selectionTo: to,
+      anchorOffset: to,
+      blockFrom: sampleDocument.indexOf('Target sentence for editing.'),
+      blockTo: sampleDocument.indexOf('Another line.') + 'Another line.'.length,
+      docText: sampleDocument,
+    },
+    intent: 'edit',
+    scope: 'current-block',
+    outputTarget: 'replace-current-block',
+    includeSlashCommandContext: true,
+  })
+
+  assert.equal('slashCommandContext' in (contextWithEmptySlashPrefix ?? {}), false)
+
+  const contextWithoutSlashPrefix = buildAIComposerContextPacket({
+    baseContext: {
+      ...baseContext,
+      slashCommandContext,
+    },
+    sourceSnapshot: {
+      tabId: 'tab-1',
+      selectionFrom: from,
+      selectionTo: to,
+      anchorOffset: to,
+      blockFrom: sampleDocument.indexOf('Target sentence for editing.'),
+      blockTo: sampleDocument.indexOf('Another line.') + 'Another line.'.length,
+      docText: sampleDocument,
+    },
+    intent: 'edit',
+    scope: 'current-block',
+    outputTarget: 'replace-current-block',
+    includeSlashCommandContext: false,
+  })
+
+  assert.equal('slashCommandContext' in (contextWithoutSlashPrefix ?? {}), false)
 })
 
 test('parseAIPromptMentions strips explicit context directives from the user instruction', () => {

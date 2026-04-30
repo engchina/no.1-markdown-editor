@@ -30,7 +30,8 @@ test('AI keeps explain prompt entry points but removes explain from the reply re
     prompt: 'ai.templates.explainPrompt',
   })
 
-  assert.match(bubble, /const ACTIONS: AIQuickAction\[] = \['ask', 'translate', 'summarize', 'explain', 'rewrite'\]/)
+  assert.match(bubble, /const SELECTION_MORE_ACTIONS: AIQuickAction\[] = \['summarize', 'explain'\]/)
+  assert.match(bubble, /data-ai-selection-more-menu="true"/)
   assert.match(coreView, /view: 'draft', label: t\('ai\.result\.draft'\)/)
   assert.match(coreView, /view: 'diff', label: t\('ai\.result\.diff'\)/)
   assert.doesNotMatch(coreView, /view: 'explain', label: t\('ai\.result\.explain'\)/)

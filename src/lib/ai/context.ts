@@ -8,6 +8,7 @@ import type {
   AIScope,
   AISelectedTextRole,
 } from './types.ts'
+import { normalizeAISlashCommandContext } from './slashCommands.ts'
 
 const DEFAULT_CONTEXT_WINDOW_CHARS = 400
 const FRONT_MATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u
@@ -70,17 +71,19 @@ export function buildAIComposerContextPacket(options: {
   intent: AIIntent
   scope: AIScope
   outputTarget: AIOutputTarget
+  includeSlashCommandContext?: boolean
 }): AIContextPacket | null {
   const { baseContext, sourceSnapshot, intent, outputTarget } = options
   if (!baseContext) return null
+  const includeSlashCommandContext = options.includeSlashCommandContext ?? true
 
   if (!sourceSnapshot) {
-    return {
+    return applyAIComposerContextAdditions({
       ...baseContext,
       intent,
       scope: options.scope,
       outputTarget,
-    }
+    }, baseContext, includeSlashCommandContext)
   }
 
   const hasSelection = sourceSnapshot.selectionFrom !== sourceSnapshot.selectionTo
@@ -105,12 +108,32 @@ export function buildAIComposerContextPacket(options: {
     selection,
   })
 
-  if (!baseContext.explicitContextAttachments?.length) return context
+  return applyAIComposerContextAdditions(context, baseContext, includeSlashCommandContext)
+}
 
-  return {
-    ...context,
-    explicitContextAttachments: baseContext.explicitContextAttachments,
+function applyAIComposerContextAdditions(
+  context: AIContextPacket,
+  baseContext: AIContextPacket,
+  includeSlashCommandContext: boolean
+): AIContextPacket {
+  const slashCommandContext = includeSlashCommandContext
+    ? normalizeAISlashCommandContext(baseContext.slashCommandContext ?? '')
+    : undefined
+  const nextContext: AIContextPacket = { ...context }
+
+  if (slashCommandContext) {
+    nextContext.slashCommandContext = slashCommandContext
+  } else {
+    delete nextContext.slashCommandContext
   }
+
+  if (baseContext.explicitContextAttachments?.length) {
+    nextContext.explicitContextAttachments = baseContext.explicitContextAttachments
+  } else {
+    delete nextContext.explicitContextAttachments
+  }
+
+  return nextContext
 }
 
 export function extractFrontMatter(content: string): string | null {

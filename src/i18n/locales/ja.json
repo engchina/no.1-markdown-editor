@@ -400,7 +400,9 @@
       "search": "検索",
       "language": "文書言語",
       "frontMatter": "フロントマター",
-      "promptOnly": "コンテキストは添付されていません。AI には入力した指示だけが送信されます。"
+      "promptOnly": "コンテキストは添付されていません。AI には入力した指示だけが送信されます。",
+      "slashBefore": "/ より前の内容をコンテキストとして使用しています。",
+      "useSlashBefore": "/ コンテキストを使用"
     },
     "documentLanguageValue": {
       "en": "英語",
@@ -410,10 +412,12 @@
     },
     "quickActions": {
       "ask": "質問",
+      "continueWriting": "続き",
       "translate": "翻訳",
       "summarize": "要約",
       "explain": "説明",
-      "rewrite": "改稿"
+      "rewrite": "改稿",
+      "more": "その他"
     },
     "mode": {
       "chat": "チャット",
@@ -427,7 +431,7 @@
       "selection": "選択範囲",
       "currentBlock": "現在のブロック",
       "unavailable": "対象なし",
-      "transformHint": "これらの操作を使うには、テキストを選択するか、カーソルを処理可能なブロック内に置いてください。"
+      "transformHint": "テキストを選択するか、/ コンテキストを有効にするか、処理可能なブロックにカーソルを置いてください。"
     },
     "preferences": {
       "defaultWriteTarget": "既定の書き込み先",
@@ -799,7 +803,8 @@
       "continueDetail": "現在のカーソル位置から続きを生成します。",
       "translateDetail": "選択範囲または現在のブロックを翻訳します。",
       "rewriteDetail": "選択範囲または現在のブロックを書き直します。",
-      "summarizeDetail": "選択範囲または現在のブロックを要約します。"
+      "summarizeDetail": "選択範囲または現在のブロックを要約します。",
+      "explainDetail": "選択範囲または現在のブロックを説明します。"
     }
   },
   "commands": {

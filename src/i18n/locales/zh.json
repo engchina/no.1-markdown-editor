@@ -400,7 +400,9 @@
       "search": "搜索",
       "language": "文档语言",
       "frontMatter": "Front Matter",
-      "promptOnly": "未附加上下文。AI 只会收到你输入的指令。"
+      "promptOnly": "未附加上下文。AI 只会收到你输入的指令。",
+      "slashBefore": "正在使用 / 之前的内容作为上下文。",
+      "useSlashBefore": "使用 / 上下文"
     },
     "documentLanguageValue": {
       "en": "英语",
@@ -410,10 +412,12 @@
     },
     "quickActions": {
       "ask": "提问",
+      "continueWriting": "续写",
       "translate": "翻译",
       "summarize": "总结",
       "explain": "解释",
-      "rewrite": "改写"
+      "rewrite": "改写",
+      "more": "更多"
     },
     "mode": {
       "chat": "对话",
@@ -427,7 +431,7 @@
       "selection": "选区",
       "currentBlock": "当前块",
       "unavailable": "无可用目标",
-      "transformHint": "请先选择文本，或将光标放在可处理的文本块中。"
+      "transformHint": "请选择文本、开启 / 上下文，或将光标放在可处理的文本块中。"
     },
     "preferences": {
       "defaultWriteTarget": "默认写入目标",
@@ -799,7 +803,8 @@
       "continueDetail": "从当前光标位置继续生成内容。",
       "translateDetail": "翻译选中文本或当前块内容。",
       "rewriteDetail": "改写选中文本或当前块内容。",
-      "summarizeDetail": "总结选中文本或当前块内容。"
+      "summarizeDetail": "总结选中文本或当前块内容。",
+      "explainDetail": "解释选中文本或当前块内容。"
     }
   },
   "commands": {

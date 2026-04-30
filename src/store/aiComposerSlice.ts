@@ -29,6 +29,7 @@ export interface AIComposerSliceState {
   setHostedAgentProfileId: (hostedAgentProfileId: string | null) => void
   setPrompt: (prompt: string) => void
   setContext: (context: AIContextPacket | null) => void
+  setUseSlashCommandContext: (useSlashCommandContext: boolean) => void
   setSource: (source: AIComposerSource) => void
   setDraftText: (draftText: string) => void
   setDraftFormat: (draftFormat: AIDraftFormat) => void
@@ -66,6 +67,7 @@ export function createInitialAIComposerState(): AIComposerState {
     hostedAgentProfileId: null,
     prompt: '',
     context: null,
+    useSlashCommandContext: true,
     requestState: 'idle',
     draftText: '',
     draftFormat: 'markdown',
@@ -101,6 +103,7 @@ export function createAIComposerSlice<T extends AIComposerSliceState>(
           ...state.composer,
           ...args,
           open: true,
+          useSlashCommandContext: args.useSlashCommandContext ?? true,
           requestState: args.requestState ?? 'idle',
           startedAt: args.startedAt ?? null,
           errorMessage: args.errorMessage ?? null,
@@ -120,6 +123,8 @@ export function createAIComposerSlice<T extends AIComposerSliceState>(
       set((state) => ({ composer: { ...state.composer, hostedAgentProfileId } })),
     setPrompt: (prompt) => set((state) => ({ composer: { ...state.composer, prompt } })),
     setContext: (context) => set((state) => ({ composer: { ...state.composer, context } })),
+    setUseSlashCommandContext: (useSlashCommandContext) =>
+      set((state) => ({ composer: { ...state.composer, useSlashCommandContext } })),
     setSource: (source) => set((state) => ({ composer: { ...state.composer, source } })),
     setDraftText: (draftText) => set((state) => ({ composer: { ...state.composer, draftText } })),
     setDraftFormat: (draftFormat) => set((state) => ({ composer: { ...state.composer, draftFormat } })),

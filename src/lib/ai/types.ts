@@ -107,6 +107,7 @@ export interface AIContextPacket {
   beforeText?: string
   afterText?: string
   currentBlock?: string
+  slashCommandContext?: string
   headingPath?: string[]
   frontMatter?: string | null
   explicitContextAttachments?: AIExplicitContextAttachment[]
@@ -296,6 +297,7 @@ export interface AIComposerState {
   outputTarget: AIOutputTarget
   prompt: string
   context: AIContextPacket | null
+  useSlashCommandContext: boolean
   executionTargetKind: AIExecutionTargetKind
   invocationCapability: AIInvocationCapability
   knowledgeSelection: AIKnowledgeSelection

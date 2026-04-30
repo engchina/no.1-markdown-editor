@@ -54,7 +54,7 @@ import {
   type EditorAIGhostTextDetail,
   type EditorAIOpenDetail,
 } from '../../lib/ai/events.ts'
-import { matchAISlashCommandQuery } from '../../lib/ai/slashCommands.ts'
+import { buildAISlashCommandContext, matchAISlashCommandQuery } from '../../lib/ai/slashCommands.ts'
 import { resolveAIOpenOutputTarget, resolveAISelectedTextRole } from '../../lib/ai/opening.ts'
 import {
   DEFAULT_AI_SELECTION_BUBBLE_SIZE,
@@ -124,6 +124,12 @@ interface Props {
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const AI_GHOST_TEXT_PROMPT_KEY = 'ai.templates.ghostTextPrompt'
+
+interface AISelectionBubbleState {
+  top: number
+  left: number
+}
+
 interface AIComposerRestoreSnapshot {
   selection: EditorSelection
   scrollTop: number
@@ -183,7 +189,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const [footnoteHoverExtension, setFootnoteHoverExtension] = useState<Extension[]>([])
   const [autocompleteExtensions, setAutocompleteExtensions] = useState<Extension[]>([])
   const [wysiwygExtensions, setWysiwygExtensions] = useState<Extension[]>([])
-  const [selectionBubble, setSelectionBubble] = useState<{ top: number; left: number } | null>(null)
+  const [selectionBubble, setSelectionBubbleState] = useState<AISelectionBubbleState | null>(null)
   const documentLanguage = detectDocumentLanguage(content)
   const spellcheckConfig = resolveDocumentSpellcheckConfig(documentLanguage, spellcheckMode)
 
@@ -194,9 +200,51 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     [setCursorPos]
   )
 
+  const clearGhostTextState = useCallback((viewOverride?: EditorView | null) => {
+    const view = viewOverride ?? viewRef.current
+    if (!view) return
+    clearAIGhostText(view)
+    ghostTextSnapshotRef.current = null
+  }, [])
+
+  const setSelectionBubble = useCallback((nextBubble: AISelectionBubbleState | null) => {
+    setSelectionBubbleState(nextBubble)
+  }, [])
+
   const hideSelectionBubble = useCallback(() => {
     setSelectionBubble(null)
-  }, [])
+  }, [setSelectionBubble])
+
+  const resolveBubblePosition = useCallback(
+    (
+      view: EditorView,
+      targetRect: { top: number; bottom: number; left: number; right: number },
+      editorRect: DOMRect,
+      shellRect: DOMRect,
+      lineHeight: number
+    ): { top: number; left: number } | null => {
+      const scaleX = Math.max(view.scaleX || 1, 0.0001)
+      const scaleY = Math.max(view.scaleY || 1, 0.0001)
+      const positionInEditor = computeAISelectionBubblePosition(targetRect, {
+        top: editorRect.top,
+        bottom: editorRect.bottom,
+        left: editorRect.left,
+        right: editorRect.right,
+      }, selectionBubbleSizeRef.current, {
+        gap: Math.max(lineHeight / 4, 2),
+      })
+      const nextTop = (positionInEditor.top + editorRect.top - shellRect.top) / scaleY
+      const nextLeft = (positionInEditor.left + editorRect.left - shellRect.left) / scaleX
+
+      if (!Number.isFinite(nextTop) || !Number.isFinite(nextLeft)) return null
+
+      return {
+        top: nextTop,
+        left: nextLeft,
+      }
+    },
+    []
+  )
 
   const updateSelectionBubble = useCallback(
     (viewOverride?: EditorView | null) => {
@@ -209,11 +257,20 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         return
       }
 
-      const selection = view.state.selection.main
-      if (view.state.selection.ranges.length !== 1 || selection.empty) {
+      if (view.state.selection.ranges.length !== 1) {
         setSelectionBubble(null)
         return
       }
+
+      const selection = view.state.selection.main
+      if (selection.empty) {
+        setSelectionBubble(null)
+        return
+      }
+
+      const shellRect = shell.getBoundingClientRect()
+      const editorRect = container.getBoundingClientRect()
+      const lineHeight = Number.isFinite(view.defaultLineHeight) ? view.defaultLineHeight : 0
 
       const visualSelectionTo = selection.to > selection.from ? selection.to - 1 : selection.to
       const selectionStartCoords = view.coordsAtPos(selection.from, 1) ?? view.coordsAtPos(selection.from)
@@ -224,33 +281,17 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         return
       }
 
-      const shellRect = shell.getBoundingClientRect()
-      const editorRect = container.getBoundingClientRect()
-      const scaleX = Math.max(view.scaleX || 1, 0.0001)
-      const scaleY = Math.max(view.scaleY || 1, 0.0001)
-      const lineHeight = Number.isFinite(view.defaultLineHeight) ? view.defaultLineHeight : 0
-      const positionInEditor = computeAISelectionBubblePosition(selectionRect, {
-        top: editorRect.top,
-        bottom: editorRect.bottom,
-        left: editorRect.left,
-        right: editorRect.right,
-      }, selectionBubbleSizeRef.current, {
-        gap: Math.max(lineHeight / 4, 2),
-      })
-      const nextTop = (positionInEditor.top + editorRect.top - shellRect.top) / scaleY
-      const nextLeft = (positionInEditor.left + editorRect.left - shellRect.left) / scaleX
-
-      if (!Number.isFinite(nextTop) || !Number.isFinite(nextLeft)) {
+      const position = resolveBubblePosition(view, selectionRect, editorRect, shellRect, lineHeight)
+      if (!position) {
         setSelectionBubble(null)
         return
       }
 
       setSelectionBubble({
-        top: nextTop,
-        left: nextLeft,
+        ...position,
       })
     },
-    [aiComposerOpen]
+    [aiComposerOpen, clearGhostTextState, resolveBubblePosition, setSelectionBubble]
   )
 
   const selectionBubbleRafRef = useRef<number | null>(null)
@@ -363,13 +404,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
-
-  const clearGhostTextState = useCallback((viewOverride?: EditorView | null) => {
-    const view = viewOverride ?? viewRef.current
-    if (!view) return
-    clearAIGhostText(view)
-    ghostTextSnapshotRef.current = null
-  }, [])
 
   const cancelGhostTextRequest = useCallback(
     async (options: { clear?: boolean } = {}) => {
@@ -1219,6 +1253,16 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
           scope: finalScope,
         }
       }
+      const slashCommandContext =
+        detail.source === 'slash-command'
+          ? buildAISlashCommandContext(detail.slashCommandContext ?? '')
+          : undefined
+      if (slashCommandContext) {
+        context = {
+          ...context,
+          slashCommandContext,
+        }
+      }
       const threadId = useAIStore.getState().getThreadId(activeTab.id, activeTab.path)
       aiComposerRestoreSnapshotRef.current = {
         selection: view.state.selection,
@@ -1233,6 +1277,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         outputTarget: context.outputTarget,
         prompt: detail.prompt ?? '',
         context,
+        useSlashCommandContext: !!slashCommandContext,
         draftText: '',
         explanationText: '',
         diffBaseText:

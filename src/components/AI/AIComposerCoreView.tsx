@@ -42,7 +42,9 @@ interface Props {
   showConnectionHint: boolean
   connectionHintTitle: string
   connectionHintMessage: string
-  showPromptOnlyContextHint: boolean
+  showSlashCommandContextToggle: boolean
+  canToggleSlashCommandContext: boolean
+  useSlashCommandContext: boolean
   oracleProviderConfig: AIOCIResponsesProviderConfig | null
   knowledgeType: AIKnowledgeType
   hasWorkspaceExecutionTasks: boolean
@@ -56,6 +58,7 @@ interface Props {
   effectivePrompt: string
   normalizedDraft: string
   hasSelection: boolean
+  hasSlashCommandContext: boolean
   hasCurrentBlock: boolean
   aiDefaultWriteTarget: 'replace-selection' | 'at-cursor' | 'insert-below'
   templateModels: AITemplateModel[]
@@ -86,6 +89,7 @@ interface Props {
   onExecuteStructuredSql: () => Promise<void>
   onResetAndClose: () => void
   onPromptChange: (value: string) => void
+  onToggleSlashCommandContext: (value: boolean) => void
   onSelectKnowledgeType: (type: AIKnowledgeType) => void
   onSelectDocsStore: (storeId: string) => void
   onSelectDataStore: (registrationId: string) => void
@@ -113,7 +117,9 @@ export default function AIComposerCoreView({
   showConnectionHint,
   connectionHintTitle,
   connectionHintMessage,
-  showPromptOnlyContextHint,
+  showSlashCommandContextToggle,
+  canToggleSlashCommandContext,
+  useSlashCommandContext,
   oracleProviderConfig,
   knowledgeType,
   hasWorkspaceExecutionTasks,
@@ -127,6 +133,7 @@ export default function AIComposerCoreView({
   effectivePrompt,
   normalizedDraft,
   hasSelection,
+  hasSlashCommandContext,
   hasCurrentBlock,
   aiDefaultWriteTarget,
   templateModels,
@@ -157,6 +164,7 @@ export default function AIComposerCoreView({
   onExecuteStructuredSql,
   onResetAndClose,
   onPromptChange,
+  onToggleSlashCommandContext,
   onSelectKnowledgeType,
   onSelectDocsStore,
   onSelectDataStore,
@@ -329,20 +337,60 @@ export default function AIComposerCoreView({
             </div>
           )}
 
-          {showPromptOnlyContextHint && (
+          {showSlashCommandContextToggle && (
             <div
-              data-ai-context-state="prompt-only"
-              className="flex items-center gap-2 rounded-2xl border px-4 py-3 text-xs leading-5"
+              data-ai-slash-context="true"
+              data-ai-context-state={useSlashCommandContext ? 'slash-context' : 'prompt-only'}
+              className="flex min-w-0 flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 text-xs leading-5"
               style={{
                 borderColor: 'color-mix(in srgb, var(--border) 86%, transparent)',
                 background: 'color-mix(in srgb, var(--bg-secondary) 70%, transparent)',
                 color: 'var(--text-secondary)',
               }}
             >
-              <AppIcon name="infoCircle" size={13} />
-              <p className="m-0 min-w-0 truncate whitespace-nowrap">
-                {t('ai.context.promptOnly')}
-              </p>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <AppIcon name="infoCircle" size={13} />
+                <p className="m-0 min-w-0 truncate whitespace-nowrap">
+                  {useSlashCommandContext ? t('ai.context.slashBefore') : t('ai.context.promptOnly')}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={useSlashCommandContext}
+                data-ai-action="toggle-slash-context"
+                onClick={() => onToggleSlashCommandContext(!useSlashCommandContext)}
+                disabled={composer.requestState === 'streaming' || !canToggleSlashCommandContext}
+                className="inline-flex min-h-8 max-w-full cursor-pointer items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                style={{
+                  borderColor: useSlashCommandContext
+                    ? 'color-mix(in srgb, var(--accent) 42%, var(--border))'
+                    : 'color-mix(in srgb, var(--border) 86%, transparent)',
+                  background: useSlashCommandContext
+                    ? 'color-mix(in srgb, var(--accent) 12%, var(--bg-primary))'
+                    : 'color-mix(in srgb, var(--bg-primary) 86%, transparent)',
+                  color: useSlashCommandContext ? 'var(--text-primary)' : 'var(--text-secondary)',
+                }}
+              >
+                <span
+                  className="relative inline-flex h-4 w-7 flex-shrink-0 rounded-full transition-colors"
+                  style={{
+                    background: useSlashCommandContext
+                      ? 'var(--accent)'
+                      : 'color-mix(in srgb, var(--border) 88%, transparent)',
+                  }}
+                  aria-hidden="true"
+                >
+                  <span
+                    className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform"
+                    style={{
+                      left: '2px',
+                      transform: useSlashCommandContext ? 'translateX(12px)' : 'translateX(0)',
+                    }}
+                  />
+                </span>
+                <span className="min-w-0 truncate">{t('ai.context.useSlashBefore')}</span>
+              </button>
             </div>
           )}
 
@@ -541,6 +589,7 @@ export default function AIComposerCoreView({
             composerOutputTarget={composer.outputTarget}
             composerPrompt={effectivePrompt}
             hasSelection={hasSelection}
+            hasSlashCommandContext={hasSlashCommandContext}
             hasCurrentBlock={hasCurrentBlock}
             aiDefaultWriteTarget={aiDefaultWriteTarget}
             onSelectTemplate={onSelectTemplate}
@@ -1304,6 +1353,7 @@ function AIQuickChips({
   composerOutputTarget,
   composerPrompt,
   hasSelection,
+  hasSlashCommandContext,
   hasCurrentBlock,
   aiDefaultWriteTarget,
   onSelectTemplate,
@@ -1314,6 +1364,7 @@ function AIQuickChips({
   composerOutputTarget: string
   composerPrompt: string
   hasSelection: boolean
+  hasSlashCommandContext: boolean
   hasCurrentBlock: boolean
   aiDefaultWriteTarget: 'replace-selection' | 'at-cursor' | 'insert-below'
   onSelectTemplate: (template: AITemplateModel) => void
@@ -1333,11 +1384,12 @@ function AIQuickChips({
         template,
         resolution: resolveAIComposerTemplateResolution(template, {
           hasSelection,
+          hasSlashCommandContext,
           hasCurrentBlock,
           aiDefaultWriteTarget,
         }),
       })),
-    [aiDefaultWriteTarget, chipTemplates, hasCurrentBlock, hasSelection]
+    [aiDefaultWriteTarget, chipTemplates, hasCurrentBlock, hasSelection, hasSlashCommandContext]
   )
   const showTransformHint = resolvedTemplates.some(({ resolution }) => !resolution.enabled)
 

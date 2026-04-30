@@ -405,7 +405,9 @@
       "search": "Search",
       "language": "Document Language",
       "frontMatter": "Front Matter",
-      "promptOnly": "No context attached. AI will only receive your instruction."
+      "promptOnly": "No context attached. AI will only receive your instruction.",
+      "slashBefore": "Using text before / as context.",
+      "useSlashBefore": "Use / context"
     },
     "documentLanguageValue": {
       "en": "English",
@@ -415,10 +417,12 @@
     },
     "quickActions": {
       "ask": "Ask",
+      "continueWriting": "Continue",
       "translate": "Translate",
       "summarize": "Summarize",
       "explain": "Explain",
-      "rewrite": "Rewrite"
+      "rewrite": "Rewrite",
+      "more": "More"
     },
     "mode": {
       "chat": "Chat",
@@ -432,7 +436,7 @@
       "selection": "Selection",
       "currentBlock": "Current Block",
       "unavailable": "No Target",
-      "transformHint": "Select text or place the cursor inside a processable text block to use these actions."
+      "transformHint": "Select text, enable / context, or place the cursor in a processable block."
     },
     "preferences": {
       "defaultWriteTarget": "Default Write Target",
@@ -804,7 +808,8 @@
       "continueDetail": "Continue writing from the current cursor position.",
       "translateDetail": "Translate the selected text or current block.",
       "rewriteDetail": "Rewrite the selected text or current block.",
-      "summarizeDetail": "Summarize the selected text or current block."
+      "summarizeDetail": "Summarize the selected text or current block.",
+      "explainDetail": "Explain the selected text or current block."
     }
   },
   "commands": {

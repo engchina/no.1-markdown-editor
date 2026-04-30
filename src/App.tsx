@@ -12,6 +12,7 @@ import ErrorFallback from './components/ErrorBoundary/ErrorFallback'
 import { buildAIContextPacket, resolveCurrentBlockRange } from './lib/ai/context'
 import { dispatchEditorAIOpen, EDITOR_AI_OPEN_EVENT, type EditorAIOpenDetail } from './lib/ai/events'
 import { resolveAIOpenOutputTarget } from './lib/ai/opening'
+import { buildAISlashCommandContext } from './lib/ai/slashCommands'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useDocumentDrop } from './hooks/useDocumentDrop'
 import { useExternalFileChanges } from './hooks/useExternalFileChanges'
@@ -274,6 +275,16 @@ export default function App() {
           anchorOffset: offset,
           selection: undefined,
         })
+        const slashCommandContext =
+          detail.source === 'slash-command'
+            ? buildAISlashCommandContext(detail.slashCommandContext ?? '')
+            : undefined
+        const effectiveContext = slashCommandContext
+          ? {
+              ...context,
+              slashCommandContext,
+            }
+          : context
         const blockRange = resolveCurrentBlockRange(fallbackTab.content, offset) ?? {
           from: offset,
           to: offset,
@@ -283,13 +294,14 @@ export default function App() {
         useAIStore.getState().openComposer({
           source: detail.source,
           intent,
-          scope: context.scope,
+          scope: effectiveContext.scope,
           outputTarget,
           prompt: detail.prompt ?? '',
-          context,
+          context: effectiveContext,
+          useSlashCommandContext: !!slashCommandContext,
           draftText: '',
           explanationText: '',
-          diffBaseText: outputTarget === 'replace-current-block' ? context.currentBlock ?? null : null,
+          diffBaseText: outputTarget === 'replace-current-block' ? effectiveContext.currentBlock ?? null : null,
           threadId,
           errorMessage: null,
           requestState: 'idle',

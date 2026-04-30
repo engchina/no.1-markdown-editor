@@ -18,6 +18,7 @@ import {
   resolveAIComposerTemplateResolution,
   type AITemplateModel,
 } from '../../lib/ai/templateLibrary.ts'
+import { normalizeAISlashCommandContext } from '../../lib/ai/slashCommands.ts'
 import { formatPrimaryShortcut, matchesPrimaryShortcut } from '../../lib/platform.ts'
 import { focusElementWithoutScroll } from '../../hooks/useDialogFocusRestore'
 import AIWorkspaceExecutionPanel from './AIWorkspaceExecutionPanel'
@@ -75,6 +76,7 @@ export default function AIComposer() {
     setScope,
     setOutputTarget,
     setPrompt,
+    setUseSlashCommandContext,
     resetDraftState,
   } = useAIStore()
   const initialTemplatePromptRef = useRef<string | null>(composer.prompt)
@@ -95,13 +97,24 @@ export default function AIComposer() {
         intent: composer.intent,
         scope: composer.scope,
         outputTarget: composer.outputTarget,
+        includeSlashCommandContext: composer.useSlashCommandContext,
       }),
-    [composer.context, composer.intent, composer.outputTarget, composer.scope, composer.sourceSnapshot]
+    [
+      composer.context,
+      composer.intent,
+      composer.outputTarget,
+      composer.scope,
+      composer.sourceSnapshot,
+      composer.useSlashCommandContext,
+    ]
   )
+  const hasSlashCommandContext =
+    composer.source === 'slash-command' &&
+    !!normalizeAISlashCommandContext(composer.context?.slashCommandContext ?? '')
+  const hasEnabledSlashCommandContext = hasSlashCommandContext && composer.useSlashCommandContext
   const replaceActionTarget: Extract<AIInsertTarget, 'replace-selection' | 'replace-current-block'> | null =
     hasSelection ? 'replace-selection' : hasCurrentBlock ? 'replace-current-block' : null
   const canReplaceCurrentTarget = replaceActionTarget !== null && composer.draftFormat !== 'sql'
-  const showPromptOnlyContextHint = composer.source === 'slash-command' && !effectiveContext?.selectedText
   const normalizedDraft =
     composer.draftFormat === 'sql'
       ? composer.draftText.trim()
@@ -361,6 +374,7 @@ export default function AIComposer() {
   function applyTemplate(template: AITemplateModel) {
     const resolution = resolveAIComposerTemplateResolution(template, {
       hasSelection,
+      hasSlashCommandContext: hasEnabledSlashCommandContext,
       hasCurrentBlock,
       aiDefaultWriteTarget,
     })
@@ -439,7 +453,9 @@ export default function AIComposer() {
       showConnectionHint={showConnectionHint}
       connectionHintTitle={connectionHintTitle}
       connectionHintMessage={connectionHintMessage}
-      showPromptOnlyContextHint={showPromptOnlyContextHint}
+      showSlashCommandContextToggle={composer.source === 'slash-command'}
+      canToggleSlashCommandContext={hasSlashCommandContext}
+      useSlashCommandContext={hasEnabledSlashCommandContext}
       oracleProviderConfig={oracleProviderConfig}
       knowledgeType={knowledgeType}
       hasWorkspaceExecutionTasks={hasWorkspaceExecutionTasks}
@@ -453,6 +469,7 @@ export default function AIComposer() {
       effectivePrompt={effectivePrompt}
       normalizedDraft={normalizedDraft}
       hasSelection={hasSelection}
+      hasSlashCommandContext={hasEnabledSlashCommandContext}
       hasCurrentBlock={hasCurrentBlock}
       aiDefaultWriteTarget={aiDefaultWriteTarget}
       templateModels={templateModels}
@@ -493,6 +510,7 @@ export default function AIComposer() {
         void handleCloseComposer()
       }}
       onPromptChange={setPrompt}
+      onToggleSlashCommandContext={setUseSlashCommandContext}
       onSelectKnowledgeType={handleSelectKnowledgeType}
       onSelectDocsStore={handleSelectDocsStore}
       onSelectDataStore={handleSelectDataStore}
