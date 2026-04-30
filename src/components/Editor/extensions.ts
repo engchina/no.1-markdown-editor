@@ -5,7 +5,6 @@ import {
   lineNumbers,
   highlightActiveLine,
   highlightActiveLineGutter,
-  highlightSpecialChars,
   MatchDecorator,
   ViewPlugin,
   drawSelection,
@@ -120,38 +119,44 @@ const markdownUnderlineOverride = HighlightStyle.define([
   { tag: [tags.link, tags.heading], textDecoration: 'none' },
 ])
 // Keep ordinary spaces quiet. This mode focuses on Markdown-relevant invisibles:
-// tabs, non-breaking spaces, and line-ending whitespace handled separately below.
-const INVISIBLE_MARKDOWN_SPECIAL_CHARS = /[\t\u00a0]/g
-const trailingSpaceMark = Decoration.mark({ class: 'cm-trailingSpace' })
+// tabs, non-breaking/full-width spaces, and line-ending whitespace.
+const INVISIBLE_MARKDOWN_SPECIAL_CHARS = /[\t\u00a0\u3000]/g
 const trailingSpaceDecorator = createTrailingSpaceDecorator()
 const activeLineTrailingSpaceDecorator = createTrailingSpaceDecorator({ activeLineOnly: true })
-const activeLineSpecialCharDecorator = new MatchDecorator({
-  regexp: INVISIBLE_MARKDOWN_SPECIAL_CHARS,
-  decorate(add, from, to, match, view) {
-    if (!rangeStartsOnFocusedCursorLine(view, from)) return
-
-    if (match[0] === '\t') {
-      const line = view.state.doc.lineAt(from)
-      const col = countColumn(line.text, view.state.tabSize, from - line.from)
-      const width = (view.state.tabSize - (col % view.state.tabSize)) * view.defaultCharacterWidth / view.scaleX
-      add(from, to, Decoration.replace({ widget: new InvisibleTabWidget(width) }))
-      return
-    }
-
-    add(from, to, Decoration.replace({ widget: new InvisibleSpecialCharWidget() }))
-  },
-})
+const specialCharDecorator = createSpecialCharDecorator()
+const activeLineSpecialCharDecorator = createSpecialCharDecorator({ activeLineOnly: true })
 
 function createTrailingSpaceDecorator(options: { activeLineOnly?: boolean } = {}): MatchDecorator {
   return new MatchDecorator({
-    regexp: / +(?=[\t ]*$)/g,
-    // Decorate each trailing space separately so CSS can render exactly one dot per space.
+    regexp: / +(?=[\t \u00a0\u3000]*$)/g,
+    // Replace each trailing space separately so every visible marker keeps the same text cell.
     decorate(add, from, to, _match, view) {
       if (options.activeLineOnly && !rangeStartsOnFocusedCursorLine(view, from)) return
 
       for (let pos = from; pos < to; pos += 1) {
-        add(pos, pos + 1, trailingSpaceMark)
+        add(pos, pos + 1, Decoration.replace({ widget: new InvisibleSpaceWidget('space') }))
       }
+    },
+  })
+}
+
+function createSpecialCharDecorator(options: { activeLineOnly?: boolean } = {}): MatchDecorator {
+  return new MatchDecorator({
+    regexp: INVISIBLE_MARKDOWN_SPECIAL_CHARS,
+    decorate(add, from, to, match, view) {
+      if (options.activeLineOnly && !rangeStartsOnFocusedCursorLine(view, from)) return
+
+      if (match[0] === '\t') {
+        const line = view.state.doc.lineAt(from)
+        const col = countColumn(line.text, view.state.tabSize, from - line.from)
+        const width = (view.state.tabSize - (col % view.state.tabSize)) * view.defaultCharacterWidth / view.scaleX
+        add(from, to, Decoration.replace({ widget: new InvisibleTabWidget(width) }))
+        return
+      }
+
+      add(from, to, Decoration.replace({
+        widget: new InvisibleSpaceWidget(match[0] === '\u3000' ? 'ideographic' : 'non-breaking'),
+      }))
     },
   })
 }
@@ -189,13 +194,32 @@ class InvisibleTabWidget extends WidgetType {
   ignoreEvent() { return false }
 }
 
-class InvisibleSpecialCharWidget extends WidgetType {
+class InvisibleSpaceWidget extends WidgetType {
+  private readonly kind: 'space' | 'non-breaking' | 'ideographic'
+
+  constructor(kind: 'space' | 'non-breaking' | 'ideographic') {
+    super()
+    this.kind = kind
+  }
+
+  eq(other: InvisibleSpaceWidget) {
+    return this.kind === other.kind
+  }
+
   toDOM() {
     const span = document.createElement('span')
-    span.textContent = '\u2022'
-    span.title = 'Special whitespace'
-    span.setAttribute('aria-label', 'Special whitespace')
-    span.className = 'cm-specialChar'
+    const label =
+      this.kind === 'space'
+        ? 'Trailing space'
+        : this.kind === 'ideographic'
+          ? 'Full-width space'
+          : 'Non-breaking space'
+
+    span.title = label
+    span.setAttribute('aria-label', label)
+    span.className = this.kind === 'space'
+      ? 'cm-invisibleSpace cm-trailingSpace'
+      : 'cm-invisibleSpace cm-specialChar'
     return span
   }
 
@@ -391,9 +415,7 @@ export function buildInvisibleCharacterExtensions(
     ),
     options.activeLineOnly
       ? buildMatchDecoratorExtension(activeLineSpecialCharDecorator, { refreshOnSelectionSet: true })
-      : highlightSpecialChars({
-          addSpecialChars: INVISIBLE_MARKDOWN_SPECIAL_CHARS,
-        }),
+      : buildMatchDecoratorExtension(specialCharDecorator),
   ]
 }
 

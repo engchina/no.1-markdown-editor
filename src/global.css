@@ -1078,26 +1078,35 @@ a:focus-visible {
   pointer-events: none;
 }
 
-.cm-trailingSpace {
-  background-image: radial-gradient(circle at 50% 58%, var(--editor-invisible-trailing) 0 0.9px, transparent 1.45px);
+.cm-invisibleSpace {
+  display: inline-block;
+  width: 0.5em;
+  min-width: 0.5em;
+  height: 1.18em;
+  padding: 0;
+  border-radius: 2px;
+  background-color: var(--editor-invisible-soft) !important;
+  background-image: radial-gradient(circle at 50% 56%, var(--editor-invisible-trailing) 0 0.9px, transparent 1.45px);
   background-position: center;
   background-repeat: no-repeat;
   background-size: 100% 1em;
+  color: transparent !important;
+  font-size: 1em;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+  vertical-align: -0.14em;
+  box-shadow: none;
+  opacity: 0.82;
 }
 
 .cm-specialChar {
-  display: inline-block;
-  min-width: 0.72em;
-  padding: 0;
-  background: none;
-  color: var(--editor-invisible-ink) !important;
-  font-size: 0.58em;
-  font-weight: 500;
-  line-height: 1;
-  text-align: center;
-  vertical-align: baseline;
-  box-shadow: none;
-  opacity: 0.68;
+  color: transparent !important;
+}
+
+.cm-trailingSpace {
+  background-color: var(--editor-invisible-soft) !important;
+  color: transparent !important;
 }
 
 /* Markdown syntax colors — light */
