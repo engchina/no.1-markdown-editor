@@ -192,6 +192,8 @@
     "loadNow": "Load Preview",
     "externalImageBlocked": "External image blocked",
     "externalImageClickToLoad": "Click to load from the original host",
+    "externalEmbedBlocked": "External embed blocked",
+    "externalEmbedClickToLoad": "Click to load from the original host",
     "mermaidLabel": "Mermaid Diagram",
     "renderDiagram": "Render Diagram",
     "refreshDiagram": "Refresh Diagram",

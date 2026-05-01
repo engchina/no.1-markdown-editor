@@ -20,6 +20,19 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.5 - 2026-05-01
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Clicking outside the AI Composer floating panel now keeps the composer open instead of dismissing the current AI workflow.
+- CodePen embeds in Markdown preview now load only after an explicit click, keeping third-party iframe permission warnings out of the console during normal document rendering.
+
+### Internal
+
 ## 0.20.4 - 2026-04-30
 
 ### Added

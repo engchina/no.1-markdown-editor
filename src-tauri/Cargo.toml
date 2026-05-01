@@ -1,6 +1,6 @@
 [package]
 name = "no1-markdown-editor"
-version = "0.20.4"
+version = "0.20.5"
 description = "No.1 Markdown Editor — Free Forever"
 authors = []
 edition = "2021"
@@ -15,7 +15,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = { version = "2", features = ["watch"] }
 tauri-plugin-opener = "2"
@@ -54,3 +54,4 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+

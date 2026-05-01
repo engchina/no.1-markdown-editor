@@ -4,12 +4,13 @@ import remarkGfm from 'remark-gfm'
 import remarkRehype from 'remark-rehype'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeStringify from 'rehype-stringify'
-import { finalizeRenderedMarkdownHtml, sanitizeSchema, stripFrontMatter } from './markdownShared.ts'
+import { finalizeRenderedMarkdownHtml, normalizeSelfClosingRawHtmlBlocks, sanitizeSchema, stripFrontMatter } from './markdownShared.ts'
 import { containsLikelyRawHtml } from './markdownHtml.ts'
 import { containsLikelyMath } from './markdownMath.ts'
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
 import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
+import { rehypeHardenRawHtml, rehypePrepareRawHtmlForSanitize } from './rehypeHardenRawHtml.ts'
 import {
   applyMarkdownSyntaxHighlighting,
   type MarkdownSyntaxHighlightEngine,
@@ -34,7 +35,9 @@ async function getProcessor(engine: MarkdownSyntaxHighlightEngine) {
       .use(rehypeSuperscriptMarkers)
       .use(rehypeHighlightMarkers)
       .use(rehypeNormalizeImageSources)
+      .use(rehypePrepareRawHtmlForSanitize)
       .use(rehypeSanitize, sanitizeSchema)
+      .use(rehypeHardenRawHtml)
 
     processor = await applyMarkdownSyntaxHighlighting(processor, engine)
 
@@ -76,9 +79,10 @@ export async function renderMarkdownInWorker(
   }
 
   const processor = await getProcessor(syntaxHighlightEngine)
+  const normalizedBody = normalizeSelfClosingRawHtmlBlocks(frontMatter.body)
   const rendered = await processor.process({
-    value: frontMatter.body,
-    data: { markdownSource: frontMatter.body },
+    value: normalizedBody,
+    data: { markdownSource: normalizedBody },
   })
   return finalizeRenderedMarkdownHtml(frontMatter.meta, String(rendered))
 }

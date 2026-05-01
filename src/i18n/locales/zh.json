@@ -190,6 +190,8 @@
     "loadNow": "立即加载预览",
     "externalImageBlocked": "外链图片已阻止",
     "externalImageClickToLoad": "点击后再从原始站点加载",
+    "externalEmbedBlocked": "外部嵌入内容已阻止",
+    "externalEmbedClickToLoad": "点击后再从原始站点加载",
     "mermaidLabel": "Mermaid 图表",
     "renderDiagram": "渲染图表",
     "refreshDiagram": "重新渲染",

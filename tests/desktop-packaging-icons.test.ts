@@ -51,3 +51,20 @@ test('desktop file associations cover every document extension the app can open'
   assert.equal(textAssociation?.mimeType, 'text/plain')
   assert.equal(textAssociation?.rank, 'Alternate')
 })
+
+test('desktop asset protocol is enabled for local media preview playback', async () => {
+  const config = await readTauriConfig()
+  const assetProtocol = config.app.security.assetProtocol
+
+  assert.equal(assetProtocol.enable, true)
+  assert.ok(assetProtocol.scope.allow.includes('$VIDEO/**'))
+  assert.ok(assetProtocol.scope.allow.includes('$AUDIO/**'))
+  assert.ok(assetProtocol.scope.allow.includes('**/*.[mM][pP][4]'))
+  assert.ok(assetProtocol.scope.allow.includes('**/*.[wW][eE][bB][mM]'))
+  assert.ok(assetProtocol.scope.allow.includes('**/*.[mM][pP][3]'))
+  assert.ok(assetProtocol.scope.allow.includes('**/*.[vV][tT][tT]'))
+  assert.ok(assetProtocol.scope.allow.includes('**/*.[pP][nN][gG]'))
+  assert.ok(!assetProtocol.scope.allow.includes('$HOME/**'))
+  assert.ok(assetProtocol.scope.deny.includes('**/.ssh/**'))
+  assert.ok(assetProtocol.scope.deny.includes('$HOME/.ssh/**'))
+})

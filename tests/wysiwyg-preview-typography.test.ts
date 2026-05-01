@@ -78,3 +78,14 @@ test('preview and wysiwyg share the same inline markdown presentation tokens', a
   assert.match(source, /'\.cm-wysiwyg-bullet-simple': \{[\s\S]*width: LIST_MARKER_INLINE_SIZE[\s\S]*fontWeight: LIST_MARKER_FONT_WEIGHT/u)
   assert.match(source, /'\.cm-wysiwyg-ordered-number': \{[\s\S]*fontWeight: LIST_MARKER_FONT_WEIGHT/u)
 })
+
+test('preview and wysiwyg keep raw html embeds on stable responsive dimensions', async () => {
+  const [css, source] = await Promise.all([
+    readFile(new URL('../src/global.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(css, /\.markdown-preview iframe\s*\{[\s\S]*width:\s*100%;[\s\S]*height:\s*auto;[\s\S]*aspect-ratio:\s*16 \/ 9;/u)
+  assert.match(css, /\.markdown-preview \.preview-external-embed,[\s\S]*\.cm-wysiwyg-raw-html-block \.preview-external-embed,[\s\S]*\.cm-wysiwyg-details__body \.preview-external-embed\s*\{[\s\S]*width:\s*100%;[\s\S]*aspect-ratio:\s*16 \/ 9;/u)
+  assert.match(source, /'\.cm-wysiwyg-details__body iframe': \{[\s\S]*?width: '100%'[\s\S]*?height: 'auto'[\s\S]*?aspectRatio: '16 \/ 9'/u)
+})

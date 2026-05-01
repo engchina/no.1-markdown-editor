@@ -254,7 +254,11 @@ export default function AIComposerCoreView({
       className="fixed inset-0 z-[110]"
       style={{ background: 'rgba(0, 0, 0, 0.24)', backdropFilter: 'blur(6px)' }}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) void onClose()
+        if (event.target !== event.currentTarget) return
+
+        event.preventDefault()
+        const focusTarget = textareaRef.current ?? dialogRef.current
+        focusTarget?.focus({ preventScroll: true })
       }}
     >
       <div

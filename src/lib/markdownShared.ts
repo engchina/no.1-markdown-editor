@@ -1,27 +1,97 @@
 import { defaultSchema } from 'rehype-sanitize'
+import type { Schema } from 'hast-util-sanitize'
 import { containsLikelyMath } from './markdownMath.ts'
 import { rewriteRenderedHtmlImageSources } from './renderedImageSources.ts'
 
 export type FrontMatterMeta = Record<string, string>
+type PropertyDefinition = NonNullable<NonNullable<Schema['attributes']>[string]>[number]
 
-export const sanitizeSchema = {
+function unique<T>(values: readonly T[]): T[] {
+  return Array.from(new Set(values))
+}
+
+function mergeAttributeList(tagName: string, additions: readonly PropertyDefinition[]): PropertyDefinition[] {
+  return unique([...(defaultSchema.attributes?.[tagName] ?? []), ...additions])
+}
+
+export const sanitizeSchema: Schema = {
   ...defaultSchema,
-  tagNames: Array.from(new Set([...(defaultSchema.tagNames ?? []), 'details', 'mark', 'section', 'sub', 'summary', 'sup', 'u'])),
+  tagNames: unique([
+    ...(defaultSchema.tagNames ?? []),
+    'abbr',
+    'audio',
+    'cite',
+    'dfn',
+    'figcaption',
+    'figure',
+    'iframe',
+    'mark',
+    'time',
+    'track',
+    'u',
+    'video',
+  ]),
   attributes: {
     ...defaultSchema.attributes,
-    '*': [...(defaultSchema.attributes?.['*'] ?? []), 'className', 'class'], // To allow standard classes
-    'details': ['open', 'className', 'class'],
-    'section': ['dataFootnotes', 'className', 'class'],
-    'summary': ['className', 'class'],
-    'h2': [...(defaultSchema.attributes?.h2 ?? []), 'id', 'className', 'class'],
-    'sub': ['id'],
-    'sup': ['id'],
-    'a': [...(defaultSchema.attributes?.a ?? []), 'dataFootnoteRef', 'dataFootnoteBackref', 'ariaDescribedby', 'ariaLabel'],
-    'li': [...(defaultSchema.attributes?.li ?? []), 'id'],
+    '*': mergeAttributeList('*', ['className', 'class']), // To allow standard classes
+    'a': mergeAttributeList('a', ['dataFootnoteRef', 'dataFootnoteBackref', 'ariaDescribedBy', 'ariaDescribedby', 'ariaLabel']),
+    'abbr': ['title', 'className', 'class'],
+    'audio': ['ariaDescribedBy', 'ariaLabel', 'ariaLabelledBy', 'className', 'class', 'controls', 'loop', 'muted', 'preload', 'src', 'title'],
+    'cite': ['className', 'class'],
+    'details': mergeAttributeList('details', ['open', 'className', 'class']),
+    'dfn': ['title', 'className', 'class'],
+    'figcaption': ['className', 'class'],
+    'figure': ['className', 'class'],
+    'h2': mergeAttributeList('h2', ['id', 'className', 'class']),
+    'iframe': [
+      'allow',
+      'allowFullScreen',
+      'allowfullscreen',
+      'ariaDescribedBy',
+      'ariaLabel',
+      'ariaLabelledBy',
+      'className',
+      'class',
+      'height',
+      'loading',
+      'referrerPolicy',
+      'sandbox',
+      'src',
+      'title',
+      'width',
+    ],
+    'li': mergeAttributeList('li', ['id']),
+    'section': mergeAttributeList('section', ['dataFootnotes', 'className', 'class']),
+    'source': mergeAttributeList('source', ['media', 'sizes', 'src', 'type']),
+    'sub': mergeAttributeList('sub', ['id']),
+    'summary': mergeAttributeList('summary', ['className', 'class']),
+    'sup': mergeAttributeList('sup', ['id']),
+    'time': ['dateTime', 'className', 'class'],
+    'track': ['default', 'kind', 'label', 'src', 'srcLang', 'srclang'],
+    'video': [
+      'ariaDescribedBy',
+      'ariaLabel',
+      'ariaLabelledBy',
+      'className',
+      'class',
+      'controls',
+      'height',
+      'loop',
+      'muted',
+      'playsInline',
+      'playsinline',
+      'poster',
+      'preload',
+      'src',
+      'title',
+      'width',
+    ],
   },
   protocols: {
     ...defaultSchema.protocols,
-    src: Array.from(new Set([...(defaultSchema.protocols?.src ?? []), 'data', 'file'])),
+    href: unique([...(defaultSchema.protocols?.href ?? []), 'tel']),
+    poster: unique([...(defaultSchema.protocols?.poster ?? []), 'http', 'https', 'data', 'file']),
+    src: unique([...(defaultSchema.protocols?.src ?? []), 'data', 'file']),
   },
 }
 
@@ -68,6 +138,38 @@ export function buildFrontMatterHtml(meta: FrontMatterMeta): string {
 }
 
 export { containsLikelyMath }
+
+export function normalizeSelfClosingRawHtmlBlocks(markdown: string): string {
+  if (!markdown || !/<(?:audio|video|iframe)\b/i.test(markdown)) return markdown
+
+  const parts = markdown.split(/(\r\n|\n|\r)/)
+  let inFence: { marker: '`' | '~'; length: number } | null = null
+
+  for (let index = 0; index < parts.length; index += 2) {
+    const line = parts[index]
+    const fence = /^ {0,3}(`{3,}|~{3,})/u.exec(line)
+    if (fence) {
+      const marker = fence[1][0] as '`' | '~'
+      const length = fence[1].length
+      if (!inFence) {
+        inFence = { marker, length }
+      } else if (inFence.marker === marker && length >= inFence.length) {
+        inFence = null
+      }
+      continue
+    }
+
+    if (inFence) continue
+
+    parts[index] = line.replace(
+      /^(\s*)<(audio|video|iframe)\b((?:\s(?:[^<>"']+|"[^"]*"|'[^']*')*)?)\s*\/>\s*$/iu,
+      (_, indent: string, tagName: string, attributes: string) =>
+        `${indent}<${tagName}${attributes.replace(/\s+$/u, '')}></${tagName.toLowerCase()}>`
+    )
+  }
+
+  return parts.join('')
+}
 
 export function finalizeRenderedMarkdownHtml(meta: FrontMatterMeta, bodyHtml: string): string {
   return buildFrontMatterHtml(meta) + rewriteRenderedHtmlImageSources(bodyHtml, { frontMatter: meta })
@@ -200,6 +302,43 @@ export function buildStandaloneHtml(
     th { background: #f9fafb; font-weight: 600; }
     tr:nth-child(even) td { background: #f9fafb; }
     img { max-width: 100%; border-radius: 4px; }
+    figure { margin: 0; }
+    figcaption {
+      color: #6b7280;
+      font-size: 0.875em;
+      line-height: 1.5;
+      margin-top: 0.5em;
+      text-align: center;
+    }
+    kbd {
+      display: inline-block;
+      min-width: 1.5em;
+      border: 1px solid #d4d4d8;
+      border-radius: 4px;
+      background: #f4f4f5;
+      box-shadow: inset 0 -1px 0 #d4d4d8;
+      color: #27272a;
+      font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+      font-size: 0.8125em;
+      line-height: 1.45;
+      padding: 0 0.35em;
+      text-align: center;
+      white-space: nowrap;
+    }
+    audio, video, iframe {
+      display: block;
+      max-width: 100%;
+      border-radius: 6px;
+    }
+    audio { width: 100%; }
+    video { height: auto; }
+    iframe {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+    }
     hr { border: none; border-top: 1px solid #e5e7eb; margin: 0; }
     details { margin: 0; }
     summary { cursor: pointer; color: #1a1a1a; font-weight: 500; }
@@ -230,12 +369,12 @@ export function buildStandaloneHtml(
     .front-matter td { border: none; padding: 2px 8px 2px 0; }
     .fm-key { font-weight: 600; color: #2563eb; white-space: nowrap; padding-right: 16px; }
     .fm-val { color: #4b5563; }
-    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, details, ul, ol, pre, table, hr, img, .front-matter) {
+    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, details, figure, ul, ol, pre, table, hr, img, audio, video, iframe, .front-matter) {
       margin-top: 0;
       margin-bottom: 0;
     }
-    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, details, ul, ol, pre, table, hr, img, .front-matter)
-      + :is(p, h1, h2, h3, h4, h5, h6, blockquote, details, ul, ol, pre, table, hr, img, .front-matter) {
+    body > :is(p, h1, h2, h3, h4, h5, h6, blockquote, details, figure, ul, ol, pre, table, hr, img, audio, video, iframe, .front-matter)
+      + :is(p, h1, h2, h3, h4, h5, h6, blockquote, details, figure, ul, ol, pre, table, hr, img, audio, video, iframe, .front-matter) {
       margin-top: var(--md-block-space);
     }
     @page { size: A4; margin: 18mm 16mm; }

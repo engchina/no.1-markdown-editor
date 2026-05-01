@@ -1,6 +1,6 @@
 {
   "productName": "No.1 Markdown Editor",
-  "version": "0.20.4",
+  "version": "0.20.5",
   "identifier": "com.no1.markdown-editor",
   "build": {
     "frontendDist": "../dist",
@@ -23,7 +23,68 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "allow": [
+            "**/*.[3][gG][2]",
+            "**/*.[3][gG][pP]",
+            "**/*.[aA][aA][cC]",
+            "**/*.[aA][iI][fF][fF]",
+            "**/*.[aA][vV][iI]",
+            "**/*.[aA][vV][iI][fF]",
+            "**/*.[bB][mM][pP]",
+            "**/*.[fF][lL][aA][cC]",
+            "**/*.[gG][iI][fF]",
+            "**/*.[jJ][pP][eE][gG]",
+            "**/*.[jJ][pP][gG]",
+            "**/*.[mM][4][aA]",
+            "**/*.[mM][4][vV]",
+            "**/*.[mM][kK][vV]",
+            "**/*.[mM][oO][vV]",
+            "**/*.[mM][pP][3]",
+            "**/*.[mM][pP][4]",
+            "**/*.[mM][pP][eE][gG]",
+            "**/*.[mM][pP][gG]",
+            "**/*.[oO][gG][aA]",
+            "**/*.[oO][gG][gG]",
+            "**/*.[oO][gG][vV]",
+            "**/*.[oO][pP][uU][sS]",
+            "**/*.[pP][nN][gG]",
+            "**/*.[sS][rR][tT]",
+            "**/*.[vV][tT][tT]",
+            "**/*.[wW][aA][vV]",
+            "**/*.[wW][eE][bB][aA]",
+            "**/*.[wW][eE][bB][mM]",
+            "**/*.[wW][eE][bB][pP]",
+            "**/*.[wW][mM][aA]",
+            "$AUDIO/**",
+            "$DESKTOP/**",
+            "$DOCUMENT/**",
+            "$DOWNLOAD/**",
+            "$PICTURE/**",
+            "$VIDEO/**"
+          ],
+          "deny": [
+            "**/.aws/**",
+            "**/.config/**",
+            "**/.gnupg/**",
+            "**/.oci/**",
+            "**/.ssh/**",
+            "$APPDATA/**",
+            "$APPCONFIG/**",
+            "$APPLOCALDATA/**",
+            "$CONFIG/**",
+            "$HOME/.aws/**",
+            "$HOME/.config/**",
+            "$HOME/.gnupg/**",
+            "$HOME/.oci/**",
+            "$HOME/.ssh/**",
+            "$LOCALDATA/**"
+          ]
+        }
+      }
     }
   },
   "bundle": {

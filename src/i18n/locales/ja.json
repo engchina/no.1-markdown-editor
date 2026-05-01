@@ -190,6 +190,8 @@
     "loadNow": "プレビューを読み込む",
     "externalImageBlocked": "外部画像をブロックしました",
     "externalImageClickToLoad": "クリックすると元のホストから読み込みます",
+    "externalEmbedBlocked": "外部埋め込みをブロックしました",
+    "externalEmbedClickToLoad": "クリックすると元のホストから読み込みます",
     "mermaidLabel": "Mermaid 図",
     "renderDiagram": "図を描画",
     "refreshDiagram": "図を再描画",

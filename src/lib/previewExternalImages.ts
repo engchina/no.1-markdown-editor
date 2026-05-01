@@ -1,4 +1,5 @@
-const IMG_TAG_PATTERN = /<img\b([^>]*?)(\s*\/?)>/gi
+const IMG_TAG_PATTERN = /<img\b((?:[^>"']+|"[^"]*"|'[^']*')*?)(\s*\/?)>/gi
+const SOURCE_TAG_PATTERN = /<source\b((?:[^>"']+|"[^"]*"|'[^']*')*?)(\s*\/?)>/gi
 const HTTP_PROTOCOLS = new Set(['http:', 'https:'])
 const PREVIEW_EXTERNAL_IMAGE_CLASS = 'preview-external-image'
 
@@ -63,9 +64,21 @@ export function rewritePreviewHtmlExternalImages(
   baseOrigin: string,
   options: RewritePreviewHtmlExternalImagesOptions = {}
 ): string {
-  if (!html.includes('<img')) return html
+  if (!html.includes('<img') && !html.includes('<source')) return html
 
-  return html.replace(IMG_TAG_PATTERN, (_, rawAttributes: string, selfClosingSlash: string) => {
+  const htmlWithSafeSourceSets = html.replace(
+    SOURCE_TAG_PATTERN,
+    (_, rawAttributes: string, selfClosingSlash: string) => {
+      const sourceSet = getHtmlAttribute(rawAttributes, 'srcset')
+      if (!sourceSetShouldUseFallbackImage(sourceSet, baseOrigin, options)) {
+        return buildSourceTag(rawAttributes, selfClosingSlash)
+      }
+
+      return buildSourceTag(removeHtmlAttribute(rawAttributes, 'srcset'), selfClosingSlash)
+    }
+  )
+
+  return htmlWithSafeSourceSets.replace(IMG_TAG_PATTERN, (_, rawAttributes: string, selfClosingSlash: string) => {
     const source = getHtmlAttribute(rawAttributes, 'src')
     let nextAttributes = ensureSharedImageAttributes(rawAttributes)
 
@@ -127,11 +140,55 @@ export function rewritePreviewHtmlExternalImages(
   })
 }
 
+function sourceSetShouldUseFallbackImage(
+  sourceSet: string,
+  baseOrigin: string,
+  options: RewritePreviewHtmlExternalImagesOptions
+): boolean {
+  return collectSrcSetCandidateSources(sourceSet).some((source) => {
+    if (requiresExternalImageBridge(source, baseOrigin, options)) return true
+    return options.enableDirectExternalImageFallback === true && isExternalImageSource(source, baseOrigin)
+  })
+}
+
 function buildImageTag(attributes: string, selfClosingSlash: string): string {
   const normalizedAttributes = attributes.replace(/\s+/g, ' ').trim()
   return normalizedAttributes
     ? `<img ${normalizedAttributes}${selfClosingSlash}>`
     : `<img${selfClosingSlash}>`
+}
+
+function buildSourceTag(attributes: string, selfClosingSlash: string): string {
+  const normalizedAttributes = attributes.replace(/\s+/g, ' ').trim()
+  return normalizedAttributes
+    ? `<source ${normalizedAttributes}${selfClosingSlash}>`
+    : `<source${selfClosingSlash}>`
+}
+
+function collectSrcSetCandidateSources(value: string): string[] {
+  const sources: string[] = []
+  let index = 0
+
+  while (index < value.length) {
+    while (index < value.length && (value[index] === ',' || /\s/u.test(value[index]))) {
+      index += 1
+    }
+
+    const start = index
+    const isDataUrl = value.slice(index, index + 5).toLowerCase() === 'data:'
+    while (index < value.length && !/\s/u.test(value[index]) && (isDataUrl || value[index] !== ',')) {
+      index += 1
+    }
+
+    const source = value.slice(start, index).trim()
+    if (source) sources.push(source)
+
+    while (index < value.length && value[index] !== ',') {
+      index += 1
+    }
+  }
+
+  return sources
 }
 
 function ensureSharedImageAttributes(attributes: string): string {

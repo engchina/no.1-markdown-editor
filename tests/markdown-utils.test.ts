@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   buildStandaloneHtml,
+  normalizeSelfClosingRawHtmlBlocks,
   renderMarkdown,
   stripFrontMatter,
 } from '../src/lib/markdown.ts'
@@ -15,6 +16,11 @@ import {
   isLocalPreviewImageSource,
   rewritePreviewHtmlLocalImages,
 } from '../src/lib/previewLocalImages.ts'
+import {
+  isLocalPreviewMediaSource,
+  resolveLocalPreviewMediaPath,
+  rewritePreviewHtmlLocalMedia,
+} from '../src/lib/previewLocalMedia.ts'
 import { buildFrontMatterHtml } from '../src/lib/markdownShared.ts'
 import { renderMarkdownInWorker } from '../src/lib/markdownWorker.ts'
 import { extractHeadings } from '../src/lib/outline.ts'
@@ -247,10 +253,35 @@ test('renderMarkdown keeps single newlines soft when math is present', async () 
 test('containsLikelyRawHtml detects actual html but ignores plain angle brackets', () => {
   assert.equal(containsLikelyRawHtml('2 < 3 and 5 > 4'), false)
   assert.equal(containsLikelyRawHtml('Hello <span>world</span>'), true)
+  assert.equal(containsLikelyRawHtml('Hello<span>world</span>'), true)
+  assert.equal(containsLikelyRawHtml('Press<kbd title="1 > 0">Ctrl</kbd>'), true)
   assert.equal(containsLikelyRawHtml('Hello<br />world'), true)
   assert.equal(containsLikelyRawHtml('<!-- comment -->\nText'), true)
   assert.equal(containsLikelyRawHtml('<https://example.com>'), false)
   assert.equal(containsLikelyRawHtml('<hello@example.com>'), false)
+  assert.equal(containsLikelyRawHtml('\\<span>literal'), false)
+  assert.equal(containsLikelyRawHtml('\\<br />literal'), false)
+})
+
+test('normalizeSelfClosingRawHtmlBlocks closes non-void media block tags outside fences', () => {
+  const markdown = [
+    '<video src="clip.mp4" />',
+    '',
+    '```html',
+    '<video src="literal.mp4" />',
+    '```',
+  ].join('\n')
+
+  assert.equal(
+    normalizeSelfClosingRawHtmlBlocks(markdown),
+    [
+      '<video src="clip.mp4"></video>',
+      '',
+      '```html',
+      '<video src="literal.mp4" />',
+      '```',
+    ].join('\n')
+  )
 })
 
 test('renderMarkdown keeps safe raw html while stripping scripts', async () => {
@@ -259,6 +290,16 @@ test('renderMarkdown keeps safe raw html while stripping scripts', async () => {
   assert.match(html, /<span>world<\/span>/)
   assert.doesNotMatch(html, /<script/i)
   assert.doesNotMatch(html, /alert\(1\)/)
+})
+
+test('renderMarkdown preserves adjacent inline raw html tags in preview and worker output', async () => {
+  const markdown = 'Press<kbd title="1 > 0">Ctrl</kbd> and x<u>y</u>.'
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /Press<kbd title="1 > 0">Ctrl<\/kbd> and x<u>y<\/u>\./u)
+  }
 })
 
 test('renderMarkdown preserves details disclosure blocks with parsed markdown content', async () => {
@@ -296,6 +337,204 @@ test('renderMarkdown preserves highlight tags inserted from pasted html', async 
   const html = await renderMarkdown('Hello <mark>world</mark>')
 
   assert.match(html, /<p>Hello <mark>world<\/mark><\/p>/)
+})
+
+test('renderMarkdown preserves safe raw html media while hardening iframe embeds', async () => {
+  const markdown = [
+    'Press <kbd>Ctrl</kbd> + <kbd>K</kbd>.',
+    '',
+    '<figure><img src="cover.png" alt="Cover"><figcaption>Cover image</figcaption></figure>',
+    '',
+    '<video src="clip.mp4" poster="poster.png"></video>',
+    '',
+    '<audio src="voice.mp3"></audio>',
+    '',
+    '<iframe src="https://www.youtube.com/embed/demo" allow="autoplay" onload="bad()"></iframe>',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /<kbd>Ctrl<\/kbd>/)
+    assert.match(rendered, /<figure><img src="cover\.png" alt="Cover"><figcaption>Cover image<\/figcaption><\/figure>/)
+    assert.match(rendered, /<video src="clip\.mp4" poster="poster\.png" controls preload="metadata"><\/video>/)
+    assert.match(rendered, /<audio src="voice\.mp3" controls preload="metadata"><\/audio>/)
+    assert.match(rendered, /<iframe src="https:\/\/www\.youtube\.com\/embed\/demo"/)
+    assert.match(rendered, /sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts"/)
+    assert.match(rendered, /allow="fullscreen; picture-in-picture"/)
+    assert.doesNotMatch(rendered, /allowfullscreen/)
+    assert.match(rendered, /loading="lazy"/)
+    assert.match(rendered, /referrerpolicy="strict-origin-when-cross-origin"/)
+    assert.doesNotMatch(rendered, /onload/)
+    assert.doesNotMatch(rendered, /autoplay/)
+  }
+})
+
+test('renderMarkdown preserves local raw html media sources for desktop preview hydration', async () => {
+  const markdown = [
+    '<video src="file:///D:/Users/thinkpad/Videos/2026-04-24 14-46-00.mp4" />',
+    '',
+    '<audio src="D:\\Users\\thinkpad\\Music\\voice memo.mp3"></audio>',
+    '',
+    '<video src="D:/Users/thinkpad/Videos/local clip.mp4" poster="D:/Users/thinkpad/Pictures/poster frame.png"></video>',
+    '',
+    '<video><source src="D:/Users/thinkpad/Videos/source clip.mp4" type="video/mp4"></video>',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /<video src="file:\/\/\/D:\/Users\/thinkpad\/Videos\/2026-04-24 14-46-00\.mp4" controls preload="metadata"><\/video>/)
+    assert.match(rendered, /<audio src="file:\/\/\/D:\/Users\/thinkpad\/Music\/voice%20memo\.mp3" controls preload="metadata"><\/audio>/)
+    assert.match(rendered, /<video src="file:\/\/\/D:\/Users\/thinkpad\/Videos\/local%20clip\.mp4" poster="file:\/\/\/D:\/Users\/thinkpad\/Pictures\/poster%20frame\.png" controls preload="metadata"><\/video>/)
+    assert.match(rendered, /<source src="file:\/\/\/D:\/Users\/thinkpad\/Videos\/source%20clip\.mp4" type="video\/mp4">/)
+  }
+})
+
+test('renderMarkdown removes untrusted raw html iframe sources', async () => {
+  const markdown = [
+    'Before',
+    '',
+    '<iframe src="javascript:alert(1)"></iframe>',
+    '',
+    '<iframe src="data:text/html,<script>bad()</script>"></iframe>',
+    '',
+    '<iframe src="file:///C:/tmp/embed.html"></iframe>',
+    '',
+    '<iframe src="/local-preview.html"></iframe>',
+    '',
+    'After',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /<p>Before<\/p>/)
+    assert.match(rendered, /<p>After<\/p>/)
+    assert.doesNotMatch(rendered, /<iframe/i)
+    assert.doesNotMatch(rendered, /alert\(1\)/)
+    assert.doesNotMatch(rendered, /bad\(\)/)
+    assert.doesNotMatch(rendered, /file:\/\//)
+    assert.doesNotMatch(rendered, /local-preview/)
+  }
+})
+
+test('renderMarkdown normalizes raw html url attributes before sanitizing', async () => {
+  const markdown = [
+    '[Upper](HTTPS://Example.com/path)',
+    '',
+    '<img src="HTTPS://Example.com/image.png">',
+    '',
+    '<iframe src=" HTTPS://Example.com/embed "></iframe>',
+    '',
+    '<video src=" HTTPS://Example.com/clip.mp4 "></video>',
+    '',
+    '<video><source src=" HTTPS://Example.com/source.mp4 " type="video/mp4"></video>',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /<a href="https:\/\/Example\.com\/path">Upper<\/a>/)
+    assert.match(rendered, /<img src="https:\/\/Example\.com\/image\.png">/)
+    assert.match(rendered, /<iframe src="https:\/\/example\.com\/embed"/)
+    assert.match(rendered, /<video src="https:\/\/Example\.com\/clip\.mp4" controls preload="metadata"><\/video>/)
+    assert.match(rendered, /<source src="https:\/\/Example\.com\/source\.mp4" type="video\/mp4">/)
+  }
+})
+
+test('renderMarkdown removes media source children after sanitizer strips unsafe urls', async () => {
+  const markdown = [
+    '<video>',
+    '<source src="java',
+    'script:alert(1)" type="video/mp4">',
+    '<track src="java',
+    'script:bad()" kind="captions">',
+    '</video>',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /<video controls preload="metadata">\s*<\/video>/)
+    assert.doesNotMatch(rendered, /<source/i)
+    assert.doesNotMatch(rendered, /<track/i)
+    assert.doesNotMatch(rendered, /alert\(1\)/)
+    assert.doesNotMatch(rendered, /bad\(\)/)
+  }
+})
+
+test('renderMarkdown removes unsafe raw html srcset candidates from source tags', async () => {
+  const markdown = [
+    '<picture><source srcset="javascript:alert(1) 1x"><img src="safe.png"></picture>',
+    '',
+    '<picture><source srcset="data:image/png;base64,abc 1x"><img src="fallback.png"></picture>',
+    '',
+    '<video><source srcset="java',
+    'script:bad() 1x"></video>',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /<picture><img src="safe\.png"><\/picture>/)
+    assert.match(rendered, /<picture><img src="fallback\.png"><\/picture>/)
+    assert.match(rendered, /<video controls preload="metadata">\s*<\/video>/)
+    assert.doesNotMatch(rendered, /srcset/i)
+    assert.doesNotMatch(rendered, /javascript/i)
+    assert.doesNotMatch(rendered, /bad\(\)/)
+  }
+})
+
+test('renderMarkdown keeps safe raw html srcset paths that contain protocol-like text', async () => {
+  const markdown = [
+    '<picture>',
+    '<source srcset="https://example.com/assets/javascript:guide.png 1x, /assets/vbscript:notes.png 2x">',
+    '<img src="fallback.png">',
+    '</picture>',
+  ].join('')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /<source srcset="https:\/\/example\.com\/assets\/javascript:guide\.png 1x, \/assets\/vbscript:notes\.png 2x">/)
+    assert.match(rendered, /<img src="fallback\.png">/)
+  }
+})
+
+test('renderMarkdown strips unsupported authoring attributes from raw html while keeping generated metadata', async () => {
+  const markdown = [
+    '# Heading',
+    '',
+    '<span id="raw" class="spoof" data-x="1" title="Tip">raw</span>',
+    '',
+    '- [x] Task',
+    '',
+    'Footnote[^1]',
+    '',
+    '[^1]: Note',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+  const workerHtml = await renderMarkdownInWorker(markdown)
+
+  for (const rendered of [html, workerHtml]) {
+    assert.match(rendered, /<h1 id="heading">Heading<\/h1>/)
+    assert.match(rendered, /<span title="Tip">raw<\/span>/)
+    assert.doesNotMatch(rendered, /id="raw"/)
+    assert.doesNotMatch(rendered, /class="spoof"/)
+    assert.doesNotMatch(rendered, /data-x/)
+    assert.match(rendered, /class="task-list-item"/)
+    assert.match(rendered, /data-footnote-ref/)
+    assert.match(rendered, /data-footnotes/)
+  }
 })
 
 test('renderMarkdown renders superscript markers in both preview and worker output', async () => {
@@ -435,12 +674,31 @@ test('renderMarkdown resolves typora-root-url for raw html image sources', async
     'typora-root-url: http://cdn.example.com/content',
     '---',
     '',
-    '<img src="hero/banner.jpg" alt="Banner">',
+    '<img title="1 > 0" src="hero/banner.jpg" alt="Banner">',
   ].join('\n')
 
   const html = await renderMarkdown(markdown)
 
+  assert.match(html, /title="1 > 0"/)
   assert.match(html, /src="http:\/\/cdn\.example\.com\/content\/hero\/banner\.jpg"/)
+})
+
+test('renderMarkdown resolves typora-root-url for raw html picture source sets', async () => {
+  const markdown = [
+    '---',
+    'typora-root-url: https://assets.example.com/posts',
+    '---',
+    '',
+    '<picture><source srcset="hero/banner.webp 1x, hero/banner@2x.webp 2x"><img src="hero/banner.jpg" alt="Banner"></picture>',
+  ].join('\n')
+
+  const html = await renderMarkdown(markdown)
+
+  assert.match(
+    html,
+    /srcset="https:\/\/assets\.example\.com\/posts\/hero\/banner\.webp 1x, https:\/\/assets\.example\.com\/posts\/hero\/banner@2x\.webp 2x"/
+  )
+  assert.match(html, /src="https:\/\/assets\.example\.com\/posts\/hero\/banner\.jpg"/)
 })
 
 test('renderMarkdown preserves Windows absolute markdown image sources by normalizing them to file urls', async () => {
@@ -606,6 +864,58 @@ test('rewritePreviewHtmlExternalImages bridges secure remote images when request
   assert.match(previewHtml, /decoding="async"/)
 })
 
+test('rewritePreviewHtmlExternalImages keeps quoted angle brackets inside image attributes', () => {
+  const html = '<p><img title="1 > 0" src="http://example.com/assets/hero.png" alt="Hero"></p>'
+
+  const previewHtml = rewritePreviewHtmlExternalImages(
+    html,
+    {
+      blockedLabel: 'External image blocked',
+      clickLabel: 'Click to load from the original host',
+    },
+    'https://tauri.localhost'
+  )
+
+  assert.match(previewHtml, /title="1 > 0"/)
+  assert.match(previewHtml, /data-external-src="http:\/\/example.com\/assets\/hero.png"/)
+  assert.doesNotMatch(previewHtml, /title="1 loading=/)
+})
+
+test('rewritePreviewHtmlExternalImages removes bridge-required picture source sets', () => {
+  const html =
+    '<p><picture><source srcset="http://example.com/assets/hero.webp 1x"><img src="http://example.com/assets/hero.png" alt="Hero"></picture></p>'
+
+  const previewHtml = rewritePreviewHtmlExternalImages(
+    html,
+    {
+      blockedLabel: 'External image blocked',
+      clickLabel: 'Click to load from the original host',
+    },
+    'https://tauri.localhost'
+  )
+
+  assert.doesNotMatch(previewHtml, /<source[^>]*srcset=/)
+  assert.match(previewHtml, /data-external-src="http:\/\/example.com\/assets\/hero.png"/)
+})
+
+test('rewritePreviewHtmlExternalImages removes direct-fallback picture source sets', () => {
+  const html =
+    '<p><picture><source srcset="https://example.com/assets/hero.webp 1x"><img src="https://example.com/assets/hero.png" alt="Hero"></picture></p>'
+
+  const previewHtml = rewritePreviewHtmlExternalImages(
+    html,
+    {
+      blockedLabel: 'External image blocked',
+      clickLabel: 'Click to load from the original host',
+    },
+    'https://tauri.localhost',
+    { enableDirectExternalImageFallback: true }
+  )
+
+  assert.doesNotMatch(previewHtml, /<source[^>]*srcset=/)
+  assert.match(previewHtml, /data-external-fallback-src="https:\/\/example.com\/assets\/hero.png"/)
+})
+
 test('rewritePreviewHtmlExternalImages restores resolved bridged sources', () => {
   const html = '<p><img src="https://example.com/assets/hero.png" alt="Hero"></p>'
 
@@ -684,13 +994,26 @@ test('isExternalImageSource only flags cross-origin http and https urls', () => 
 })
 
 test('rewritePreviewHtmlLocalImages rewrites relative local images when the active document has a path', () => {
-  const previewHtml = rewritePreviewHtmlLocalImages('<p><img src="./images/hero.png" alt="Hero"></p>', {
+  const previewHtml = rewritePreviewHtmlLocalImages('<p><img title="1 > 0" src="./images/hero.png" alt="Hero"></p>', {
     documentPath: 'D:\\tmp\\draft.md',
   })
 
+  assert.match(previewHtml, /title="1 > 0"/)
   assert.match(previewHtml, /src="data:image\/svg\+xml/)
   assert.match(previewHtml, /data-local-src="\.\/images\/hero\.png"/)
   assert.match(previewHtml, /data-local-image="pending"/)
+})
+
+test('rewritePreviewHtmlLocalImages removes local picture source sets before fallback hydration', () => {
+  const previewHtml = rewritePreviewHtmlLocalImages(
+    '<p><picture><source srcset="./images/hero.webp 1x"><img src="./images/hero.png" alt="Hero"></picture></p>',
+    {
+      documentPath: 'D:\\tmp\\draft.md',
+    }
+  )
+
+  assert.doesNotMatch(previewHtml, /<source[^>]*srcset=/)
+  assert.match(previewHtml, /data-local-src="\.\/images\/hero\.png"/)
 })
 
 test('rewritePreviewHtmlLocalImages treats images and ./images as the same relative local asset', () => {
@@ -726,6 +1049,29 @@ test('rewritePreviewHtmlLocalImages rewrites absolute local and file url images 
   assert.doesNotMatch(previewHtml, /data-local-src="https:\/\/example\.com\/remote\.png"/)
 })
 
+test('rewritePreviewHtmlLocalMedia rewrites local audio and video sources to asset urls', () => {
+  const documentPath = 'D:\\docs\\note.md'
+  const previewHtml = rewritePreviewHtmlLocalMedia(
+    [
+      '<p><video src="file:///D:/Users/thinkpad/Videos/2026-04-24 14-46-00.mp4" poster="D:/Users/thinkpad/Pictures/poster frame.png"></video></p>',
+      '<p><audio src="./audio/voice memo.mp3"></audio></p>',
+      '<p><video><source src="clips/local clip.mp4" type="video/mp4"><track src="captions/local captions.vtt" kind="captions"></video></p>',
+      '<p><video src="https://example.com/remote.mp4"></video></p>',
+    ].join(''),
+    {
+      documentPath,
+      resolveMediaSource: (filePath) => `asset://localhost/${encodeURI(filePath.replace(/\\/g, '/'))}`,
+    }
+  )
+
+  assert.match(previewHtml, /src="asset:\/\/localhost\/D:\/Users\/thinkpad\/Videos\/2026-04-24%2014-46-00\.mp4"/)
+  assert.match(previewHtml, /poster="asset:\/\/localhost\/D:\/Users\/thinkpad\/Pictures\/poster%20frame\.png"/)
+  assert.match(previewHtml, /src="asset:\/\/localhost\/D:\/docs\/audio\/voice%20memo\.mp3"/)
+  assert.match(previewHtml, /src="asset:\/\/localhost\/D:\/docs\/clips\/local%20clip\.mp4"/)
+  assert.match(previewHtml, /src="asset:\/\/localhost\/D:\/docs\/captions\/local%20captions\.vtt"/)
+  assert.match(previewHtml, /src="https:\/\/example\.com\/remote\.mp4"/)
+})
+
 test('isLocalPreviewImageSource only accepts local paths that the preview can resolve', () => {
   assert.equal(isLocalPreviewImageSource('./images/hero.png', 'D:\\tmp\\draft.md'), true)
   assert.equal(isLocalPreviewImageSource('images/hero.png', 'D:\\tmp\\draft.md'), true)
@@ -735,6 +1081,23 @@ test('isLocalPreviewImageSource only accepts local paths that the preview can re
   assert.equal(isLocalPreviewImageSource('https://example.com/hero.png', 'D:\\tmp\\draft.md'), false)
   assert.equal(isLocalPreviewImageSource('//cdn.example.com/hero.png', 'D:\\tmp\\draft.md'), false)
   assert.equal(isLocalPreviewImageSource('data:image/png;base64,abc', 'D:\\tmp\\draft.md'), false)
+})
+
+test('isLocalPreviewMediaSource only accepts local media paths that the preview can resolve', () => {
+  assert.equal(isLocalPreviewMediaSource('./media/clip.mp4', 'D:\\tmp\\draft.md'), true)
+  assert.equal(isLocalPreviewMediaSource('media/clip.mp4', 'D:\\tmp\\draft.md'), true)
+  assert.equal(isLocalPreviewMediaSource('./media/clip.mp4', null), false)
+  assert.equal(isLocalPreviewMediaSource('D:\\Videos\\clip.mp4', null), true)
+  assert.equal(isLocalPreviewMediaSource('file:///D:/Videos/clip.mp4', null), true)
+  assert.equal(isLocalPreviewMediaSource('https://example.com/clip.mp4', 'D:\\tmp\\draft.md'), false)
+  assert.equal(isLocalPreviewMediaSource('//cdn.example.com/clip.mp4', 'D:\\tmp\\draft.md'), false)
+  assert.equal(isLocalPreviewMediaSource('data:video/mp4;base64,abc', 'D:\\tmp\\draft.md'), false)
+
+  assert.equal(
+    resolveLocalPreviewMediaPath('file:///D:/Users/thinkpad/Videos/2026-04-24%2014-46-00.mp4', null),
+    'D:/Users/thinkpad/Videos/2026-04-24 14-46-00.mp4'
+  )
+  assert.equal(resolveLocalPreviewMediaPath('./media/clip.mp4', 'D:\\docs\\draft.md'), 'D:\\docs\\media\\clip.mp4')
 })
 
 test('buildLocalPreviewImageKey normalizes equivalent relative local image paths', () => {
@@ -824,6 +1187,18 @@ test('buildStandaloneHtml keeps details disclosures styled as interactive blocks
   assert.match(html, /summary \{ cursor: pointer;/)
   assert.match(html, /details > summary \+ \* \{ margin-top: var\(--md-block-space\); \}/)
   assert.match(html, /body > :is\([^}]*details/)
+})
+
+test('buildStandaloneHtml styles safe raw html media and keyboard tags', () => {
+  const html = buildStandaloneHtml(
+    'Raw HTML',
+    '<p>Press <kbd>Ctrl</kbd>.</p><video src="clip.mp4"></video><iframe src="https://example.com"></iframe>'
+  )
+
+  assert.match(html, /kbd \{[\s\S]*font-family: 'JetBrains Mono'/)
+  assert.match(html, /audio, video, iframe \{[\s\S]*max-width: 100%;/)
+  assert.match(html, /iframe \{[\s\S]*height: auto;[\s\S]*aspect-ratio: 16 \/ 9;/)
+  assert.match(html, /body > :is\([^}]*audio[\s\S]*video[\s\S]*iframe/)
 })
 
 test('buildStandaloneHtml disables ligatures for inline code so literal punctuation stays unchanged in exports', () => {

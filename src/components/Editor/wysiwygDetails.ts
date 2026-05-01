@@ -9,10 +9,11 @@ import rehypeStringify from 'rehype-stringify'
 import rehypeKatex from 'rehype-katex'
 import type { TextRange } from './fencedCodeRanges.ts'
 import type { WysiwygDecorationView } from './wysiwygCodeBlock.ts'
-import { sanitizeSchema } from '../../lib/markdownShared.ts'
+import { normalizeSelfClosingRawHtmlBlocks, sanitizeSchema } from '../../lib/markdownShared.ts'
 import { rehypeHighlightMarkers } from '../../lib/rehypeHighlightMarkers.ts'
 import { rehypeSubscriptMarkers } from '../../lib/rehypeSubscriptMarkers.ts'
 import { rehypeSuperscriptMarkers } from '../../lib/rehypeSuperscriptMarkers.ts'
+import { rehypeHardenRawHtml, rehypePrepareRawHtmlForSanitize } from '../../lib/rehypeHardenRawHtml.ts'
 
 interface MarkdownLine extends TextRange {
   text: string
@@ -40,9 +41,8 @@ export interface WysiwygDetailsBlock extends TextRange {
   editAnchor: number
 }
 
-const detailsOpeningLinePattern = /^\s{0,3}<details\b([^>]*)>\s*$/iu
-const detailsClosingLinePattern = /^\s{0,3}<\/details>\s*$/iu
-const summaryLinePattern = /^\s{0,3}<summary\b[^>]*>([\s\S]*?)<\/summary>\s*$/iu
+const detailsClosingLinePattern = /^\s{0,3}<\/details\s*>\s*$/iu
+const summaryClosingLinePattern = /<\/summary\s*>\s*$/iu
 
 const detailsBodyProcessor = unified()
   .use(remarkParse)
@@ -53,7 +53,9 @@ const detailsBodyProcessor = unified()
   .use(rehypeSubscriptMarkers)
   .use(rehypeSuperscriptMarkers)
   .use(rehypeHighlightMarkers)
+  .use(rehypePrepareRawHtmlForSanitize)
   .use(rehypeSanitize, sanitizeSchema)
+  .use(rehypeHardenRawHtml)
   .use(rehypeKatex)
   .use(rehypeStringify)
 
@@ -147,7 +149,7 @@ export function renderWysiwygDetailsMarkdown(markdown: string): string {
   const source = String(markdown ?? '').trim()
   if (!source) return ''
   try {
-    return String(detailsBodyProcessor.processSync(source)).trim()
+    return String(detailsBodyProcessor.processSync(normalizeSelfClosingRawHtmlBlocks(source))).trim()
   } catch {
     return `<pre><code>${escapeHtml(source)}</code></pre>`
   }
@@ -163,11 +165,11 @@ function escapeHtml(value: string): string {
 }
 
 function parseDetailsOpeningLine(text: string): { open: boolean } | null {
-  const match = text.match(detailsOpeningLinePattern)
-  if (!match) return null
+  const openingTag = parseWholeLineOpeningTag(text, 'details')
+  if (!openingTag) return null
 
   return {
-    open: hasOpenAttribute(match[1] ?? ''),
+    open: hasOpenAttribute(openingTag.attributes),
   }
 }
 
@@ -176,15 +178,67 @@ function hasOpenAttribute(attributes: string): boolean {
 }
 
 function parseSummaryLine(line: MarkdownLine): { markdown: string; contentFrom: number } | null {
-  const match = line.text.match(summaryLinePattern)
-  if (!match) return null
+  const openingTag = parseLineOpeningTag(line.text, 'summary')
+  if (!openingTag) return null
 
-  const markdown = match[1] ?? ''
-  const offset = markdown.length > 0 ? line.text.indexOf(markdown) : -1
+  const closingMatch = summaryClosingLinePattern.exec(line.text)
+  if (!closingMatch || closingMatch.index < openingTag.tagEnd) return null
+
+  const markdown = line.text.slice(openingTag.tagEnd, closingMatch.index)
   return {
     markdown: markdown.trim(),
-    contentFrom: line.from + (offset >= 0 ? offset : 0),
+    contentFrom: line.from + openingTag.tagEnd,
   }
+}
+
+function parseWholeLineOpeningTag(text: string, tagName: string): { attributes: string } | null {
+  const openingTag = parseLineOpeningTag(text, tagName)
+  if (!openingTag) return null
+  if (text.slice(openingTag.tagEnd).trim().length > 0) return null
+
+  return {
+    attributes: openingTag.attributes,
+  }
+}
+
+function parseLineOpeningTag(
+  text: string,
+  tagName: string
+): { attributes: string; tagEnd: number } | null {
+  const indentMatch = /^\s{0,3}/u.exec(text)
+  const tagStart = indentMatch?.[0].length ?? 0
+  const tagMatch = new RegExp(`^<${tagName}\\b`, 'iu').exec(text.slice(tagStart))
+  if (!tagMatch) return null
+
+  const attributesStart = tagStart + tagMatch[0].length
+  const tagEnd = findHtmlTagEnd(text, attributesStart)
+  if (tagEnd === null) return null
+
+  return {
+    attributes: text.slice(attributesStart, tagEnd - 1),
+    tagEnd,
+  }
+}
+
+function findHtmlTagEnd(text: string, start: number): number | null {
+  let quote: '"' | "'" | null = null
+
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index]
+    if (quote) {
+      if (char === quote) quote = null
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+
+    if (char === '>') return index + 1
+  }
+
+  return null
 }
 
 function normalizeDetailsBodyMarkdown(markdown: string): string {

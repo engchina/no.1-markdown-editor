@@ -78,6 +78,8 @@
   --md-inline-code-font-size: 0.875em;
   --md-inline-code-radius: 4px;
   --md-inline-code-padding: 0.125em 0.375em;
+  --md-html-embed-radius: 8px;
+  --md-html-embed-border: color-mix(in srgb, var(--border) 88%, transparent);
   --md-strikethrough-color: color-mix(in srgb, var(--preview-text) 78%, var(--text-muted));
   --md-task-checkbox-size: 16px;
   --md-task-checkbox-radius: 4px;
@@ -1283,7 +1285,7 @@ a:focus-visible {
 /* Only preserve soft breaks on tight list items. Loose markdown lists render
    block children (`<p>`, nested lists, etc.), and inheriting `pre-line` on the
    `<li>` itself turns formatter whitespace into visible gaps. */
-.markdown-preview--visual-soft-breaks li:not(:has(> :is(p, ul, ol, pre, blockquote, details, table, hr, img, h1, h2, h3, h4, h5, h6, div, section, .front-matter))) {
+.markdown-preview--visual-soft-breaks li:not(:has(> :is(p, ul, ol, pre, blockquote, details, figure, table, hr, img, audio, video, iframe, h1, h2, h3, h4, h5, h6, div, section, .front-matter))) {
   white-space: pre-line;
 }
 
@@ -1368,6 +1370,22 @@ a:focus-visible {
   font-size: var(--md-inline-script-font-size, 0.75em);
   line-height: var(--md-inline-script-line-height, 0);
   vertical-align: sub;
+}
+
+.markdown-preview kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, var(--text-primary) 12%);
+  border-radius: var(--md-inline-code-radius, 4px);
+  background: var(--bg-secondary);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 16%, transparent);
+  color: var(--text-primary);
+  font-family: var(--font-mono, JetBrains Mono, Cascadia Code, Fira Code, Consolas, monospace);
+  font-size: 0.8125em;
+  line-height: 1.45;
+  padding: 0 0.35em;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .markdown-preview code {
@@ -1597,6 +1615,98 @@ a:focus-visible {
 .markdown-preview img {
   max-width: 100%;
   border-radius: 4px;
+}
+
+.markdown-preview figure {
+  margin: 0;
+}
+
+.markdown-preview figcaption {
+  color: var(--text-secondary);
+  font-size: 0.875em;
+  line-height: 1.5;
+  margin-top: 0.5em;
+  text-align: center;
+}
+
+.markdown-preview audio,
+.markdown-preview video,
+.markdown-preview iframe {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--md-html-embed-radius, 8px);
+}
+
+.markdown-preview audio {
+  width: 100%;
+}
+
+.markdown-preview video {
+  height: auto;
+}
+
+.markdown-preview iframe {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--md-html-embed-border, var(--border));
+  background: var(--bg-secondary);
+}
+
+.markdown-preview .preview-external-embed,
+.cm-wysiwyg-raw-html-block .preview-external-embed,
+.cm-wysiwyg-details__body .preview-external-embed {
+  display: flex;
+  width: 100%;
+  min-height: 180px;
+  aspect-ratio: 16 / 9;
+  cursor: pointer;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px dashed color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--md-html-embed-radius, 8px);
+  background: color-mix(in srgb, var(--bg-secondary) 84%, transparent);
+  color: var(--text-secondary);
+  font: inherit;
+  line-height: 1.45;
+  padding: 1rem;
+  text-align: center;
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.markdown-preview .preview-external-embed:hover,
+.markdown-preview .preview-external-embed:focus-visible,
+.cm-wysiwyg-raw-html-block .preview-external-embed:hover,
+.cm-wysiwyg-raw-html-block .preview-external-embed:focus-visible,
+.cm-wysiwyg-details__body .preview-external-embed:hover,
+.cm-wysiwyg-details__body .preview-external-embed:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+  color: var(--text-primary);
+}
+
+.markdown-preview .preview-external-embed:focus-visible,
+.cm-wysiwyg-raw-html-block .preview-external-embed:focus-visible,
+.cm-wysiwyg-details__body .preview-external-embed:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  outline-offset: 4px;
+}
+
+.preview-external-embed__title {
+  color: var(--text-primary);
+  font-size: 0.95em;
+  font-weight: 600;
+}
+
+.preview-external-embed__host {
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 0.82em;
+}
+
+.preview-external-embed__hint {
+  font-size: 0.86em;
 }
 
 .markdown-preview img.preview-external-image {
@@ -2128,12 +2238,16 @@ a:focus-visible {
   h6,
   blockquote,
   details,
+  figure,
   ul,
   ol,
   pre,
   table,
   hr,
   img,
+  audio,
+  video,
+  iframe,
   .front-matter) {
   margin-top: 0;
   margin-bottom: 0;
@@ -2148,12 +2262,16 @@ a:focus-visible {
   h6,
   blockquote,
   details,
+  figure,
   ul,
   ol,
   pre,
   table,
   hr,
   img,
+  audio,
+  video,
+  iframe,
   .front-matter)+ :is(p,
   h1,
   h2,
@@ -2163,12 +2281,16 @@ a:focus-visible {
   h6,
   blockquote,
   details,
+  figure,
   ul,
   ol,
   pre,
   table,
   hr,
   img,
+  audio,
+  video,
+  iframe,
   .front-matter) {
   margin-top: var(--md-block-space);
 }

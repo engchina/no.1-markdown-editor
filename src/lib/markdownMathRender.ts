@@ -8,12 +8,14 @@ import rehypeStringify from 'rehype-stringify'
 import rehypeKatex from 'rehype-katex'
 import {
   finalizeRenderedMarkdownHtml,
+  normalizeSelfClosingRawHtmlBlocks,
   sanitizeSchema,
   stripFrontMatter,
 } from './markdownShared.ts'
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
 import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
+import { rehypeHardenRawHtml, rehypePrepareRawHtmlForSanitize } from './rehypeHardenRawHtml.ts'
 import {
   applyMarkdownSyntaxHighlighting,
   type MarkdownSyntaxHighlightEngine,
@@ -36,7 +38,9 @@ async function getProcessorWithMath(engine: MarkdownSyntaxHighlightEngine) {
       .use(rehypeSuperscriptMarkers)
       .use(rehypeHighlightMarkers)
       .use(rehypeNormalizeImageSources)
+      .use(rehypePrepareRawHtmlForSanitize)
       .use(rehypeSanitize, sanitizeSchema)
+      .use(rehypeHardenRawHtml)
 
     processor = await applyMarkdownSyntaxHighlighting(processor, engine)
 
@@ -57,10 +61,11 @@ export async function renderMarkdownWithMath(
   syntaxHighlightEngine: MarkdownSyntaxHighlightEngine = 'highlightjs'
 ): Promise<string> {
   const { meta, body } = stripFrontMatter(markdown)
+  const normalizedBody = normalizeSelfClosingRawHtmlBlocks(body)
   const processor = await getProcessorWithMath(syntaxHighlightEngine)
   const rendered = await processor.process({
-    value: body,
-    data: { markdownSource: body },
+    value: normalizedBody,
+    data: { markdownSource: normalizedBody },
   })
   return finalizeRenderedMarkdownHtml(meta, String(rendered))
 }

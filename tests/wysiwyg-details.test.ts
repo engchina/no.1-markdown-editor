@@ -50,6 +50,24 @@ test('collectWysiwygDetailsBlocks finds complete block-level details disclosures
   assert.equal(details.editAnchor, markdown.indexOf('Campaign follow-up'))
 })
 
+test('collectWysiwygDetailsBlocks keeps quoted angle brackets inside details attributes', () => {
+  const markdown = [
+    '<details title="1 > 0" open>',
+    '<summary title="Use > key">Campaign follow-up</summary>',
+    '',
+    'Hidden body',
+    '</details >',
+  ].join('\n')
+
+  const [details] = collectWysiwygDetailsBlocks(markdown)
+
+  assert.ok(details)
+  assert.equal(details.open, true)
+  assert.equal(details.summaryMarkdown, 'Campaign follow-up')
+  assert.equal(details.bodyMarkdown, 'Hidden body')
+  assert.equal(details.editAnchor, markdown.indexOf('Campaign follow-up'))
+})
+
 test('collectWysiwygDetailsBlocks ignores details-looking text inside fenced code blocks', () => {
   const markdown = [
     '```html',
@@ -97,6 +115,24 @@ test('renderWysiwygDetailsMarkdown renders markdown while sanitizing unsafe html
   assert.doesNotMatch(html, /bad\(\)/u)
 })
 
+test('renderWysiwygDetailsMarkdown hardens raw html media like preview', () => {
+  const html = renderWysiwygDetailsMarkdown([
+    '<kbd>Ctrl</kbd>',
+    '',
+    '<iframe src="https://example.com/embed" allow="autoplay"></iframe>',
+    '',
+    '<iframe src="javascript:bad()"></iframe>',
+  ].join('\n'))
+
+  assert.match(html, /<kbd>Ctrl<\/kbd>/u)
+  assert.match(html, /<iframe src="https:\/\/example\.com\/embed"/u)
+  assert.match(html, /sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts"/u)
+  assert.match(html, /allow="fullscreen; picture-in-picture"/u)
+  assert.match(html, /referrerpolicy="strict-origin-when-cross-origin"/u)
+  assert.doesNotMatch(html, /javascript:bad/u)
+  assert.equal((html.match(/<iframe/gu) ?? []).length, 1)
+})
+
 test('details ranges can suppress nested table widgets in the editor source layer', () => {
   const markdown = [
     '<details open>',
@@ -116,6 +152,7 @@ test('wysiwyg details widget is wired as a source-activating disclosure block', 
   const source = await readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8')
 
   assert.match(source, /import \{[\s\S]*collectWysiwygDetailsBlocks[\s\S]*renderWysiwygDetailsMarkdown[\s\S]*\} from '\.\/wysiwygDetails\.ts'/u)
+  assert.match(source, /'\.cm-wysiwyg-details__body iframe': \{[\s\S]*?height: 'auto'[\s\S]*?aspectRatio: '16 \/ 9'/u)
   assert.match(source, /class DetailsWidget extends WidgetType/u)
   assert.match(source, /const details = document\.createElement\('div'\)/u)
   assert.match(source, /details\.className = 'cm-wysiwyg-details'/u)

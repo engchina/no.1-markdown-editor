@@ -68,12 +68,31 @@ test('renderInlineMarkdownFragment preserves inline html breaks for table cells'
   assert.match(html, /Line 1<br\s*\/?>Line 2/u)
 })
 
-test('renderInlineMarkdownFragment strips dangerous inline html while keeping safe text content', () => {
+test('renderInlineMarkdownFragment preserves safe inline html while stripping dangerous nodes', () => {
   const html = renderInlineMarkdownFragment('Safe <span>inline</span><script>bad()</script> text')
 
-  assert.match(html, /Safe inline text/u)
+  assert.match(html, /Safe <span>inline<\/span> text/u)
   assert.doesNotMatch(html, /<script/i)
   assert.doesNotMatch(html, /bad\(\)/)
+})
+
+test('renderInlineMarkdownFragment strips unsupported raw html authoring attributes', () => {
+  const html = renderInlineMarkdownFragment('<span id="raw" class="spoof" data-x="1" title="Tip">inline</span>')
+
+  assert.equal(html, '<span title="Tip">inline</span>')
+})
+
+test('renderInlineMarkdownFragment keeps raw html keyboard and highlight tags aligned with preview', () => {
+  const html = renderInlineMarkdownFragment('Press <kbd>Ctrl</kbd> and <mark>run</mark>')
+
+  assert.match(html, /<kbd>Ctrl<\/kbd>/u)
+  assert.match(html, /<mark>run<\/mark>/u)
+})
+
+test('renderInlineMarkdownFragment preserves multiple paragraph fragments', () => {
+  const html = renderInlineMarkdownFragment('First\n\nSecond')
+
+  assert.equal(html, '<p>First</p>\n<p>Second</p>')
 })
 
 test('renderInlineMarkdownFragment preserves markdown hard breaks from backslashes and trailing spaces', () => {
