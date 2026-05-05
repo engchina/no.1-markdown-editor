@@ -235,6 +235,9 @@ export const MARKDOWN_HARD_LINE_BREAK = '<br />\n'
 export const MARKDOWN_PLAIN_LINE_BREAK = '\n'
 const ATX_HEADING_PATTERN = /^(#{1,6})\s/
 const SETEXT_HEADING_UNDERLINE_PATTERN = /^[ ]{0,3}(?:=+|-+)[ \t]*$/
+const INDENTATION_ONLY_LINE_PATTERN = /^[\t ]+$/
+const LEADING_INDENT_PATTERN = /^[\t ]+/
+const STRUCTURAL_MARKDOWN_LINE_PATTERN = /^[ ]{0,3}(?:#{1,6}\s|(?:[-*+]|\d+[.)])\s+|>\s?|`{3,}|~{3,}|\$\$\s*$)/
 
 function collectShiftEnterLiteralBlocks(markdown: string): readonly TextRange[] {
   const fencedCodeBlocks = collectFencedCodeBlocks(markdown)
@@ -247,6 +250,34 @@ function isPositionInsideTextRanges(position: number, ranges: readonly TextRange
 
 function isSetextHeadingUnderlineLine(text: string): boolean {
   return SETEXT_HEADING_UNDERLINE_PATTERN.test(text)
+}
+
+function isStructuralMarkdownLine(text: string): boolean {
+  return STRUCTURAL_MARKDOWN_LINE_PATTERN.test(text) ||
+    isThematicBreakLine(text) ||
+    isSetextHeadingUnderlineLine(text)
+}
+
+function isNonSemanticIndentNewlineCandidate(state: EditorState, position: number): boolean {
+  const line = state.doc.lineAt(position)
+  if (INDENTATION_ONLY_LINE_PATTERN.test(line.text)) return true
+  if (isStructuralMarkdownLine(line.text)) return false
+
+  const indent = line.text.match(LEADING_INDENT_PATTERN)?.[0] ?? ''
+  if (!indent) return false
+  if (line.text.trim().length === 0) return false
+
+  const indentColumn = countColumn(indent, state.tabSize, indent.length)
+  return indentColumn > 0 && indentColumn < 4
+}
+
+function shouldInsertPlainNewlineForNonSemanticIndent(
+  state: EditorState,
+  position: number,
+  literalBlocks: readonly TextRange[]
+): boolean {
+  return isNonSemanticIndentNewlineCandidate(state, position) &&
+    !isPositionInsideTextRanges(position, literalBlocks)
 }
 
 function shouldInsertPlainLineBreakInLine(
@@ -312,6 +343,30 @@ export function insertMarkdownHardLineBreak(
   return true
 }
 
+export function insertPlainNewlineForNonSemanticIndent(
+  view: Pick<EditorView, 'state' | 'dispatch'>
+): boolean {
+  const ranges = view.state.selection.ranges
+  if (!ranges.every((range) => range.empty)) return false
+  if (!ranges.every((range) => isNonSemanticIndentNewlineCandidate(view.state, range.from))) return false
+
+  const literalBlocks = collectShiftEnterLiteralBlocks(view.state.doc.toString())
+  const shouldInsertPlainNewline = ranges.every((range) =>
+    shouldInsertPlainNewlineForNonSemanticIndent(view.state, range.from, literalBlocks)
+  )
+  if (!shouldInsertPlainNewline) return false
+
+  view.dispatch({
+    ...view.state.changeByRange((range) => ({
+      changes: { from: range.from, to: range.to, insert: MARKDOWN_PLAIN_LINE_BREAK },
+      range: EditorSelection.cursor(range.from + MARKDOWN_PLAIN_LINE_BREAK.length),
+    })),
+    scrollIntoView: true,
+    userEvent: 'input.type',
+  })
+  return true
+}
+
 export function openKeyboardShortcutsFromEditor(): boolean {
   dispatchKeyboardShortcutsOpen()
   return true
@@ -340,6 +395,10 @@ export function buildCoreExtensions(options: {
           key: 'Mod-/',
           run: openKeyboardShortcutsFromEditor,
           preventDefault: true,
+        },
+        {
+          key: 'Enter',
+          run: insertPlainNewlineForNonSemanticIndent,
         },
       ])
     ),

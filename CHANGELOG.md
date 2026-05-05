@@ -20,6 +20,20 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.6 - 2026-05-05
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Pressing Enter after a normal paragraph with one to three leading spaces no longer carries those non-semantic spaces onto the next line, while Markdown lists, blockquotes, and code blocks still keep their expected continuation behavior.
+
+### Internal
+
+- Added regression coverage for Enter behavior around non-semantic paragraph indentation and structural Markdown continuations.
+
 ## 0.20.5 - 2026-05-01
 
 ### Added
