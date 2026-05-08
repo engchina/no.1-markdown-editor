@@ -114,7 +114,7 @@ import {
 } from '../../lib/editorHistory.ts'
 import { EDITOR_RETURN_TO_WRITING_EVENT } from '../../lib/editorFocus.ts'
 import { useAIStore } from '../../store/ai'
-import { useActiveTab, useEditorStore } from '../../store/editor'
+import { selectEffectiveWysiwygMode, useActiveTab, useEditorStore } from '../../store/editor'
 import SearchBar from '../Search/SearchBar'
 
 interface Props {
@@ -172,7 +172,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const showInvisibleCharacters = useEditorStore((state) => state.showInvisibleCharacters)
   const spellcheckMode = useEditorStore((state) => state.spellcheckMode)
   const fontSize = useEditorStore((state) => state.fontSize)
-  const wysiwygMode = useEditorStore((state) => state.wysiwygMode)
+  const wysiwygMode = useEditorStore(selectEffectiveWysiwygMode)
   const pendingNavigation = useEditorStore((state) => state.pendingNavigation)
   const setPendingNavigation = useEditorStore((state) => state.setPendingNavigation)
   const setCursorPos = useEditorStore((state) => state.setCursorPos)

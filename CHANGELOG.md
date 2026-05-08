@@ -20,6 +20,18 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.9 - 2026-05-08
+
+### Fixed
+
+- Markdown documents containing math blocks or inline math now fall back to main-thread rendering, avoiding Web Worker failures caused by `rehype-katex` dependencies on `DOMParser`.
+- Focus mode (F11) now correctly forces the editor surface into WYSIWYG-style rendering even when the user's global preference is set to source mode.
+
+### Internal
+
+- Refactored `CodeMirrorEditor` to use a computed `selectEffectiveWysiwygMode` selector for rendering decisions.
+- Added regression coverage for focus-mode WYSIWYG integration and Markdown worker fallback routing.
+
 ## 0.20.8 - 2026-05-08
 
 ### Fixed

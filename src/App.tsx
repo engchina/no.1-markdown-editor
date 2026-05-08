@@ -446,7 +446,7 @@ export default function App() {
 
   const renderEditorPane = () => (
     <RecoverableErrorBoundary
-      resetKeys={[activeTab?.id ?? '', viewMode, wysiwygMode]}
+      resetKeys={[activeTab?.id ?? '', viewMode, wysiwygMode, focusMode]}
       renderFallback={({ reset }) => <ErrorFallback scope="surface" onRetry={reset} className="h-full" />}
     >
       <Suspense fallback={<EditorPlaceholder />}>

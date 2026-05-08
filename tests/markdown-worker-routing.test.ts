@@ -31,3 +31,21 @@ test('markdown worker entry lazy-loads the markdown rendering core on first requ
   assert.match(source, /markdownRendererPromise \?\?= import\('\.\.\/lib\/markdownWorker'\)\.catch\(/u)
   assert.match(source, /const \{ renderMarkdownInWorker \} = await loadMarkdownRenderer\(\)/u)
 })
+
+test('markdown worker hands math documents back to the main thread (rehype-katex needs DOMParser)', async () => {
+  const source = await readFile(new URL('../src/workers/markdown.worker.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /import \{ containsLikelyMath \} from '\.\.\/lib\/markdownMath\.ts'/u)
+  assert.match(source, /if \(containsLikelyMath\(markdown\)\)/u)
+  assert.match(source, /requiresMainThread: true/u)
+})
+
+test('useMarkdown falls back to the main thread on requiresMainThread without disabling the worker', async () => {
+  const source = await readFile(new URL('../src/hooks/useMarkdown.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /requiresMainThread/u)
+  assert.match(
+    source,
+    /if \(requiresMainThread\) \{\s*await fallbackToMainThread\(id\)\s*return\s*\}/u
+  )
+})
