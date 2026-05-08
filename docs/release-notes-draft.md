@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.20.6`.
+This document is a draft for the next public release after `v0.20.7`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,11 +8,11 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.20.7`
+`No.1 Markdown Editor v0.20.8`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.20.7 improves startup responsiveness, preview stability, and Markdown worker reliability for larger documents and embedded content.
+No.1 Markdown Editor v0.20.8 improves startup responsiveness, preview stability, and Markdown worker reliability for larger documents and embedded content.
 
 ## Suggested GitHub Release Body
 
@@ -61,13 +61,13 @@ This release is especially relevant for users who:
 ## Packaging Checklist Before Release
 
 - Fill this draft using the current `CHANGELOG.md` `## Unreleased` section.
-- Run `npm run release:prepare -- 0.20.7 --date 2026-05-08` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:prepare -- 0.20.8 --date 2026-05-08` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
 - Confirm the final version in:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
 - Run `npm run release:validate` after the version bump so local metadata checks, changelog checks, and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.20.7` if you want to inspect the generated GitHub release body before pushing the tag.
-- Review the `0.20.7` release notes before tagging.
+- Run `npm run release:notes:preview -- 0.20.8` if you want to inspect the generated GitHub release body before pushing the tag.
+- Review the `0.20.8` release notes before tagging.
 - Capture fresh screenshots for the product surfaces this release highlights.
-- After the release is published, run `npm run release:draft:advance -- 0.20.7` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- After the release is published, run `npm run release:draft:advance -- 0.20.8` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
