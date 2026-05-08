@@ -20,6 +20,12 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.10 - 2026-05-08
+
+### Internal
+
+- Republish of 0.20.9. The 0.20.9 tag failed `Validate release metadata` in CI because `src-tauri/Cargo.toml` was not bumped alongside `package.json` and `tauri.conf.json`; this release ships the same user-visible changes with the version triple in sync.
+
 ## 0.20.9 - 2026-05-08
 
 ### Fixed
