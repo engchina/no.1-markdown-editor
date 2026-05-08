@@ -18,8 +18,11 @@ const SINGLE_INSTANCE_OPEN_FILES_EVENT: &str = "single-instance-open-files";
 struct PendingOpenPaths(Mutex<Vec<String>>);
 
 #[tauri::command]
-fn read_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+async fn read_file(path: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || std::fs::read_to_string(path))
+        .await
+        .map_err(|error| format!("Failed to join file read task: {error}"))?
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -444,6 +447,7 @@ pub fn run() {
 mod tests {
     use super::collect_launch_paths_from_args;
     use super::is_allowed_editor_navigation;
+    use super::read_file;
     use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
@@ -463,6 +467,21 @@ mod tests {
 
     fn make_temp_markdown_path(prefix: &str) -> PathBuf {
         make_temp_path(prefix, "md")
+    }
+
+    #[test]
+    fn read_file_returns_markdown_contents() {
+        let existing_path = make_temp_markdown_path("async-read");
+        fs::write(&existing_path, "# async read").expect("write temp markdown file");
+
+        let content = tauri::async_runtime::block_on(read_file(
+            existing_path.to_string_lossy().into_owned(),
+        ))
+        .expect("read temp markdown file");
+
+        assert_eq!(content, "# async read");
+
+        let _ = fs::remove_file(existing_path);
     }
 
     #[test]

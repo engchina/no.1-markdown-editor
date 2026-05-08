@@ -34,6 +34,24 @@ test('rewritePreviewHtmlNoisyExternalEmbeds defers CodePen iframes before they c
   assert.doesNotMatch(rewritten, /allowpaymentrequest/iu)
 })
 
+test('rewritePreviewHtmlNoisyExternalEmbeds defers CodePen iframes that include inner content (typical embed snippet)', () => {
+  const html = [
+    '<iframe height="265" scrolling="no" title="Fancy Animated SVG Menu"',
+    ' src="http://codepen.io/jeangontijo/embed/0xVywj/?height=265&theme-id=0&default-tab=css,result&embed-version=2"',
+    ' loading="lazy" allowfullscreen="true">',
+    'See the Pen <a href="https://codepen.io/jeangontijo/pen/0xVywj/">Fancy Animated SVG Menu</a>',
+    ' by jeangontijo (<a href="https://codepen.io/jeangontijo">@jeangontijo</a>) on <a href="https://codepen.io">CodePen</a>.',
+    '</iframe>',
+  ].join('')
+
+  const rewritten = rewritePreviewHtmlNoisyExternalEmbeds(html, copy, 'http://localhost:5173')
+
+  assert.match(rewritten, /<button type="button" class="preview-external-embed"/u)
+  assert.match(rewritten, /data-external-embed-host="codepen\.io"/u)
+  assert.doesNotMatch(rewritten, /<iframe/iu)
+  assert.doesNotMatch(rewritten, /See the Pen/u)
+})
+
 test('rewritePreviewHtmlNoisyExternalEmbeds leaves ordinary trusted iframe embeds intact', () => {
   const html = '<iframe src="https://www.youtube.com/embed/demo" allow="fullscreen; picture-in-picture"></iframe>'
 

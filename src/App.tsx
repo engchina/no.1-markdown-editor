@@ -37,6 +37,8 @@ const AIComposer = lazy(() => import('./components/AI/AIComposer'))
 const UpdateAvailableDialog = lazy(() => import('./components/Updates/UpdateAvailableDialog'))
 const ExternalMissingFileDialog = lazy(() => import('./components/ExternalFileConflicts/ExternalMissingFileDialog'))
 const ExternalFileConflictDialog = lazy(() => import('./components/ExternalFileConflicts/ExternalFileConflictDialog'))
+const AUTO_PREVIEW_MAX_MARKDOWN_LENGTH = 160_000
+type PreviewActivation = 'auto' | 'manual'
 
 function EditorPlaceholder() {
   const { t } = useTranslation()
@@ -117,7 +119,7 @@ export default function App() {
   const { saveAllDirtyTabs, closeActiveFile } = useFileOps()
   const [paletteMode, setPaletteMode] = useState<'command' | 'file' | null>(null)
   const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false)
-  const [previewActivated, setPreviewActivated] = useState(viewMode === 'preview')
+  const [previewActivationByTabId, setPreviewActivationByTabId] = useState<Map<string, PreviewActivation>>(() => new Map())
   const { saving } = useAutoSave()
   const focusColumnWidth = resolveFocusWidthPx(focusWidthMode, focusWidthCustomPx)
   const focusColumnPadding = resolveFocusInlinePaddingPx(focusColumnWidth)
@@ -382,15 +384,36 @@ export default function App() {
 
   const closePalette = useCallback(() => setPaletteMode(null), [])
 
+  const activeTabId = activeTab?.id ?? null
   const showSidebar = sidebarOpen && !focusMode
   const showEditor = viewMode !== 'preview'
   const showPreview = viewMode !== 'source'
+  const canAutoActivatePreview = (activeTab?.content.length ?? 0) <= AUTO_PREVIEW_MAX_MARKDOWN_LENGTH
+  const currentTabPreviewActivation = activeTabId === null ? 'manual' : previewActivationByTabId.get(activeTabId)
+  const currentTabPreviewActivated =
+    activeTabId === null ||
+    currentTabPreviewActivation === 'manual' ||
+    (currentTabPreviewActivation === 'auto' && canAutoActivatePreview)
+  const previewActivated = viewMode === 'preview' || currentTabPreviewActivated
+  const activatePreview = useCallback((activation: PreviewActivation = 'manual') => {
+    if (!activeTabId) return
+
+    setPreviewActivationByTabId((current) => {
+      if (current.get(activeTabId) === activation || current.get(activeTabId) === 'manual') return current
+
+      const next = new Map(current)
+      next.set(activeTabId, activation)
+      return next
+    })
+  }, [activeTabId])
 
   useEffect(() => {
-    if (!showPreview || previewActivated) return
+    if (!showPreview || currentTabPreviewActivated) return
+
+    if (viewMode !== 'preview' && !canAutoActivatePreview) return
 
     if (viewMode === 'preview') {
-      setPreviewActivated(true)
+      activatePreview('manual')
       return
     }
 
@@ -399,7 +422,7 @@ export default function App() {
     let idleId: number | undefined
 
     const activate = () => {
-      if (!cancelled) setPreviewActivated(true)
+      if (!cancelled) activatePreview('auto')
     }
 
     if (typeof (window as Window & { requestIdleCallback?: unknown }).requestIdleCallback === 'function') {
@@ -419,7 +442,7 @@ export default function App() {
       }
       if (timeoutId !== undefined) clearTimeout(timeoutId)
     }
-  }, [previewActivated, showPreview, viewMode])
+  }, [activatePreview, canAutoActivatePreview, currentTabPreviewActivated, showPreview, viewMode])
 
   const renderEditorPane = () => (
     <RecoverableErrorBoundary
@@ -437,7 +460,7 @@ export default function App() {
       resetKeys={[activeTab?.id ?? '', activeTab?.path ?? '', activeThemeId, viewMode]}
       renderFallback={({ reset }) => <ErrorFallback scope="surface" onRetry={reset} className="h-full" />}
     >
-      <Suspense fallback={<PreviewPlaceholder onActivate={() => setPreviewActivated(true)} />}>
+      <Suspense fallback={<PreviewPlaceholder onActivate={() => activatePreview('manual')} />}>
         <MarkdownPreview />
       </Suspense>
     </RecoverableErrorBoundary>
@@ -608,7 +631,7 @@ export default function App() {
                       {previewActivated ? (
                         renderPreviewPane()
                       ) : (
-                        <PreviewPlaceholder onActivate={() => setPreviewActivated(true)} />
+                        <PreviewPlaceholder onActivate={() => activatePreview('manual')} />
                       )}
                     </div>
                   )}

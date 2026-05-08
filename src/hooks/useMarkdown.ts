@@ -24,7 +24,7 @@ export function useMarkdown(markdown: string) {
   }, [markdown, syntaxHighlightEngine])
 
   useEffect(() => {
-    if (import.meta.env.DEV || typeof Worker === 'undefined') {
+    if (typeof Worker === 'undefined') {
       workerUnavailableRef.current = true
       return
     }

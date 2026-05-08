@@ -7,6 +7,7 @@ test('useMarkdown sends preview rendering through the worker whenever the worker
 
   assert.doesNotMatch(source, /containsLikelyMath/u)
   assert.doesNotMatch(source, /stripFrontMatterBody/u)
+  assert.doesNotMatch(source, /import\.meta\.env\.DEV/u)
   assert.match(source, /if \(workerRef\.current && !workerUnavailableRef\.current\) \{/u)
   assert.match(source, /workerRef\.current\.postMessage\(\{ id: requestId, markdown, syntaxHighlightEngine \}\)/u)
 })

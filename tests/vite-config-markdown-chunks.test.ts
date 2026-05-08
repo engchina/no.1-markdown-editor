@@ -20,3 +20,12 @@ test('vite isolates markdown raw-html and syntax-highlighting dependencies from 
   )
   assert.match(viteConfigSource, /OPTIONAL_PREVIEW_CHUNK_PATTERN[\s\S]*vendor-markdown\(\?:-\(\?:math\|html\)\)\?/u)
 })
+
+test('vite resolves markdown character reference decoding to the worker-safe implementation', () => {
+  assert.match(viteConfigSource, /find:\s*\/\^decode-named-character-reference\$\//u)
+  assert.match(
+    viteConfigSource,
+    /replacement:\s*path\.resolve\(__dirname, '\.\/node_modules\/decode-named-character-reference\/index\.js'\)/u
+  )
+  assert.doesNotMatch(viteConfigSource, /decode-named-character-reference\/index\.dom\.js/u)
+})

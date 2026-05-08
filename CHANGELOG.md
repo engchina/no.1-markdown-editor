@@ -20,6 +20,26 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.7 - 2026-05-08
+
+### Added
+
+### Changed
+
+- Very large restored documents in split view now keep preview rendering opt-in until the user opens preview manually, reducing startup work for large drafts.
+- Markdown preview rendering now uses the worker whenever workers are available, keeping development behavior closer to production rendering.
+
+### Fixed
+
+- Desktop file reads now run off the Tauri event loop so opening Markdown documents is less likely to block the app window.
+- CodePen iframe embeds that include fallback inner content are now deferred before activation, avoiding third-party iframe warnings during normal preview rendering.
+- Notification dismiss controls now keep a stable clickable icon target.
+- Worker-side Markdown rendering now resolves character reference decoding to the worker-safe implementation.
+
+### Internal
+
+- Added regression coverage for large preview activation, notification dismiss controls, desktop file reads, worker routing, external embeds, and Vite Markdown chunk aliases.
+
 ## 0.20.6 - 2026-05-05
 
 ### Added

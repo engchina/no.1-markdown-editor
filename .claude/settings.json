@@ -27,7 +27,18 @@
       "Bash(grep -aoE \"_get_access_token[^\\\\\"]{0,2000}\" \"C:/Users/thinkpad/.claude/projects/e--workspace-no-1-markdown-editor-v2/1ce3f5b2-fba1-4f88-b08e-45f53b042a1b.jsonl\")",
       "Bash(grep -aoE \"token_url = f[^\\\\\"]{0,3000}\" \"C:/Users/thinkpad/.claude/projects/e--workspace-no-1-markdown-editor-v2/1ce3f5b2-fba1-4f88-b08e-45f53b042a1b.jsonl\")",
       "Bash(python3 -c ' *)",
-      "Bash(cargo build *)"
+      "Bash(cargo build *)",
+      "Bash(node --experimental-strip-types --test tests/markdown-utils.test.ts tests/line-break-integration.test.ts tests/table-alignment.test.ts tests/export-copy-html-wiring.test.ts)",
+      "Bash(node --experimental-strip-types --test tests/markdown-utils.test.ts)",
+      "WebFetch(domain:crates.io)",
+      "Bash(gh issue *)",
+      "Bash(curl -s \"https://api.github.com/repos/tauri-apps/wry/issues/707/comments\")",
+      "Bash(node --experimental-strip-types --test tests/export-pdf-silent-wiring.test.ts tests/export-copy-html-wiring.test.ts)",
+      "Read(//c/Users/thinkpad/.cargo/**)",
+      "Bash(xargs grep *)",
+      "Bash(rustup target *)",
+      "Bash(awk '/loadFileURL:allowingReadAccessToURL:/,/;/' /c/Users/thinkpad/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/objc2-web-kit-0.3.2/src/generated/WKWebView.rs)",
+      "Bash(awk '/#\\\\[cfg\\\\\\(.*\\\\\\)\\\\]/{c=$0; next} /createPDFWithConfiguration/{print c; print; exit}' /c/Users/thinkpad/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/objc2-web-kit-0.3.2/src/generated/WKWebView.rs)"
     ]
   }
 }

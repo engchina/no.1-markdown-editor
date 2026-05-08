@@ -19,3 +19,11 @@ test('openDesktopDocumentPaths aggregates per-file failures into a single toast 
     /if \(isBatch && failures > 0\)[\s\S]*pushErrorNotice\(\s*'notices\.openMultipleFilesErrorTitle',\s*'notices\.openMultipleFilesErrorMessage'/
   )
 })
+
+test('desktop read_file command runs file IO off the Tauri event loop', async () => {
+  const source = await readFile(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
+
+  assert.match(source, /async fn read_file\(path: String\) -> Result<String, String>/)
+  assert.match(source, /tokio::task::spawn_blocking\(move \|\| std::fs::read_to_string\(path\)\)/)
+  assert.doesNotMatch(source, /fn read_file\(path: String\) -> Result<String, String> \{\s*std::fs::read_to_string\(&path\)/)
+})

@@ -1,4 +1,4 @@
-const IFRAME_TAG_PATTERN = /<iframe\b((?:[^>"']+|"[^"]*"|'[^']*')*?)><\/iframe>/gi
+const IFRAME_TAG_PATTERN = /<iframe\b((?:[^>"']+|"[^"]*"|'[^']*')*?)>[\s\S]*?<\/iframe>/gi
 const HTTP_PROTOCOLS = new Set(['http:', 'https:'])
 const NOISY_EXTERNAL_EMBED_HOSTS = new Set(['codepen.io'])
 const PREVIEW_EXTERNAL_EMBED_CLASS = 'preview-external-embed'
