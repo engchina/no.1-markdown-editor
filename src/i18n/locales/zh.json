@@ -905,6 +905,9 @@
   "notices": {
     "draftsRestoredTitle": "已恢复草稿",
     "draftsRestoredMessage": "已恢复 {{count}} 个未保存草稿。",
+    "viewWysiwygSplitTitle": "已调整视图模式",
+    "viewWysiwygSplitDisabledWysiwyg": "Split 视图无法与 WYSIWYG 同时启用，已关闭 WYSIWYG。",
+    "viewWysiwygSplitDisabledSplit": "WYSIWYG 无法与 Split 视图同时启用，已切换到 Source 视图。",
     "openFileErrorTitle": "无法打开文件",
     "openFileErrorMessage": "无法读取所选文档。",
     "saveFileErrorTitle": "无法保存文件",

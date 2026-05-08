@@ -905,6 +905,9 @@
   "notices": {
     "draftsRestoredTitle": "下書きを復元しました",
     "draftsRestoredMessage": "{{count}} 件の未保存下書きを復元しました。",
+    "viewWysiwygSplitTitle": "表示モードを調整しました",
+    "viewWysiwygSplitDisabledWysiwyg": "Split ビューは WYSIWYG と併用できないため、WYSIWYG をオフにしました。",
+    "viewWysiwygSplitDisabledSplit": "WYSIWYG は Split ビューと併用できないため、Source ビューに切り替えました。",
     "openFileErrorTitle": "ファイルを開けませんでした",
     "openFileErrorMessage": "選択した文書を読み込めませんでした。",
     "saveFileErrorTitle": "ファイルを保存できませんでした",
