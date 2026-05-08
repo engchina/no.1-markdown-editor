@@ -20,6 +20,16 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.8 - 2026-05-08
+
+### Fixed
+
+- Desktop drag-and-drop now uses the Tauri webview event listener directly, improving reliability and preventing duplicate drop handlers in the desktop app.
+
+### Internal
+
+- Refactored `useDocumentDrop` to separate Tauri-specific drag-and-drop logic from web-standard behavior.
+
 ## 0.20.7 - 2026-05-08
 
 ### Added
