@@ -275,6 +275,8 @@
     "previewOptions": "PREVIEW OPTIONS",
     "previewAutoRenderMermaid": "Auto-render Mermaid diagrams",
     "previewAutoRenderMermaidHint": "Default on. Visible diagrams render automatically; turn this off to use manual rendering for large documents.",
+    "splitScrollSync": "Sync scroll in split view",
+    "splitScrollSyncHint": "Default on. In split view, scrolling the editor or preview keeps the other side aligned to the same source line.",
     "previewLineBreaks": "Preview Line Breaks",
     "previewLineBreakModes": {
       "strict": "Strict",

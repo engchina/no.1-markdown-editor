@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { renderMarkdown } from '../src/lib/markdown.ts'
+import { renderMarkdown as renderMarkdownRaw } from '../src/lib/markdown.ts'
+import { stripSourceLineMarkers } from '../src/lib/sourceLineMarkers.ts'
+
+const renderMarkdown = async (...args: Parameters<typeof renderMarkdownRaw>): Promise<string> =>
+  stripSourceLineMarkers(await renderMarkdownRaw(...args))
 
 function getNestedValue(locale: Record<string, unknown>, key: string): unknown {
   return key.split('.').reduce<unknown>((current, segment) => {

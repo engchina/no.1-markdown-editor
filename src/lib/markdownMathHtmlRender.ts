@@ -13,6 +13,9 @@ import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
 import { rehypeHardenRawHtml, rehypePrepareRawHtmlForSanitize } from './rehypeHardenRawHtml.ts'
 import { rehypeSplitHtmlBreakOrderedLists } from './rehypeSplitHtmlBreakOrderedLists.ts'
+import { remarkSourceLine } from './remarkSourceLine.ts'
+import { rehypeSourceLineFromPosition } from './rehypeSourceLineFromPosition.ts'
+import { rehypeWrapMathPreForSourceLine } from './rehypeWrapMathPreForSourceLine.ts'
 import {
   applyMarkdownSyntaxHighlighting,
   type MarkdownSyntaxHighlightEngine,
@@ -30,6 +33,7 @@ async function getProcessorWithMathAndHtml(engine: MarkdownSyntaxHighlightEngine
       .use(remarkParse)
       .use(remarkGfm, { singleTilde: false })
       .use(remarkMath)
+      .use(remarkSourceLine)
       .use(remarkRehype, { allowDangerousHtml: true })
       .use(rehypeRaw)
       .use(rehypeSplitHtmlBreakOrderedLists)
@@ -40,10 +44,12 @@ async function getProcessorWithMathAndHtml(engine: MarkdownSyntaxHighlightEngine
       .use(rehypePrepareRawHtmlForSanitize)
       .use(rehypeSanitize, sanitizeSchema)
       .use(rehypeHardenRawHtml)
+      .use(rehypeSourceLineFromPosition)
 
     processor = await applyMarkdownSyntaxHighlighting(processor, engine)
 
     return processor
+      .use(rehypeWrapMathPreForSourceLine)
       .use(rehypeKatex)
       .use(rehypeHeadingIds)
       .use(rehypeStringify)

@@ -17,6 +17,7 @@ import { useAutoSave } from './hooks/useAutoSave'
 import { useDocumentDrop } from './hooks/useDocumentDrop'
 import { useExternalFileChanges } from './hooks/useExternalFileChanges'
 import { useFileOps } from './hooks/useFileOps'
+import { useSplitScrollSync } from './hooks/useSplitScrollSync'
 import { openDesktopDocumentPaths, SINGLE_INSTANCE_OPEN_FILES_EVENT } from './lib/desktopFileOpen'
 import { resolveFocusInlinePaddingPx, resolveFocusWidthPx } from './lib/focusWidth'
 import { clampSidebarWidth, SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from './lib/layout'
@@ -121,6 +122,7 @@ export default function App() {
   const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false)
   const [previewActivationByTabId, setPreviewActivationByTabId] = useState<Map<string, PreviewActivation>>(() => new Map())
   const { saving } = useAutoSave()
+  useSplitScrollSync()
   const focusColumnWidth = resolveFocusWidthPx(focusWidthMode, focusWidthCustomPx)
   const focusColumnPadding = resolveFocusInlinePaddingPx(focusColumnWidth)
   const resolvedSidebarWidth = clampSidebarWidth(sidebarWidth)

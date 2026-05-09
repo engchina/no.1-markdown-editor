@@ -11,6 +11,7 @@ import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
 import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
 import { rehypeHardenRawHtml, rehypePrepareRawHtmlForSanitize } from './rehypeHardenRawHtml.ts'
+import { remarkSourceLine } from './remarkSourceLine.ts'
 import {
   applyMarkdownSyntaxHighlighting,
   type MarkdownSyntaxHighlightEngine,
@@ -30,6 +31,7 @@ async function getProcessor(engine: MarkdownSyntaxHighlightEngine) {
     let processor: any = unified()
       .use(remarkParse)
       .use(remarkGfm, { singleTilde: false })
+      .use(remarkSourceLine)
       .use(remarkRehype)
       .use(rehypeSubscriptMarkers)
       .use(rehypeSuperscriptMarkers)

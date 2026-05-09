@@ -270,6 +270,8 @@
     "previewOptions": "预览选项",
     "previewAutoRenderMermaid": "自动渲染 Mermaid 图表",
     "previewAutoRenderMermaidHint": "默认开启。可见范围内的图表会自动渲染；大型文档需要手动控制时可以关闭。",
+    "splitScrollSync": "在分屏视图中同步滚动",
+    "splitScrollSyncHint": "默认开启。在分屏视图下滚动编辑器或预览时，另一侧会跟随到同一源行。",
     "previewLineBreaks": "预览换行方式",
     "previewLineBreakModes": {
       "strict": "严格模式",

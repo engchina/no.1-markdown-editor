@@ -162,8 +162,9 @@ async function buildExportHtml(
   mermaidTheme: 'default' | 'dark' = 'default'
 ) {
   const { buildStandaloneHtml, containsLikelyMath, renderMarkdown } = await import('../lib/markdown')
+  const { stripSourceLineMarkers } = await import('../lib/sourceLineMarkers')
 
-  let bodyHtml = await renderMarkdown(markdown)
+  let bodyHtml = stripSourceLineMarkers(await renderMarkdown(markdown))
   if (bodyHtml.includes('language-mermaid')) {
     const { renderMermaidInHtml } = await import('../lib/mermaid')
     bodyHtml = await renderMermaidInHtml(bodyHtml, mermaidTheme)

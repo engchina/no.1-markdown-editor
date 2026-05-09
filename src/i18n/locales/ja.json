@@ -270,6 +270,8 @@
     "previewOptions": "プレビュー設定",
     "previewAutoRenderMermaid": "Mermaid 図を自動描画",
     "previewAutoRenderMermaidHint": "標準ではオンです。表示範囲に入った図を自動描画します。大きな文書で手動描画にしたい場合はオフにしてください。",
+    "splitScrollSync": "分割ビューでスクロールを同期",
+    "splitScrollSyncHint": "標準ではオンです。分割ビューでエディターまたはプレビューをスクロールすると、もう一方が同じソース行に追従します。",
     "previewLineBreaks": "プレビュー改行表示",
     "previewLineBreakModes": {
       "strict": "厳密",

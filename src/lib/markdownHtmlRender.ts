@@ -11,6 +11,8 @@ import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
 import { rehypeHardenRawHtml, rehypePrepareRawHtmlForSanitize } from './rehypeHardenRawHtml.ts'
 import { rehypeSplitHtmlBreakOrderedLists } from './rehypeSplitHtmlBreakOrderedLists.ts'
+import { remarkSourceLine } from './remarkSourceLine.ts'
+import { rehypeSourceLineFromPosition } from './rehypeSourceLineFromPosition.ts'
 import {
   applyMarkdownSyntaxHighlighting,
   type MarkdownSyntaxHighlightEngine,
@@ -27,6 +29,7 @@ async function getProcessorWithHtml(engine: MarkdownSyntaxHighlightEngine) {
     let processor: any = unified()
       .use(remarkParse)
       .use(remarkGfm, { singleTilde: false })
+      .use(remarkSourceLine)
       .use(remarkRehype, { allowDangerousHtml: true })
       .use(rehypeRaw)
       .use(rehypeSplitHtmlBreakOrderedLists)
@@ -37,6 +40,7 @@ async function getProcessorWithHtml(engine: MarkdownSyntaxHighlightEngine) {
       .use(rehypePrepareRawHtmlForSanitize)
       .use(rehypeSanitize, sanitizeSchema)
       .use(rehypeHardenRawHtml)
+      .use(rehypeSourceLineFromPosition)
 
     processor = await applyMarkdownSyntaxHighlighting(processor, engine)
 

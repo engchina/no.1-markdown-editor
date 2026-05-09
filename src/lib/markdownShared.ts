@@ -33,8 +33,11 @@ export const sanitizeSchema: Schema = {
   ]),
   attributes: {
     ...defaultSchema.attributes,
-    '*': mergeAttributeList('*', ['className', 'class']), // To allow standard classes
+    '*': mergeAttributeList('*', ['className', 'class', 'dataSourceLine']), // To allow standard classes
     'a': mergeAttributeList('a', ['dataFootnoteRef', 'dataFootnoteBackref', 'ariaDescribedBy', 'ariaDescribedby', 'ariaLabel']),
+    // Override the default `code` entry (which restricts className values) so that
+    // math-display / math-inline / language-* / hljs-* all survive sanitize.
+    'code': ['className', 'class', 'dataSourceLine'],
     'abbr': ['title', 'className', 'class'],
     'audio': ['ariaDescribedBy', 'ariaLabel', 'ariaLabelledBy', 'className', 'class', 'controls', 'loop', 'muted', 'preload', 'src', 'title'],
     'cite': ['className', 'class'],

@@ -36,8 +36,9 @@ export async function renderClipboardHtmlFromMarkdown(
   mermaidTheme: 'default' | 'dark' = 'default'
 ): Promise<string> {
   const { renderMarkdown } = await import('./markdown.ts')
+  const { stripSourceLineMarkers } = await import('./sourceLineMarkers.ts')
 
-  let bodyHtml = await renderMarkdown(markdown)
+  let bodyHtml = stripSourceLineMarkers(await renderMarkdown(markdown))
   if (bodyHtml.includes('language-mermaid')) {
     const { renderMermaidInHtml } = await import('./mermaid.ts')
     bodyHtml = await renderMermaidInHtml(bodyHtml, mermaidTheme)

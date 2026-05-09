@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   buildStandaloneHtml,
   normalizeSelfClosingRawHtmlBlocks,
-  renderMarkdown,
+  renderMarkdown as renderMarkdownRaw,
   stripFrontMatter,
 } from '../src/lib/markdown.ts'
 import { containsLikelyRawHtml } from '../src/lib/markdownHtml.ts'
@@ -22,19 +22,38 @@ import {
   rewritePreviewHtmlLocalMedia,
 } from '../src/lib/previewLocalMedia.ts'
 import { buildFrontMatterHtml } from '../src/lib/markdownShared.ts'
-import { renderMarkdownInWorker } from '../src/lib/markdownWorker.ts'
+import { renderMarkdownInWorker as renderMarkdownInWorkerRaw } from '../src/lib/markdownWorker.ts'
 import { extractHeadings } from '../src/lib/outline.ts'
+
+// Existing tests in this file pre-date the source-line annotation pipeline and
+// assert exact HTML shape. Strip the new attributes/wrappers here so existing
+// expectations stay readable. Coverage for the new behaviour lives in
+// `source-line-pipeline.test.ts` and the per-plugin unit tests.
+function normalizeSourceLineArtifacts(html: string): string {
+  return html
+    .replace(
+      /<div class="math-source-line-wrap" data-source-line="\d+">(<span class="katex-display">[\s\S]*?<\/span>)<\/div>/g,
+      '$1'
+    )
+    .replace(/ data-source-line="[^"]*"/g, '')
+}
+
+const renderMarkdown = async (...args: Parameters<typeof renderMarkdownRaw>): Promise<string> =>
+  normalizeSourceLineArtifacts(await renderMarkdownRaw(...args))
+const renderMarkdownInWorker = async (
+  ...args: Parameters<typeof renderMarkdownInWorkerRaw>
+): Promise<string> => normalizeSourceLineArtifacts(await renderMarkdownInWorkerRaw(...args))
 
 function countRenderedBreaks(html: string): number {
   return html.match(/<br\s*\/?>/g)?.length ?? 0
 }
 
 function countRenderedParagraphs(html: string): number {
-  return html.match(/<p>/g)?.length ?? 0
+  return html.match(/<p(?:\s|>)/g)?.length ?? 0
 }
 
 function extractHeadingIds(html: string): string[] {
-  return Array.from(html.matchAll(/<h[1-6]\s+id="([^"]*)"/g), (match) => match[1])
+  return Array.from(html.matchAll(/<h[1-6][^>]*\sid="([^"]*)"/g), (match) => match[1])
 }
 
 test('stripFrontMatter parses CRLF front matter blocks', () => {

@@ -115,6 +115,7 @@ import {
 import { EDITOR_RETURN_TO_WRITING_EVENT } from '../../lib/editorFocus.ts'
 import { useAIStore } from '../../store/ai'
 import { selectEffectiveWysiwygMode, useActiveTab, useEditorStore } from '../../store/editor'
+import { useScrollSyncStore } from '../../store/scrollSync'
 import SearchBar from '../Search/SearchBar'
 
 interface Props {
@@ -677,6 +678,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
     const view = new EditorView({ state, parent: container })
     viewRef.current = view
+    useScrollSyncStore.getState().setEditorView(view)
     applySpellcheckConfigToEditable(view.contentDOM, spellcheckConfig)
     view.focus()
     const cursor = view.state.selection.main.head
@@ -686,6 +688,8 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
     return () => {
       saveEditorStateSnapshot(tabId, view.state)
+      const setEditorView = useScrollSyncStore.getState().setEditorView
+      if (useScrollSyncStore.getState().editorView === view) setEditorView(null)
       view.destroy()
       viewRef.current = null
     }

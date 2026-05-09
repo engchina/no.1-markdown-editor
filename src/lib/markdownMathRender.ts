@@ -16,6 +16,8 @@ import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
 import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
 import { rehypeHardenRawHtml, rehypePrepareRawHtmlForSanitize } from './rehypeHardenRawHtml.ts'
+import { remarkSourceLine } from './remarkSourceLine.ts'
+import { rehypeWrapMathPreForSourceLine } from './rehypeWrapMathPreForSourceLine.ts'
 import {
   applyMarkdownSyntaxHighlighting,
   type MarkdownSyntaxHighlightEngine,
@@ -33,6 +35,7 @@ async function getProcessorWithMath(engine: MarkdownSyntaxHighlightEngine) {
       .use(remarkParse)
       .use(remarkGfm, { singleTilde: false })
       .use(remarkMath)
+      .use(remarkSourceLine)
       .use(remarkRehype)
       .use(rehypeSubscriptMarkers)
       .use(rehypeSuperscriptMarkers)
@@ -45,6 +48,7 @@ async function getProcessorWithMath(engine: MarkdownSyntaxHighlightEngine) {
     processor = await applyMarkdownSyntaxHighlighting(processor, engine)
 
     return processor
+      .use(rehypeWrapMathPreForSourceLine)
       .use(rehypeKatex)
       .use(rehypeHeadingIds)
       .use(rehypeStringify)

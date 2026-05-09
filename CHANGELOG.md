@@ -20,6 +20,24 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.11 - 2026-05-09
+
+### Added
+
+- Split view can now keep the editor and preview panes aligned while scrolling, with a Theme panel toggle for users who prefer independent scrolling.
+
+### Changed
+
+- Preview rendering now carries internal source-line markers so split scrolling can stay aligned across ordinary Markdown, raw HTML, and math blocks.
+
+### Fixed
+
+- Clipboard HTML and standalone exports now strip internal preview source-line markers so copied or exported Markdown HTML remains clean.
+
+### Internal
+
+- Added unit and smoke coverage for source-line mapping, split scroll synchronization, and the persisted split-scroll setting.
+
 ## 0.20.10 - 2026-05-08
 
 ### Internal

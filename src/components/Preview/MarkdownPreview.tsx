@@ -32,6 +32,7 @@ import { wasDynamicImportRecoveryTriggered } from '../../lib/vitePreloadRecovery
 import { resolveActiveHeadingId, updateVisibleHeadingIds } from '../../lib/previewScrollSpy'
 import { useMarkdown } from '../../hooks/useMarkdown'
 import { useActiveTab, useEditorStore } from '../../store/editor'
+import { useScrollSyncStore } from '../../store/scrollSync'
 
 const MERMAID_AUTO_RENDER_DELAY_MS = 650
 const MERMAID_AUTO_RENDER_ROOT_MARGIN = '240px 0px'
@@ -89,6 +90,16 @@ export default function MarkdownPreview() {
   )
   const previewRef = useRef<HTMLDivElement>(null)
   const pendingExternalFallbacksRef = useRef(new Set<string>())
+
+  useEffect(() => {
+    const setPreviewContainer = useScrollSyncStore.getState().setPreviewContainer
+    setPreviewContainer(previewRef.current)
+    return () => {
+      const current = useScrollSyncStore.getState().previewContainer
+      if (current === previewRef.current) setPreviewContainer(null)
+    }
+  }, [])
+
   const [pendingMermaidCount, setPendingMermaidCount] = useState(0)
   const [renderingAll, setRenderingAll] = useState(false)
 

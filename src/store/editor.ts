@@ -164,6 +164,8 @@ interface EditorState {
   hasExplicitPreviewLineBreakModePreference: boolean
   previewAutoRenderMermaid: boolean
   setPreviewAutoRenderMermaid: (enabled: boolean) => void
+  splitScrollSyncEnabled: boolean
+  setSplitScrollSyncEnabled: (enabled: boolean) => void
 }
 
 function generateId() {
@@ -261,6 +263,8 @@ export const useEditorStore = create<EditorState>()(
       hasExplicitPreviewLineBreakModePreference: false,
       previewAutoRenderMermaid: true,
       setPreviewAutoRenderMermaid: (previewAutoRenderMermaid) => set({ previewAutoRenderMermaid }),
+      splitScrollSyncEnabled: true,
+      setSplitScrollSyncEnabled: (splitScrollSyncEnabled) => set({ splitScrollSyncEnabled }),
 
       // Tabs
       tabs: [initialTab],
@@ -623,6 +627,7 @@ export const useEditorStore = create<EditorState>()(
         previewLineBreakMode: s.previewLineBreakMode,
         hasExplicitPreviewLineBreakModePreference: s.hasExplicitPreviewLineBreakModePreference,
         previewAutoRenderMermaid: s.previewAutoRenderMermaid,
+        splitScrollSyncEnabled: s.splitScrollSyncEnabled,
         zoom: s.zoom,
         tabs: s.tabs.filter(isRestorableDraftTab),
         activeTabId: s.tabs.some((tab) => tab.id === s.activeTabId && isRestorableDraftTab(tab))
@@ -668,6 +673,7 @@ export const useEditorStore = create<EditorState>()(
           hasExplicitPreviewLineBreakModePreference:
             persistedState?.hasExplicitPreviewLineBreakModePreference === true,
           previewAutoRenderMermaid: persistedState?.previewAutoRenderMermaid !== false,
+          splitScrollSyncEnabled: persistedState?.splitScrollSyncEnabled !== false,
         }
       },
       onRehydrateStorage: () => (state) => {
