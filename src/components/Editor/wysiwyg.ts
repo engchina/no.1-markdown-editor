@@ -36,6 +36,7 @@ import { collectInlineLiteralEscapeRanges, hasOddTrailingBackslashes } from './w
 import { collectInlineMediaRanges } from './wysiwygInlineMedia.ts'
 import { findInlineMathRanges } from './wysiwygInlineMath.ts'
 import { renderInlineMarkdownFragment } from './wysiwygInlineMarkdown.ts'
+import { collectInlineHtmlTagRanges } from './wysiwygInlineHtml.ts'
 import { collectInlineHardBreakTokens } from './wysiwygHardBreak.ts'
 import { collectReferenceDefinitionMarkdown } from './wysiwygReferenceLinks.ts'
 import { findInlineSubscriptRanges } from './wysiwygSubscript.ts'
@@ -61,6 +62,11 @@ import {
   renderWysiwygDetailsMarkdown,
   type WysiwygDetailsBlock,
 } from './wysiwygDetails.ts'
+import {
+  collectInactiveWysiwygRawHtmlBlocks,
+  collectWysiwygRawHtmlBlocks,
+  type WysiwygRawHtmlBlock,
+} from './wysiwygRawHtml.ts'
 import { detectDocumentLanguage, resolveDocumentSpellcheckConfig } from '../../lib/documentLanguage.ts'
 import { hasTerminalBlankLine } from '../../lib/editorTerminalBlankLine.ts'
 import { stripFrontMatter, type FrontMatterMeta } from '../../lib/markdownShared.ts'
@@ -68,7 +74,12 @@ import { rewriteRenderedHtmlImageSources } from '../../lib/renderedImageSources.
 import { loadLocalPreviewImage } from '../../lib/previewLocalImage.ts'
 import { rewritePreviewHtmlLocalImages } from '../../lib/previewLocalImages.ts'
 import { loadExternalPreviewImage } from '../../lib/previewRemoteImage.ts'
+import { resolveTauriLocalMediaAssetUrl, rewritePreviewHtmlLocalMedia } from '../../lib/previewLocalMedia.ts'
 import { rewritePreviewHtmlExternalImages } from '../../lib/previewExternalImages.ts'
+import {
+  activatePreviewExternalEmbed,
+  rewritePreviewHtmlNoisyExternalEmbeds,
+} from '../../lib/previewExternalEmbeds.ts'
 import {
   decodeMarkdownTableCellText,
   encodeMarkdownTableCellText,
@@ -1038,6 +1049,39 @@ class InlineRenderedFragmentWidget extends WidgetType {
   }
 }
 
+class RawHtmlBlockWidget extends WidgetType {
+  private readonly rawHtmlBlock: WysiwygRawHtmlBlock
+  private readonly context: WysiwygDocumentContext
+
+  constructor(rawHtmlBlock: WysiwygRawHtmlBlock, context: WysiwygDocumentContext) {
+    super()
+    this.rawHtmlBlock = rawHtmlBlock
+    this.context = context
+  }
+
+  toDOM() {
+    const el = document.createElement('div')
+    syncRawHtmlBlockWidgetDom(el, this.rawHtmlBlock, this.context)
+    return el
+  }
+
+  updateDOM(dom: HTMLElement) {
+    if (!(dom instanceof HTMLElement)) return false
+    syncRawHtmlBlockWidgetDom(dom, this.rawHtmlBlock, this.context)
+    return true
+  }
+
+  ignoreEvent(event: Event) { return isRawHtmlInteractiveMediaTarget(event.target) }
+
+  eq(other: RawHtmlBlockWidget) {
+    return this.rawHtmlBlock.html === other.rawHtmlBlock.html &&
+      this.rawHtmlBlock.editAnchor === other.rawHtmlBlock.editAnchor &&
+      this.context.documentPath === other.context.documentPath &&
+      JSON.stringify(this.context.frontMatter) === JSON.stringify(other.context.frontMatter) &&
+      this.context.referenceDefinitionsMarkdown === other.context.referenceDefinitionsMarkdown
+  }
+}
+
 function resolveWysiwygDocumentContext(markdown: string): WysiwygDocumentContext {
   const store = useEditorStore.getState()
   const activeTab = (!store.activeTabId && store.tabs.length > 0
@@ -1067,6 +1111,21 @@ function syncInlineRenderedFragmentDom(
   wrapper.setAttribute('aria-label', kind === 'image' ? 'Edit image' : 'Edit linked media')
   wrapper.tabIndex = 0
   wrapper.innerHTML = renderInlineRenderedFragmentHtml(markdown, context)
+  hydrateInlineRenderedFragmentImages(wrapper, context)
+}
+
+function syncRawHtmlBlockWidgetDom(
+  wrapper: HTMLElement,
+  rawHtmlBlock: WysiwygRawHtmlBlock,
+  context: WysiwygDocumentContext
+): void {
+  wrapper.className = 'cm-wysiwyg-raw-html-block cm-wysiwyg-raw-html-block__edit-target'
+  wrapper.dataset.rawHtmlEditAnchor = String(rawHtmlBlock.editAnchor)
+  wrapper.setAttribute('role', 'button')
+  wrapper.setAttribute('aria-keyshortcuts', 'Enter Space')
+  wrapper.setAttribute('aria-label', 'Edit HTML block')
+  wrapper.tabIndex = 0
+  wrapper.innerHTML = renderRawHtmlBlockHtml(rawHtmlBlock.html, context)
   hydrateInlineRenderedFragmentImages(wrapper, context)
 }
 
@@ -1160,36 +1219,72 @@ function renderDetailsBodyHtml(markdown: string, context: WysiwygDocumentContext
   const rendered = renderWysiwygDetailsMarkdown(markdown)
   const withResolvedRoots = rewriteRenderedHtmlImageSources(rendered, { frontMatter: context.frontMatter })
   const withLocalImages = rewritePreviewHtmlLocalImages(withResolvedRoots, { documentPath: context.documentPath })
-  return rewritePreviewHtmlExternalImages(
-    withLocalImages,
+  return rewritePreviewHtmlNoisyExternalEmbeds(
+    rewritePreviewHtmlExternalImages(
+      withLocalImages,
+      {
+        blockedLabel: i18n.t('preview.externalImageBlocked'),
+        clickLabel: i18n.t('preview.externalImageClickToLoad'),
+      },
+      previewOrigin,
+      {
+        enableDirectExternalImageFallback: isTauriRuntime(),
+      }
+    ),
     {
-      blockedLabel: i18n.t('preview.externalImageBlocked'),
-      clickLabel: i18n.t('preview.externalImageClickToLoad'),
+      blockedLabel: i18n.t('preview.externalEmbedBlocked'),
+      clickLabel: i18n.t('preview.externalEmbedClickToLoad'),
     },
-    previewOrigin,
-    {
-      enableDirectExternalImageFallback: isTauriRuntime(),
-    }
+    previewOrigin
   )
 }
 
+function renderRawHtmlBlockHtml(markdown: string, context: WysiwygDocumentContext): string {
+  return renderWysiwygHtmlFragment(markdown, context)
+}
+
 function renderInlineRenderedFragmentHtml(markdown: string, context: WysiwygDocumentContext): string {
+  return renderWysiwygHtmlFragment(
+    renderInlineMarkdownFragment(markdown, {
+      referenceDefinitionsMarkdown: context.referenceDefinitionsMarkdown,
+    }),
+    context,
+    true
+  )
+}
+
+function renderWysiwygHtmlFragment(
+  markdownOrHtml: string,
+  context: WysiwygDocumentContext,
+  alreadyRendered = false
+): string {
   const previewOrigin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
-  const rendered = renderInlineMarkdownFragment(markdown, {
-    referenceDefinitionsMarkdown: context.referenceDefinitionsMarkdown,
-  })
+  const rendered = alreadyRendered ? markdownOrHtml : renderWysiwygDetailsMarkdown(markdownOrHtml)
   const withResolvedRoots = rewriteRenderedHtmlImageSources(rendered, { frontMatter: context.frontMatter })
   const withLocalImages = rewritePreviewHtmlLocalImages(withResolvedRoots, { documentPath: context.documentPath })
-  return rewritePreviewHtmlExternalImages(
-    withLocalImages,
+  const withLocalMedia = rewritePreviewHtmlLocalMedia(withLocalImages, {
+    documentPath: context.documentPath,
+    resolveMediaSource: isTauriRuntime()
+      ? (_filePath, originalSource) => resolveTauriLocalMediaAssetUrl(originalSource, context.documentPath)
+      : undefined,
+  })
+  return rewritePreviewHtmlNoisyExternalEmbeds(
+    rewritePreviewHtmlExternalImages(
+      withLocalMedia,
+      {
+        blockedLabel: i18n.t('preview.externalImageBlocked'),
+        clickLabel: i18n.t('preview.externalImageClickToLoad'),
+      },
+      previewOrigin,
+      {
+        enableDirectExternalImageFallback: isTauriRuntime(),
+      }
+    ),
     {
-      blockedLabel: i18n.t('preview.externalImageBlocked'),
-      clickLabel: i18n.t('preview.externalImageClickToLoad'),
+      blockedLabel: i18n.t('preview.externalEmbedBlocked'),
+      clickLabel: i18n.t('preview.externalEmbedClickToLoad'),
     },
-    previewOrigin,
-    {
-      enableDirectExternalImageFallback: isTauriRuntime(),
-    }
+    previewOrigin
   )
 }
 
@@ -1343,6 +1438,7 @@ export function buildWysiwygDecorations(
   mathBlocks: readonly MathBlock[],
   tables: readonly MarkdownTableBlock[],
   detailsBlocks: readonly WysiwygDetailsBlock[],
+  rawHtmlBlocks: readonly WysiwygRawHtmlBlock[],
   footnoteIndices: Map<string, number>
 ): DecorationSet {
   // Mixed replace/mark decorations often start at the same position.
@@ -1356,6 +1452,7 @@ export function buildWysiwygDecorations(
   let mathIndex = 0
   let tableIndex = 0
   let detailsIndex = 0
+  let rawHtmlIndex = 0
   const detailsGapLineStarts = new Set<number>()
 
   for (const detailsBlock of collectInactiveWysiwygDetailsBlocks(view, detailsBlocks)) {
@@ -1436,6 +1533,43 @@ export function buildWysiwygDecorations(
     }
   }
 
+  for (const rawHtmlBlock of collectInactiveWysiwygRawHtmlBlocks(view, rawHtmlBlocks)) {
+    const openingLine = doc.lineAt(rawHtmlBlock.from)
+    const closingLine = doc.lineAt(rawHtmlBlock.to)
+
+    queueDecoration(
+      decorations,
+      openingLine.from,
+      openingLine.from,
+      Decoration.line({ attributes: { class: 'cm-wysiwyg-raw-html-anchor-line' } })
+    )
+
+    queueDecoration(
+      decorations,
+      openingLine.from,
+      openingLine.to,
+      Decoration.replace({ widget: new RawHtmlBlockWidget(rawHtmlBlock, documentContext) })
+    )
+
+    let hiddenLineFrom = openingLine.to + 1
+    while (hiddenLineFrom <= closingLine.to) {
+      const hiddenLine = doc.lineAt(hiddenLineFrom)
+      queueDecoration(
+        decorations,
+        hiddenLine.from,
+        hiddenLine.from,
+        Decoration.line({ attributes: { class: 'cm-wysiwyg-raw-html-hidden-line' } })
+      )
+      queueDecoration(
+        decorations,
+        hiddenLine.from,
+        hiddenLine.to,
+        Decoration.replace({})
+      )
+      hiddenLineFrom = hiddenLine.to + 1
+    }
+  }
+
   // Process each visible line
   for (const { from, to } of view.visibleRanges) {
     let pos = from
@@ -1458,6 +1592,9 @@ export function buildWysiwygDecorations(
       while (detailsIndex < detailsBlocks.length && detailsBlocks[detailsIndex].to < lineFrom) {
         detailsIndex += 1
       }
+      while (rawHtmlIndex < rawHtmlBlocks.length && rawHtmlBlocks[rawHtmlIndex].to < lineFrom) {
+        rawHtmlIndex += 1
+      }
 
       const fencedCodeBlock = fencedCodeBlocks[fenceIndex]
       if (fencedCodeBlock && lineFrom >= fencedCodeBlock.from && lineFrom <= fencedCodeBlock.to) {
@@ -1479,6 +1616,12 @@ export function buildWysiwygDecorations(
 
       const detailsBlock = detailsBlocks[detailsIndex]
       if (detailsBlock && lineFrom >= detailsBlock.from && lineFrom <= detailsBlock.to) {
+        pos = line.to + 1
+        continue
+      }
+
+      const rawHtmlBlock = rawHtmlBlocks[rawHtmlIndex]
+      if (rawHtmlBlock && lineFrom >= rawHtmlBlock.from && lineFrom <= rawHtmlBlock.to) {
         pos = line.to + 1
         continue
       }
@@ -1714,10 +1857,11 @@ function safeBuildDecorations(
   mathBlocks: readonly MathBlock[],
   tables: readonly MarkdownTableBlock[],
   detailsBlocks: readonly WysiwygDetailsBlock[],
+  rawHtmlBlocks: readonly WysiwygRawHtmlBlock[],
   footnoteIndices: Map<string, number>
 ): DecorationSet {
   try {
-    return buildWysiwygDecorations(view, fencedCodeBlocks, mathBlocks, tables, detailsBlocks, footnoteIndices)
+    return buildWysiwygDecorations(view, fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks, footnoteIndices)
   } catch {
     return Decoration.none
   }
@@ -1747,6 +1891,7 @@ interface WysiwygStructuralBlocks {
   mathBlocks: MathBlock[]
   tables: MarkdownTableBlock[]
   detailsBlocks: WysiwygDetailsBlock[]
+  rawHtmlBlocks: WysiwygRawHtmlBlock[]
 }
 
 function collectWysiwygStructuralBlocks(markdown: string): WysiwygStructuralBlocks {
@@ -1756,10 +1901,16 @@ function collectWysiwygStructuralBlocks(markdown: string): WysiwygStructuralBloc
     ...allFencedCodeBlocks,
     ...allMathBlocks,
   ])
+  const rawHtmlBlocks = collectWysiwygRawHtmlBlocks(markdown, [
+    ...allFencedCodeBlocks,
+    ...allMathBlocks,
+    ...detailsBlocks,
+  ])
   const ignoredTableRanges = [
     ...allFencedCodeBlocks,
     ...allMathBlocks,
     ...detailsBlocks,
+    ...rawHtmlBlocks,
   ].sort((left, right) => left.from - right.from || left.to - right.to)
 
   return {
@@ -1767,6 +1918,7 @@ function collectWysiwygStructuralBlocks(markdown: string): WysiwygStructuralBloc
     mathBlocks: allMathBlocks.filter((block) => !rangeIntersectsAnyRange(block, detailsBlocks)),
     tables: collectMarkdownTableBlocks(markdown, ignoredTableRanges),
     detailsBlocks,
+    rawHtmlBlocks,
   }
 }
 
@@ -1789,7 +1941,7 @@ function markDetailsGapGutterLine(
 
 function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarker> {
   const markdown = state.doc.toString()
-  const { fencedCodeBlocks, mathBlocks, tables, detailsBlocks } = collectWysiwygStructuralBlocks(markdown)
+  const { fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks } = collectWysiwygStructuralBlocks(markdown)
   const { doc } = state
   const markers = new Map<number, GutterMarker>()
   const nonTextBlockRanges = [
@@ -1797,6 +1949,7 @@ function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarke
     ...mathBlocks.map(({ from, to }) => ({ from, to })),
     ...tables.map(({ from, to }) => ({ from, to })),
     ...detailsBlocks.map(({ from, to }) => ({ from, to })),
+    ...rawHtmlBlocks.map(({ from, to }) => ({ from, to })),
   ].sort((left, right) => left.from - right.from)
 
   for (const fence of fencedCodeBlocks) {
@@ -2081,11 +2234,7 @@ function processInline(
 
   processItalic(decorations, text, lineFrom, combinedEmphasisMarkerRanges)
 
-  // Underline <u>text</u>
-  processPattern(decorations, text, lineFrom, /(<u>)(.+?)(<\/u>)/gi, 'cm-wysiwyg-underline', {
-    closeGroup: 3,
-    excludedRanges: inlineCodeRanges,
-  })
+  processInlineHtmlTags(decorations, text, lineFrom, inlineLiteralExcludedRanges)
 
   processStrikethrough(decorations, text, lineFrom)
 
@@ -2134,6 +2283,45 @@ function processInline(
   }
 
   processLiteralEscapes(decorations, text, lineFrom, inlineLiteralExcludedRanges)
+}
+
+function processInlineHtmlTags(
+  decorations: DecorationSpec[],
+  text: string,
+  lineFrom: number,
+  excludedRanges: readonly TextRange[]
+): void {
+  processHtmlTagPattern(decorations, text, lineFrom, ['b', 'strong'], 'cm-wysiwyg-bold', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['em', 'i'], 'cm-wysiwyg-italic', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['u'], 'cm-wysiwyg-underline', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['del', 's', 'strike'], 'cm-wysiwyg-strikethrough', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['mark'], 'cm-wysiwyg-highlight', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['sub'], 'cm-wysiwyg-subscript', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['sup'], 'cm-wysiwyg-superscript', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['code'], 'cm-wysiwyg-code', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['kbd'], 'cm-wysiwyg-kbd', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['a'], 'cm-wysiwyg-link', excludedRanges)
+  processHtmlTagPattern(decorations, text, lineFrom, ['span'], 'cm-wysiwyg-html-inline', excludedRanges)
+}
+
+function processHtmlTagPattern(
+  decorations: DecorationSpec[],
+  text: string,
+  lineFrom: number,
+  tagNames: readonly string[],
+  cls: string,
+  excludedRanges: readonly TextRange[]
+): void {
+  for (const range of collectInlineHtmlTagRanges(text, tagNames, excludedRanges)) {
+    queueDecoration(decorations, lineFrom + range.from, lineFrom + range.contentFrom, Decoration.replace({}))
+    queueDecoration(
+      decorations,
+      lineFrom + range.contentFrom,
+      lineFrom + range.contentTo,
+      Decoration.mark({ class: cls })
+    )
+    queueDecoration(decorations, lineFrom + range.contentTo, lineFrom + range.to, Decoration.replace({}))
+  }
 }
 
 function processInlineFootnotes(
@@ -2445,6 +2633,7 @@ class WysiwygPluginValue {
   mathBlocks: MathBlock[]
   tables: MarkdownTableBlock[]
   detailsBlocks: WysiwygDetailsBlock[]
+  rawHtmlBlocks: WysiwygRawHtmlBlock[]
   footnoteIndices: Map<string, number>
   activeTableCell: ActiveWysiwygTableCell | null
 
@@ -2454,6 +2643,7 @@ class WysiwygPluginValue {
     this.mathBlocks = structuralBlocks.mathBlocks
     this.tables = structuralBlocks.tables
     this.detailsBlocks = structuralBlocks.detailsBlocks
+    this.rawHtmlBlocks = structuralBlocks.rawHtmlBlocks
     this.footnoteIndices = collectFootnoteIndices(view.state.doc.toString())
     this.activeTableCell = null
     this.syncActiveTableCell(view)
@@ -2464,6 +2654,7 @@ class WysiwygPluginValue {
       this.mathBlocks,
       this.tables,
       this.detailsBlocks,
+      this.rawHtmlBlocks,
       this.footnoteIndices
     )
   }
@@ -2475,6 +2666,7 @@ class WysiwygPluginValue {
       this.mathBlocks = structuralBlocks.mathBlocks
       this.tables = structuralBlocks.tables
       this.detailsBlocks = structuralBlocks.detailsBlocks
+      this.rawHtmlBlocks = structuralBlocks.rawHtmlBlocks
       this.footnoteIndices = collectFootnoteIndices(update.state.doc.toString())
       pruneTableColumnWidthSnapshots(this.tables)
     }
@@ -2508,6 +2700,7 @@ class WysiwygPluginValue {
         this.mathBlocks,
         this.tables,
         this.detailsBlocks,
+        this.rawHtmlBlocks,
         this.footnoteIndices
       )
     }
@@ -3246,6 +3439,32 @@ function activateInlineRenderedFragmentTarget(view: EditorView, target: EventTar
   return true
 }
 
+function activateRawHtmlBlockTarget(view: EditorView, target: EventTarget | null): boolean {
+  if (isRawHtmlInteractiveMediaTarget(target)) return false
+
+  const rawHtmlTarget = (target as HTMLElement | null)?.closest<HTMLElement>('.cm-wysiwyg-raw-html-block')
+  if (!rawHtmlTarget) return false
+
+  const editAnchor = Number(rawHtmlTarget.dataset.rawHtmlEditAnchor)
+  if (!Number.isFinite(editAnchor)) return false
+
+  view.dispatch({
+    selection: { anchor: editAnchor },
+    userEvent: 'select.pointer',
+    scrollIntoView: true,
+  })
+  view.focus()
+  return true
+}
+
+function isRawHtmlInteractiveMediaTarget(target: EventTarget | null): boolean {
+  return Boolean(
+    (target as HTMLElement | null)?.closest(
+      '.cm-wysiwyg-raw-html-block audio, .cm-wysiwyg-raw-html-block video, .cm-wysiwyg-raw-html-block iframe, .cm-wysiwyg-raw-html-block .preview-external-embed'
+    )
+  )
+}
+
 function getDetailsToggleButton(target: EventTarget | null): HTMLButtonElement | null {
   return (target as HTMLElement | null)?.closest<HTMLButtonElement>('.cm-wysiwyg-details__toggle') ?? null
 }
@@ -3298,11 +3517,16 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
     eventHandlers: {
       mousedown(event, view) {
         if (getTableCellInputFromTarget(event.target, view)) return false
+        if (isRawHtmlInteractiveMediaTarget(event.target)) return true
         if (activateTable(view, event.target)) {
           event.preventDefault()
           return true
         }
         if (activateInlineRenderedFragmentTarget(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateRawHtmlBlockTarget(view, event.target)) {
           event.preventDefault()
           return true
         }
@@ -3335,11 +3559,20 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
       },
       click(event, view) {
         if (getTableCellInputFromTarget(event.target, view)) return false
+        if (activatePreviewExternalEmbed(event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (isRawHtmlInteractiveMediaTarget(event.target)) return true
         if (activateTable(view, event.target)) {
           event.preventDefault()
           return true
         }
         if (activateInlineRenderedFragmentTarget(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateRawHtmlBlockTarget(view, event.target)) {
           event.preventDefault()
           return true
         }
@@ -3395,6 +3628,8 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
           return true
         }
 
+        if (isRawHtmlInteractiveMediaTarget(event.target)) return true
+
         const checkboxTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-checkbox')
         if (checkboxTarget) {
           if (!isPlainTaskCheckboxToggleKey(event)) return false
@@ -3423,6 +3658,14 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
         if (inlineFragmentTarget) {
           if (!isPlainInlineRenderedFragmentActivationKey(event)) return false
           if (!activateInlineRenderedFragmentTarget(view, event.target)) return false
+          event.preventDefault()
+          return true
+        }
+
+        const rawHtmlTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-raw-html-block')
+        if (rawHtmlTarget) {
+          if (!isPlainInlineRenderedFragmentActivationKey(event)) return false
+          if (!activateRawHtmlBlockTarget(view, event.target)) return false
           event.preventDefault()
           return true
         }
@@ -3593,6 +3836,24 @@ export const wysiwygTheme = EditorView.baseTheme({
     padding: 'var(--md-inline-code-padding, 0.125em 0.375em)',
     color: 'inherit !important',
   },
+  '.cm-wysiwyg-kbd': {
+    display: 'inline-block',
+    minWidth: '1.5em',
+    border: '1px solid color-mix(in srgb, var(--border) 76%, var(--text-primary) 12%)',
+    borderRadius: 'var(--md-inline-code-radius, 4px)',
+    backgroundColor: 'var(--bg-secondary)',
+    boxShadow: 'inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 16%, transparent)',
+    color: 'var(--text-primary) !important',
+    fontFamily: MONO_FONT_FAMILY,
+    fontSize: '0.8125em',
+    lineHeight: '1.45',
+    padding: '0 0.35em',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+  },
+  '.cm-wysiwyg-html-inline': {
+    color: 'inherit !important',
+  },
   '.cm-wysiwyg-link': {
     color: 'var(--accent) !important',
     textDecoration: 'var(--md-link-text-decoration, none)',
@@ -3640,6 +3901,80 @@ export const wysiwygTheme = EditorView.baseTheme({
   '.cm-wysiwyg-inline-fragment img.preview-external-image': {
     border: '1px solid color-mix(in srgb, var(--border) 78%, transparent)',
     boxShadow: '0 14px 36px -22px color-mix(in srgb, var(--text-primary) 22%, transparent)',
+  },
+  '.cm-wysiwyg-raw-html-anchor-line': {
+    position: 'relative',
+    minHeight: '1.8em',
+  },
+  '.cm-wysiwyg-raw-html-hidden-line': {
+    height: '0',
+    minHeight: '0',
+    padding: '0 !important',
+    lineHeight: '0',
+    fontSize: '0',
+    overflow: 'hidden',
+  },
+  '.cm-wysiwyg-raw-html-block': {
+    display: 'block',
+    width: '100%',
+    maxWidth: '100%',
+    borderRadius: 'var(--md-html-embed-radius, 8px)',
+    cursor: 'text',
+    transition: 'box-shadow 140ms ease',
+    userSelect: 'none',
+    whiteSpace: 'normal',
+  },
+  '.cm-wysiwyg-raw-html-block:hover': {
+    boxShadow: '0 0 0 1px color-mix(in srgb, var(--border) 64%, transparent)',
+  },
+  '.cm-wysiwyg-raw-html-block:focus-visible': {
+    outline: '2px solid color-mix(in srgb, var(--accent) 72%, transparent)',
+    outlineOffset: '3px',
+  },
+  '.cm-wysiwyg-raw-html-block *': {
+    pointerEvents: 'none',
+  },
+  '.cm-wysiwyg-raw-html-block audio, .cm-wysiwyg-raw-html-block video': {
+    pointerEvents: 'auto',
+  },
+  '.cm-wysiwyg-raw-html-block > :first-child': {
+    marginTop: '0',
+  },
+  '.cm-wysiwyg-raw-html-block > :last-child': {
+    marginBottom: '0',
+  },
+  '.cm-wysiwyg-raw-html-block img': {
+    display: 'block',
+    maxWidth: '100%',
+    borderRadius: '4px',
+  },
+  '.cm-wysiwyg-raw-html-block figure': {
+    margin: '0',
+  },
+  '.cm-wysiwyg-raw-html-block figcaption': {
+    color: 'var(--text-secondary)',
+    fontSize: '0.875em',
+    lineHeight: '1.5',
+    marginTop: '0.5em',
+    textAlign: 'center',
+  },
+  '.cm-wysiwyg-raw-html-block audio, .cm-wysiwyg-raw-html-block video, .cm-wysiwyg-raw-html-block iframe': {
+    display: 'block',
+    maxWidth: '100%',
+    borderRadius: 'var(--md-html-embed-radius, 8px)',
+  },
+  '.cm-wysiwyg-raw-html-block audio': {
+    width: '100%',
+  },
+  '.cm-wysiwyg-raw-html-block video': {
+    height: 'auto',
+  },
+  '.cm-wysiwyg-raw-html-block iframe': {
+    width: '100%',
+    height: 'auto',
+    aspectRatio: '16 / 9',
+    border: '1px solid var(--md-html-embed-border, var(--border))',
+    backgroundColor: 'var(--bg-secondary)',
   },
   '.cm-wysiwyg-codeblock-meta-line': {
     position: 'relative',
@@ -4307,6 +4642,49 @@ export const wysiwygTheme = EditorView.baseTheme({
     backgroundColor: 'transparent',
     padding: '0',
     color: 'inherit',
+  },
+  '.cm-wysiwyg-details__body kbd': {
+    display: 'inline-block',
+    minWidth: '1.5em',
+    border: '1px solid color-mix(in srgb, var(--border) 76%, var(--text-primary) 12%)',
+    borderRadius: 'var(--md-inline-code-radius, 4px)',
+    backgroundColor: 'var(--bg-secondary)',
+    boxShadow: 'inset 0 -1px 0 color-mix(in srgb, var(--text-primary) 16%, transparent)',
+    color: 'var(--text-primary)',
+    fontFamily: MONO_FONT_FAMILY,
+    fontSize: '0.8125em',
+    lineHeight: '1.45',
+    padding: '0 0.35em',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+  },
+  '.cm-wysiwyg-details__body figure': {
+    margin: '0',
+  },
+  '.cm-wysiwyg-details__body figcaption': {
+    color: 'var(--text-secondary)',
+    fontSize: '0.875em',
+    lineHeight: '1.5',
+    marginTop: '0.5em',
+    textAlign: 'center',
+  },
+  '.cm-wysiwyg-details__body audio, .cm-wysiwyg-details__body video, .cm-wysiwyg-details__body iframe': {
+    display: 'block',
+    maxWidth: '100%',
+    borderRadius: 'var(--md-html-embed-radius, 8px)',
+  },
+  '.cm-wysiwyg-details__body audio': {
+    width: '100%',
+  },
+  '.cm-wysiwyg-details__body video': {
+    height: 'auto',
+  },
+  '.cm-wysiwyg-details__body iframe': {
+    width: '100%',
+    height: 'auto',
+    aspectRatio: '16 / 9',
+    border: '1px solid var(--md-html-embed-border, var(--border))',
+    backgroundColor: 'var(--bg-secondary)',
   },
   '.cm-wysiwyg-details__body table': {
     width: '100%',

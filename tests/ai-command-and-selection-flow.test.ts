@@ -22,9 +22,14 @@ test('AI command palette entries route through shared quick-action presets where
 test('selection bubble dispatches AI open events from quick actions without collapsing the current selection first', async () => {
   const bubble = await readFile(new URL('../src/components/AI/AISelectionBubble.tsx', import.meta.url), 'utf8')
 
-  assert.match(bubble, /const ACTIONS: AIQuickAction\[] = \['ask', 'translate', 'summarize', 'explain', 'rewrite'\]/)
+  assert.match(bubble, /const SELECTION_PRIMARY_ACTIONS: AIQuickAction\[] = \['ask', 'rewrite', 'translate'\]/)
+  assert.match(bubble, /const SELECTION_MORE_ACTIONS: AIQuickAction\[] = \['summarize', 'explain'\]/)
+  assert.doesNotMatch(bubble, /CURSOR_ACTIONS/)
+  assert.doesNotMatch(bubble, /mode === 'cursor'/)
   assert.match(bubble, /onMouseDown=\{\(event\) => \{\s*event\.preventDefault\(\)/)
   assert.match(bubble, /dispatchEditorAIOpen\(createAIQuickActionOpenDetail\(action, t\)\)/)
+  assert.match(bubble, /data-ai-selection-more="true"/)
+  assert.match(bubble, /data-ai-selection-more-menu="true"/)
   assert.match(bubble, /new ResizeObserver\(reportSize\)/)
   assert.match(bubble, /onSizeChange\?: \(size: SelectionBubbleSize\) => void/)
 })
@@ -36,6 +41,31 @@ test('CodeMirrorEditor resolves AI open defaults from persisted write-target and
   assert.match(editor, /const aiDefaultSelectedTextRole = useEditorStore\(\(state\) => state\.aiDefaultSelectedTextRole\)/)
   assert.match(editor, /resolveAIOpenOutputTarget\(\s*intent,\s*requestedOutputTarget,\s*hasSelection,\s*aiDefaultWriteTarget\s*\)/)
   assert.match(editor, /resolveAISelectedTextRole\(detail\.selectedTextRole, aiDefaultSelectedTextRole\)/)
+})
+
+test('AIComposer surfaces selected text context before the prompt area', async () => {
+  const [composer, core] = await Promise.all([
+    readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/AI/AIComposerCoreView.tsx', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(composer, /const hasSelectedTextContext = !!composer\.context\?\.selectedText\?\.trim\(\)/)
+  assert.match(composer, /const hasEnabledSelectedTextContext = hasSelectedTextContext && composer\.useSelectedTextContext/)
+  assert.match(composer, /includeSelectedTextContext: hasEnabledSelectedTextContext/)
+  assert.match(composer, /showSelectedTextContextToggle=\{hasSelectionRange\}/)
+  assert.match(composer, /canToggleSelectedTextContext=\{hasSelectedTextContext\}/)
+  assert.match(composer, /onToggleSelectedTextContext=\{setUseSelectedTextContext\}/)
+  assert.match(core, /data-ai-selection-context="true"/)
+  assert.match(core, /data-ai-context-state=\{useSelectedTextContext \? 'selection-context' : 'prompt-only'\}/)
+  assert.match(core, /composer\.context\?\.selectedTextRole === 'reference-only'/)
+  assert.match(core, /composer\.outputTarget === 'replace-selection'/)
+  assert.match(core, /data-ai-action="toggle-selection-context"/)
+  assert.match(core, /aria-checked=\{useSelectedTextContext\}/)
+  assert.match(core, /disabled=\{composer\.requestState === 'streaming' \|\| !canToggleSelectedTextContext\}/)
+  assert.match(core, /t\('ai\.context\.selectionReference'\)/)
+  assert.match(core, /t\('ai\.context\.selectionTarget'\)/)
+  assert.match(core, /t\('ai\.context\.selectionContext'\)/)
+  assert.match(core, /t\('ai\.context\.useSelectionContext'\)/)
 })
 
 test('AIComposer cancel path both increments the local run id and attempts backend cancellation', async () => {
@@ -80,10 +110,15 @@ test('AIComposer rebuilds effective context from the captured snapshot while kee
   ])
 
   assert.match(composer, /buildAIComposerContextPacket\(/)
+  assert.match(composer, /includeSlashCommandContext: composer\.useSlashCommandContext/)
   assert.match(composer, /resolveAIComposerTemplateResolution\(/)
   assert.match(composer, /setScope\(resolution\.scope\)/)
   assert.match(composer, /setOutputTarget\(resolution\.outputTarget\)/)
-  assert.doesNotMatch(composer, /hasSlashCommandContext/)
+  assert.match(composer, /hasSlashCommandContext/)
+  assert.match(composer, /hasEnabledSlashCommandContext/)
+  assert.match(composer, /hasSlashCommandContext: hasEnabledSlashCommandContext/)
+  assert.match(composer, /canToggleSlashCommandContext=\{hasSlashCommandContext\}/)
+  assert.match(core, /hasSlashCommandContext=\{hasSlashCommandContext\}/)
   assert.match(core, /data-ai-template-hint="transform-target-required"/)
   assert.match(core, /disabled=\{!resolution\.enabled\}/)
   assert.doesNotMatch(core, /data-ai-template-target=/)
@@ -110,25 +145,39 @@ test('AIComposer template chips append a trailing newline and place the caret on
   assert.match(composer, /textarea\.setSelectionRange\(caret, caret\)/)
 })
 
-test('slash-command AI entry stays prompt-only and never sends slash-prefix text as context', async () => {
-  const [composer, core, editor, app, prompt] = await Promise.all([
+test('slash-command AI entry can use slash-prefix text as context and exposes a composer toggle', async () => {
+  const [composer, core, editor, optionalFeatures, app, prompt] = await Promise.all([
     readFile(new URL('../src/components/AI/AIComposer.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/AI/AIComposerCoreView.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Editor/optionalFeatures.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/lib/ai/prompt.ts', import.meta.url), 'utf8'),
   ])
 
-  assert.doesNotMatch(editor, /buildAISlashCommandContext/)
-  assert.doesNotMatch(app, /buildAISlashCommandContext/)
-  assert.match(composer, /showPromptOnlyContextHint/)
-  assert.match(core, /data-ai-context-state="prompt-only"/)
+  assert.match(optionalFeatures, /buildAISlashCommandContext\(view\.state\.sliceDoc\(0, from\)\)/)
+  assert.match(optionalFeatures, /slashCommandContext/)
+  assert.match(editor, /buildAISlashCommandContext\(detail\.slashCommandContext \?\? ''\)/)
+  assert.match(app, /buildAISlashCommandContext\(detail\.slashCommandContext \?\? ''\)/)
+  assert.match(editor, /useSlashCommandContext: !!slashCommandContext/)
+  assert.match(app, /useSlashCommandContext: !!slashCommandContext/)
+  assert.match(composer, /showSlashCommandContextToggle=\{composer\.source === 'slash-command'\}/)
+  assert.match(composer, /canToggleSlashCommandContext=\{hasSlashCommandContext\}/)
+  assert.match(composer, /hasSlashCommandContext=\{hasEnabledSlashCommandContext\}/)
+  assert.match(composer, /useSlashCommandContext=\{hasEnabledSlashCommandContext\}/)
+  assert.match(composer, /onToggleSlashCommandContext=\{setUseSlashCommandContext\}/)
+  assert.match(core, /data-ai-context-state=\{useSlashCommandContext \? 'slash-context' : 'prompt-only'\}/)
+  assert.match(core, /data-ai-slash-context="true"/)
+  assert.match(core, /data-ai-action="toggle-slash-context"/)
+  assert.match(core, /aria-checked=\{useSlashCommandContext\}/)
+  assert.match(core, /disabled=\{composer\.requestState === 'streaming' \|\| !canToggleSlashCommandContext\}/)
   assert.doesNotMatch(composer, /buildAIContextChipModels\(/)
   assert.match(core, /t\('ai\.context\.promptOnly'\)/)
-  assert.doesNotMatch(core, /ai\.slashContext/)
-  assert.doesNotMatch(core, /data-ai-slash-context/)
-  assert.doesNotMatch(prompt, /Input source: slash-prefix/)
-  assert.doesNotMatch(prompt, /Input role: continuation-context/)
+  assert.ok((core.match(/t\('ai\.context\.promptOnly'\)/g) ?? []).length >= 2)
+  assert.match(core, /t\('ai\.context\.slashBefore'\)/)
+  assert.match(core, /t\('ai\.context\.useSlashBefore'\)/)
+  assert.match(prompt, /Input source: slash-prefix/)
+  assert.match(prompt, /Input role: context-before-cursor/)
   assert.doesNotMatch(prompt, /Slash command context \(hidden from the composer UI, content before the "\/" trigger\):/)
 })
 
@@ -149,6 +198,11 @@ test('AIComposer exposes keyboard shortcuts for run and apply, and the editor re
   assert.match(composer, /dialogRef=\{dialogRef\}/)
   assert.match(composer, /onOpenAISetup=\{handleOpenAISetup\}/)
   assert.match(core, /tabIndex=\{-1\}/)
+  assert.match(core, /if \(event\.target !== event\.currentTarget\) return/)
+  assert.match(core, /event\.preventDefault\(\)/)
+  assert.match(core, /const focusTarget = textareaRef\.current \?\? dialogRef\.current/)
+  assert.match(core, /focusTarget\?\.focus\(\{ preventScroll: true \}\)/)
+  assert.doesNotMatch(core, /event\.target === event\.currentTarget\) void onClose\(\)/)
   assert.match(core, /aria-keyshortcuts="Control\+Enter Meta\+Enter"/)
   assert.match(core, /Control\+Shift\+Enter Meta\+Shift\+Enter/)
   assert.match(editor, /const wasComposerOpen = previousAIComposerOpenRef\.current/)

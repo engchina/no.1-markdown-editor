@@ -51,6 +51,10 @@ export default defineConfig(async () => ({
   ],
   resolve: {
     alias: [
+      {
+        find: /^decode-named-character-reference$/,
+        replacement: path.resolve(__dirname, './node_modules/decode-named-character-reference/index.js'),
+      },
       { find: /^@mermaid-js\/parser$/, replacement: path.resolve(__dirname, './src/lib/mermaidParser.ts') },
       { find: /^@mermaid-js\/parser-upstream$/, replacement: '@mermaid-js/parser' },
       { find: '@', replacement: path.resolve(__dirname, './src') },

@@ -3,6 +3,7 @@ import { Prec, type Extension } from '@codemirror/state'
 import i18n from '../../i18n/index.ts'
 import { dispatchEditorAIOpen } from '../../lib/ai/events.ts'
 import {
+  buildAISlashCommandContext,
   createAISlashCommandEntries,
   matchAISlashCommandQuery,
   resolveAISlashCommandTrigger,
@@ -52,12 +53,16 @@ function applyAISlashCommand(
   to: number,
   closeCompletion?: (view: EditorView) => boolean
 ) {
+  const slashCommandContext = buildAISlashCommandContext(view.state.sliceDoc(0, from))
   view.dispatch({
     changes: { from, to, insert: '' },
     selection: { anchor: from },
   })
   closeCompletion?.(view)
-  dispatchEditorAIOpen(entry.openDetail)
+  dispatchEditorAIOpen({
+    ...entry.openDetail,
+    ...(slashCommandContext ? { slashCommandContext } : {}),
+  })
 }
 
 function createMarkdownSnippetSource(autocomplete: typeof import('@codemirror/autocomplete')) {
@@ -286,7 +291,6 @@ export async function loadAutocompleteExtensions(): Promise<Extension[]> {
       const before = line.text.slice(0, selection.head - line.from)
       const match = resolveAISlashCommandTrigger(before, slashCommandEntries)
       if (!match) return false
-      if (before.slice(0, match.from).trim().length > 0) return false
 
       applyAISlashCommand(view, match.entry, line.from + match.from, line.from + match.to)
       return true

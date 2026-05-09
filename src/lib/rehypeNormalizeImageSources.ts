@@ -7,20 +7,32 @@ interface HastNode {
 
 const WINDOWS_DRIVE_PATH_PATTERN = /^[A-Za-z]:[\\/]/
 const WINDOWS_UNC_PATH_PATTERN = /^\\\\[^\\]+\\[^\\]+/
+const LOCAL_SOURCE_PROPERTIES_BY_TAG: Record<string, readonly string[]> = {
+  audio: ['src'],
+  img: ['src'],
+  source: ['src'],
+  track: ['src'],
+  video: ['poster', 'src'],
+}
 
 export function rehypeNormalizeImageSources() {
   return (tree: HastNode) => {
     walk(tree, (node) => {
-      if (!isElement(node) || node.tagName !== 'img') return
+      if (!isElement(node)) return
 
       const properties = node.properties ?? (node.properties = {})
-      const source = readStringProperty(properties.src)?.trim()
-      if (!source) return
+      const sourceProperties = LOCAL_SOURCE_PROPERTIES_BY_TAG[node.tagName]
+      if (!sourceProperties) return
 
-      const normalizedSource = normalizeImageSourceForSanitize(source)
-      if (!normalizedSource || normalizedSource === source) return
+      for (const propertyName of sourceProperties) {
+        const source = readStringProperty(properties[propertyName])?.trim()
+        if (!source) continue
 
-      properties.src = normalizedSource
+        const normalizedSource = normalizeImageSourceForSanitize(source)
+        if (!normalizedSource || normalizedSource === source) continue
+
+        properties[propertyName] = normalizedSource
+      }
     })
   }
 }

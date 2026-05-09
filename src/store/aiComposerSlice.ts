@@ -29,6 +29,8 @@ export interface AIComposerSliceState {
   setHostedAgentProfileId: (hostedAgentProfileId: string | null) => void
   setPrompt: (prompt: string) => void
   setContext: (context: AIContextPacket | null) => void
+  setUseSlashCommandContext: (useSlashCommandContext: boolean) => void
+  setUseSelectedTextContext: (useSelectedTextContext: boolean) => void
   setSource: (source: AIComposerSource) => void
   setDraftText: (draftText: string) => void
   setDraftFormat: (draftFormat: AIDraftFormat) => void
@@ -40,6 +42,9 @@ export interface AIComposerSliceState {
   setRetrievalQuery: (retrievalQuery: string | null) => void
   setRetrievalResults: (retrievalResults: AIRetrievalResultPreview[]) => void
   setRetrievalResultCount: (retrievalResultCount: number | null) => void
+  setGeneratedSql: (generatedSql: string | null) => void
+  setStructuredExecutionStatus: (structuredExecutionStatus: string | null) => void
+  setStructuredExecutionToolName: (structuredExecutionToolName: string | null) => void
   setDiffBaseText: (diffBaseText: string | null) => void
   setThreadId: (threadId: string | null) => void
   setSourceSnapshot: (sourceSnapshot: AIApplySnapshot | null) => void
@@ -63,6 +68,8 @@ export function createInitialAIComposerState(): AIComposerState {
     hostedAgentProfileId: null,
     prompt: '',
     context: null,
+    useSlashCommandContext: true,
+    useSelectedTextContext: true,
     requestState: 'idle',
     draftText: '',
     draftFormat: 'markdown',
@@ -73,6 +80,9 @@ export function createInitialAIComposerState(): AIComposerState {
     retrievalQuery: null,
     retrievalResults: [],
     retrievalResultCount: null,
+    generatedSql: null,
+    structuredExecutionStatus: null,
+    structuredExecutionToolName: null,
     diffBaseText: null,
     threadId: null,
     startedAt: null,
@@ -95,6 +105,8 @@ export function createAIComposerSlice<T extends AIComposerSliceState>(
           ...state.composer,
           ...args,
           open: true,
+          useSlashCommandContext: args.useSlashCommandContext ?? true,
+          useSelectedTextContext: args.useSelectedTextContext ?? true,
           requestState: args.requestState ?? 'idle',
           startedAt: args.startedAt ?? null,
           errorMessage: args.errorMessage ?? null,
@@ -114,6 +126,10 @@ export function createAIComposerSlice<T extends AIComposerSliceState>(
       set((state) => ({ composer: { ...state.composer, hostedAgentProfileId } })),
     setPrompt: (prompt) => set((state) => ({ composer: { ...state.composer, prompt } })),
     setContext: (context) => set((state) => ({ composer: { ...state.composer, context } })),
+    setUseSlashCommandContext: (useSlashCommandContext) =>
+      set((state) => ({ composer: { ...state.composer, useSlashCommandContext } })),
+    setUseSelectedTextContext: (useSelectedTextContext) =>
+      set((state) => ({ composer: { ...state.composer, useSelectedTextContext } })),
     setSource: (source) => set((state) => ({ composer: { ...state.composer, source } })),
     setDraftText: (draftText) => set((state) => ({ composer: { ...state.composer, draftText } })),
     setDraftFormat: (draftFormat) => set((state) => ({ composer: { ...state.composer, draftFormat } })),
@@ -141,6 +157,12 @@ export function createAIComposerSlice<T extends AIComposerSliceState>(
       set((state) => ({ composer: { ...state.composer, retrievalResults } })),
     setRetrievalResultCount: (retrievalResultCount) =>
       set((state) => ({ composer: { ...state.composer, retrievalResultCount } })),
+    setGeneratedSql: (generatedSql) =>
+      set((state) => ({ composer: { ...state.composer, generatedSql } })),
+    setStructuredExecutionStatus: (structuredExecutionStatus) =>
+      set((state) => ({ composer: { ...state.composer, structuredExecutionStatus } })),
+    setStructuredExecutionToolName: (structuredExecutionToolName) =>
+      set((state) => ({ composer: { ...state.composer, structuredExecutionToolName } })),
     setDiffBaseText: (diffBaseText) => set((state) => ({ composer: { ...state.composer, diffBaseText } })),
     setThreadId: (threadId) => set((state) => ({ composer: { ...state.composer, threadId } })),
     setSourceSnapshot: (sourceSnapshot) => set((state) => ({ composer: { ...state.composer, sourceSnapshot } })),
@@ -168,6 +190,9 @@ export function createAIComposerSlice<T extends AIComposerSliceState>(
           retrievalQuery: null,
           retrievalResults: [],
           retrievalResultCount: null,
+          generatedSql: null,
+          structuredExecutionStatus: null,
+          structuredExecutionToolName: null,
         },
       })),
     finishRequest: () =>
@@ -200,6 +225,9 @@ export function createAIComposerSlice<T extends AIComposerSliceState>(
           retrievalQuery: null,
           retrievalResults: [],
           retrievalResultCount: null,
+          generatedSql: null,
+          structuredExecutionStatus: null,
+          structuredExecutionToolName: null,
           diffBaseText: null,
           errorMessage: null,
           startedAt: null,

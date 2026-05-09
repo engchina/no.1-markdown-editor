@@ -8,6 +8,7 @@ import type {
   AIScope,
   AISelectedTextRole,
 } from './types.ts'
+import { normalizeAISlashCommandContext } from './slashCommands.ts'
 
 const DEFAULT_CONTEXT_WINDOW_CHARS = 400
 const FRONT_MATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u
@@ -44,7 +45,8 @@ export function buildAIContextPacket(options: AIBuildContextOptions): AIContextP
   const currentBlock = extractCurrentBlock(content, anchorOffset)
   const headingPath = resolveHeadingPath(content, anchorOffset)
   const frontMatter = extractFrontMatter(content)
-  const selectedText = selection ? content.slice(selection.from, selection.to) : undefined
+  const rawSelectedText = selection ? content.slice(selection.from, selection.to) : undefined
+  const selectedText = hasUsableSelectedText(rawSelectedText) ? rawSelectedText : undefined
 
   return {
     tabId: options.tabId,
@@ -55,7 +57,7 @@ export function buildAIContextPacket(options: AIBuildContextOptions): AIContextP
     scope,
     outputTarget: options.outputTarget,
     selectedText,
-    selectedTextRole: selection?.role ?? (selection ? 'transform-target' : undefined),
+    selectedTextRole: selectedText ? selection?.role ?? 'transform-target' : undefined,
     beforeText: beforeText || undefined,
     afterText: afterText || undefined,
     currentBlock: currentBlock || undefined,
@@ -70,26 +72,49 @@ export function buildAIComposerContextPacket(options: {
   intent: AIIntent
   scope: AIScope
   outputTarget: AIOutputTarget
+  includeSlashCommandContext?: boolean
+  includeSelectedTextContext?: boolean
 }): AIContextPacket | null {
   const { baseContext, sourceSnapshot, intent, outputTarget } = options
   if (!baseContext) return null
+  const includeSlashCommandContext = options.includeSlashCommandContext ?? true
+  const includeSelectedTextContext = options.includeSelectedTextContext ?? true
 
   if (!sourceSnapshot) {
-    return {
+    const context = {
       ...baseContext,
       intent,
-      scope: options.scope,
+      scope:
+        includeSelectedTextContext && hasUsableSelectedText(baseContext.selectedText)
+          ? options.scope
+          : resolveComposerScopeWithoutSelectedText(options.scope),
       outputTarget,
     }
+
+    return applyAIComposerContextAdditions(
+      includeSelectedTextContext && hasUsableSelectedText(context.selectedText)
+        ? context
+        : removeSelectedTextContext(context),
+      baseContext,
+      includeSlashCommandContext
+    )
   }
 
   const hasSelection = sourceSnapshot.selectionFrom !== sourceSnapshot.selectionTo
-  const scope = options.scope === 'selection' && !hasSelection ? 'current-block' : options.scope
+  const selectionFrom = Math.min(sourceSnapshot.selectionFrom, sourceSnapshot.selectionTo)
+  const selectionTo = Math.max(sourceSnapshot.selectionFrom, sourceSnapshot.selectionTo)
+  const hasSelectedTextContext =
+    hasSelection && hasUsableSelectedText(sourceSnapshot.docText.slice(selectionFrom, selectionTo))
+  const shouldIncludeSelectedTextContext = includeSelectedTextContext && hasSelectedTextContext
+  const scope =
+    options.scope === 'selection' && !shouldIncludeSelectedTextContext
+      ? 'current-block'
+      : options.scope
   const selection =
-    scope === 'selection' && hasSelection
+    scope === 'selection' && shouldIncludeSelectedTextContext
       ? {
-          from: sourceSnapshot.selectionFrom,
-          to: sourceSnapshot.selectionTo,
+          from: selectionFrom,
+          to: selectionTo,
           role: baseContext.selectedTextRole,
         }
       : undefined
@@ -105,12 +130,47 @@ export function buildAIComposerContextPacket(options: {
     selection,
   })
 
-  if (!baseContext.explicitContextAttachments?.length) return context
+  return applyAIComposerContextAdditions(context, baseContext, includeSlashCommandContext)
+}
 
-  return {
-    ...context,
-    explicitContextAttachments: baseContext.explicitContextAttachments,
+function hasUsableSelectedText(selectedText: string | undefined): selectedText is string {
+  return !!selectedText?.trim()
+}
+
+function resolveComposerScopeWithoutSelectedText(scope: AIScope): AIScope {
+  return scope === 'selection' ? 'current-block' : scope
+}
+
+function removeSelectedTextContext(context: AIContextPacket): AIContextPacket {
+  const nextContext: AIContextPacket = { ...context }
+  delete nextContext.selectedText
+  delete nextContext.selectedTextRole
+  return nextContext
+}
+
+function applyAIComposerContextAdditions(
+  context: AIContextPacket,
+  baseContext: AIContextPacket,
+  includeSlashCommandContext: boolean
+): AIContextPacket {
+  const slashCommandContext = includeSlashCommandContext
+    ? normalizeAISlashCommandContext(baseContext.slashCommandContext ?? '')
+    : undefined
+  const nextContext: AIContextPacket = { ...context }
+
+  if (slashCommandContext) {
+    nextContext.slashCommandContext = slashCommandContext
+  } else {
+    delete nextContext.slashCommandContext
   }
+
+  if (baseContext.explicitContextAttachments?.length) {
+    nextContext.explicitContextAttachments = baseContext.explicitContextAttachments
+  } else {
+    delete nextContext.explicitContextAttachments
+  }
+
+  return nextContext
 }
 
 export function extractFrontMatter(content: string): string | null {

@@ -21,6 +21,7 @@ export interface EditorAIOpenDetail {
   prompt?: string
   outputTarget?: AIOutputTarget
   selectedTextRole?: AISelectedTextRole
+  slashCommandContext?: string
 }
 
 export interface EditorAIApplyDetail {

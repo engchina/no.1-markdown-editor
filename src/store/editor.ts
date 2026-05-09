@@ -164,6 +164,8 @@ interface EditorState {
   hasExplicitPreviewLineBreakModePreference: boolean
   previewAutoRenderMermaid: boolean
   setPreviewAutoRenderMermaid: (enabled: boolean) => void
+  splitScrollSyncEnabled: boolean
+  setSplitScrollSyncEnabled: (enabled: boolean) => void
 }
 
 function generateId() {
@@ -229,7 +231,16 @@ export const useEditorStore = create<EditorState>()(
 
       // View mode
       viewMode: 'split',
-      setViewMode: (viewMode) => set({ viewMode }),
+      setViewMode: (viewMode) => set((s) => {
+        if (viewMode === 'split' && s.wysiwygMode) {
+          pushInfoNotice(
+            'notices.viewWysiwygSplitTitle',
+            'notices.viewWysiwygSplitDisabledWysiwyg',
+          )
+          return { viewMode, wysiwygMode: false }
+        }
+        return { viewMode }
+      }),
 
       // Layout
       sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
@@ -252,6 +263,8 @@ export const useEditorStore = create<EditorState>()(
       hasExplicitPreviewLineBreakModePreference: false,
       previewAutoRenderMermaid: true,
       setPreviewAutoRenderMermaid: (previewAutoRenderMermaid) => set({ previewAutoRenderMermaid }),
+      splitScrollSyncEnabled: true,
+      setSplitScrollSyncEnabled: (splitScrollSyncEnabled) => set({ splitScrollSyncEnabled }),
 
       // Tabs
       tabs: [initialTab],
@@ -571,7 +584,16 @@ export const useEditorStore = create<EditorState>()(
       fontSize: 14,
       setFontSize: (fontSize) => set({ fontSize }),
       wysiwygMode: false,
-      setWysiwygMode: (wysiwygMode) => set({ wysiwygMode }),
+      setWysiwygMode: (wysiwygMode) => set((s) => {
+        if (wysiwygMode && s.viewMode === 'split') {
+          pushInfoNotice(
+            'notices.viewWysiwygSplitTitle',
+            'notices.viewWysiwygSplitDisabledSplit',
+          )
+          return { wysiwygMode, viewMode: 'source' as const }
+        }
+        return { wysiwygMode }
+      }),
       activeThemeId: 'default-light',
       setActiveThemeId: (activeThemeId) => set({ activeThemeId }),
       zoom: 100,
@@ -605,6 +627,7 @@ export const useEditorStore = create<EditorState>()(
         previewLineBreakMode: s.previewLineBreakMode,
         hasExplicitPreviewLineBreakModePreference: s.hasExplicitPreviewLineBreakModePreference,
         previewAutoRenderMermaid: s.previewAutoRenderMermaid,
+        splitScrollSyncEnabled: s.splitScrollSyncEnabled,
         zoom: s.zoom,
         tabs: s.tabs.filter(isRestorableDraftTab),
         activeTabId: s.tabs.some((tab) => tab.id === s.activeTabId && isRestorableDraftTab(tab))
@@ -623,8 +646,13 @@ export const useEditorStore = create<EditorState>()(
           ...restoredState,
         }
 
+        const wysiwygModeMerged = mergedState.wysiwygMode === true
+        const viewModeSanitized: ViewMode =
+          wysiwygModeMerged && mergedState.viewMode === 'split' ? 'source' : mergedState.viewMode
+
         return {
           ...mergedState,
+          viewMode: viewModeSanitized,
           sidebarTab: sanitizeSidebarTab(persistedState?.sidebarTab),
           sidebarWidth: clampSidebarWidth(
             typeof persistedState?.sidebarWidth === 'number'
@@ -645,6 +673,7 @@ export const useEditorStore = create<EditorState>()(
           hasExplicitPreviewLineBreakModePreference:
             persistedState?.hasExplicitPreviewLineBreakModePreference === true,
           previewAutoRenderMermaid: persistedState?.previewAutoRenderMermaid !== false,
+          splitScrollSyncEnabled: persistedState?.splitScrollSyncEnabled !== false,
         }
       },
       onRehydrateStorage: () => (state) => {
@@ -667,4 +696,15 @@ export function useActiveTab() {
     if (!s.activeTabId && s.tabs.length > 0) return s.tabs[0]
     return s.tabs.find((t) => t.id === s.activeTabId) ?? s.tabs[0] ?? null
   })
+}
+
+// Focus mode forces WYSIWYG-style rendering on the editor surface so the
+// distraction-free view matches the Preview/WYSIWYG output instead of raw
+// source. The user's persisted `wysiwygMode` is left untouched.
+export function selectEffectiveWysiwygMode(s: Pick<EditorState, 'wysiwygMode' | 'focusMode'>): boolean {
+  return s.wysiwygMode || s.focusMode
+}
+
+export function useEffectiveWysiwygMode() {
+  return useEditorStore(selectEffectiveWysiwygMode)
 }

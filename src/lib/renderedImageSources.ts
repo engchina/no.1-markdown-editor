@@ -1,6 +1,7 @@
 import { resolveTyporaRootUrlAsset } from './imageRoots.ts'
 
-const IMG_TAG_PATTERN = /<img\b([^>]*?)(\s*\/?)>/gi
+const IMG_TAG_PATTERN = /<img\b((?:[^>"']+|"[^"]*"|'[^']*')*?)(\s*\/?)>/gi
+const SOURCE_TAG_PATTERN = /<source\b((?:[^>"']+|"[^"]*"|'[^']*')*?)(\s*\/?)>/gi
 
 interface RewriteRenderedHtmlImageSourcesOptions {
   frontMatter?: Record<string, string> | null
@@ -10,12 +11,29 @@ export function rewriteRenderedHtmlImageSources(
   html: string,
   options: RewriteRenderedHtmlImageSourcesOptions = {}
 ): string {
-  if (!html.includes('<img')) return html
+  if (!html.includes('<img') && !html.includes('<source')) return html
 
   const rootUrl = getFrontMatterValue(options.frontMatter, 'typora-root-url')
   if (!rootUrl) return html
 
-  return html.replace(IMG_TAG_PATTERN, (_, rawAttributes: string, selfClosingSlash: string) => {
+  const htmlWithResolvedSourceSets = html.replace(
+    SOURCE_TAG_PATTERN,
+    (_, rawAttributes: string, selfClosingSlash: string) => {
+      const sourceSet = getHtmlAttribute(rawAttributes, 'srcset')
+      if (!sourceSet) {
+        return buildSourceTag(rawAttributes, selfClosingSlash)
+      }
+
+      const resolvedSourceSet = resolveTyporaRootUrlSourceSet(sourceSet, rootUrl)
+      if (!resolvedSourceSet || resolvedSourceSet === sourceSet) {
+        return buildSourceTag(rawAttributes, selfClosingSlash)
+      }
+
+      return buildSourceTag(upsertHtmlAttribute(rawAttributes, 'srcset', resolvedSourceSet), selfClosingSlash)
+    }
+  )
+
+  return htmlWithResolvedSourceSets.replace(IMG_TAG_PATTERN, (_, rawAttributes: string, selfClosingSlash: string) => {
     const source = getHtmlAttribute(rawAttributes, 'src')
     if (!source) {
       return buildImageTag(rawAttributes, selfClosingSlash)
@@ -28,6 +46,50 @@ export function rewriteRenderedHtmlImageSources(
 
     return buildImageTag(upsertHtmlAttribute(rawAttributes, 'src', resolvedSource), selfClosingSlash)
   })
+}
+
+function resolveTyporaRootUrlSourceSet(sourceSet: string, rootUrl: string): string {
+  const candidates = collectSrcSetCandidates(sourceSet)
+  if (candidates.length === 0) return sourceSet
+
+  return candidates
+    .map(({ source, descriptor }) => {
+      const resolvedSource = resolveTyporaRootUrlAsset(source, rootUrl)
+      return descriptor ? `${resolvedSource} ${descriptor}` : resolvedSource
+    })
+    .join(', ')
+}
+
+function collectSrcSetCandidates(value: string): { source: string; descriptor: string }[] {
+  const candidates: { source: string; descriptor: string }[] = []
+  let index = 0
+
+  while (index < value.length) {
+    while (index < value.length && (value[index] === ',' || /\s/u.test(value[index]))) {
+      index += 1
+    }
+
+    const sourceStart = index
+    const isDataUrl = value.slice(index, index + 5).toLowerCase() === 'data:'
+    while (index < value.length && !/\s/u.test(value[index]) && (isDataUrl || value[index] !== ',')) {
+      index += 1
+    }
+
+    const source = value.slice(sourceStart, index).trim()
+    const descriptorStart = index
+    while (index < value.length && value[index] !== ',') {
+      index += 1
+    }
+
+    if (source) {
+      candidates.push({
+        source,
+        descriptor: value.slice(descriptorStart, index).trim(),
+      })
+    }
+  }
+
+  return candidates
 }
 
 function getFrontMatterValue(frontMatter: Record<string, string> | null | undefined, key: string): string {
@@ -46,6 +108,13 @@ function buildImageTag(attributes: string, selfClosingSlash: string): string {
   return normalizedAttributes
     ? `<img ${normalizedAttributes}${selfClosingSlash}>`
     : `<img${selfClosingSlash}>`
+}
+
+function buildSourceTag(attributes: string, selfClosingSlash: string): string {
+  const normalizedAttributes = attributes.replace(/\s+/g, ' ').trim()
+  return normalizedAttributes
+    ? `<source ${normalizedAttributes}${selfClosingSlash}>`
+    : `<source${selfClosingSlash}>`
 }
 
 function getHtmlAttribute(attributes: string, name: string): string {

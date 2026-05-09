@@ -69,12 +69,12 @@ export default function NotificationCenter() {
               </div>
               <button
                 type="button"
-                className="cursor-pointer rounded-full p-1 transition-colors hover:opacity-100 focus-visible:outline-none focus-visible:ring-2"
+                className="pointer-events-auto flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-black/5 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2"
                 style={{ color: 'var(--text-muted)' }}
                 onClick={() => dismissNotice(notice.id)}
                 aria-label={t('notices.dismissLabel')}
               >
-                <span className="block text-base leading-none">×</span>
+                <AppIcon name="x" size={16} />
               </button>
             </div>
           </div>

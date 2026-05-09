@@ -60,6 +60,16 @@ function buildAIInputSection(context: AIContextPacket): string | null {
     ].join('\n')
   }
 
+  if (context.slashCommandContext) {
+    return [
+      'Input source: slash-prefix',
+      'Input role: context-before-cursor',
+      '<input_content>',
+      context.slashCommandContext,
+      '</input_content>',
+    ].join('\n')
+  }
+
   return null
 }
 

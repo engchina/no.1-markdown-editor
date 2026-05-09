@@ -18,8 +18,11 @@ const SINGLE_INSTANCE_OPEN_FILES_EVENT: &str = "single-instance-open-files";
 struct PendingOpenPaths(Mutex<Vec<String>>);
 
 #[tauri::command]
-fn read_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+async fn read_file(path: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || std::fs::read_to_string(path))
+        .await
+        .map_err(|error| format!("Failed to join file read task: {error}"))?
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -325,7 +328,22 @@ fn normalize_launch_arg(arg: &OsStr, cwd: Option<&Path>) -> Option<String> {
         }
     };
 
+    if !is_supported_launch_document_path(&path) {
+        return None;
+    }
+
     Some(path.to_string_lossy().into_owned())
+}
+
+fn is_supported_launch_document_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "md" | "markdown" | "mdx" | "txt"
+            )
+        })
 }
 
 fn focus_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
@@ -392,10 +410,15 @@ pub fn run() {
             ai::ai_save_provider_config,
             ai::ai_store_provider_api_key,
             ai::ai_clear_provider_api_key,
+            ai::ai_store_oci_key_file_passphrase,
+            ai::ai_clear_oci_key_file_passphrase,
             ai::ai_store_hosted_agent_client_secret,
             ai::ai_clear_hosted_agent_client_secret,
             ai::ai_run_completion,
             ai::ai_cancel_completion,
+            ai::ai_list_enrichment_jobs,
+            ai::ai_generate_enrichment_job,
+            ai::ai_get_enrichment_job,
             read_file,
             write_file,
             write_binary_file,
@@ -424,21 +447,41 @@ pub fn run() {
 mod tests {
     use super::collect_launch_paths_from_args;
     use super::is_allowed_editor_navigation;
+    use super::read_file;
     use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn make_temp_markdown_path(prefix: &str) -> PathBuf {
+    fn make_temp_path(prefix: &str, extension: &str) -> PathBuf {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system clock before unix epoch")
             .as_nanos();
 
         std::env::temp_dir().join(format!(
-            "no1-markdown-editor-{prefix}-{}-{unique}.md",
-            std::process::id()
+            "no1-markdown-editor-{prefix}-{}-{unique}.{extension}",
+            std::process::id(),
         ))
+    }
+
+    fn make_temp_markdown_path(prefix: &str) -> PathBuf {
+        make_temp_path(prefix, "md")
+    }
+
+    #[test]
+    fn read_file_returns_markdown_contents() {
+        let existing_path = make_temp_markdown_path("async-read");
+        fs::write(&existing_path, "# async read").expect("write temp markdown file");
+
+        let content = tauri::async_runtime::block_on(read_file(
+            existing_path.to_string_lossy().into_owned(),
+        ))
+        .expect("read temp markdown file");
+
+        assert_eq!(content, "# async read");
+
+        let _ = fs::remove_file(existing_path);
     }
 
     #[test]
@@ -460,6 +503,29 @@ mod tests {
         );
 
         let _ = fs::remove_file(existing_path);
+    }
+
+    #[test]
+    fn collect_launch_paths_ignores_unsupported_existing_files() {
+        let executable_path = make_temp_path("app-argv0", "exe");
+        let markdown_path = make_temp_markdown_path("single-instance-open");
+        fs::write(&executable_path, "fake executable").expect("write temp executable path");
+        fs::write(&markdown_path, "# opened document").expect("write temp markdown path");
+
+        let args = vec![
+            executable_path.as_os_str().to_os_string(),
+            markdown_path.as_os_str().to_os_string(),
+        ];
+
+        let launch_paths = collect_launch_paths_from_args(args, None);
+
+        assert_eq!(
+            launch_paths,
+            vec![markdown_path.to_string_lossy().into_owned()]
+        );
+
+        let _ = fs::remove_file(executable_path);
+        let _ = fs::remove_file(markdown_path);
     }
 
     #[test]

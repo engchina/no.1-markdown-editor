@@ -304,9 +304,16 @@ async function main() {
       }
     )
 
+    await page.mouse.click(4, 4)
+    await waitForCondition(
+      async () => (await page.getByRole('dialog', { name: 'AI Composer' }).count()) === 1,
+      'AI composer to remain open after backdrop click'
+    )
+    assert.equal(await composer.locator('textarea').inputValue(), promptValue)
+
     await composer.locator('[data-ai-action="open-ai-setup"]').click()
     await waitForCondition(async () => (await page.getByRole('dialog', { name: 'AI Composer' }).count()) === 0, 'AI composer to close after setup shortcut')
-    await expectText(page, '[data-ai-setup-panel="true"]', 'Connection')
+    await expectText(page, '[data-ai-setup-panel="true"]', 'AI Provider')
     await expectText(page, '[data-ai-setup-panel="true"]', 'AI provider secrets can only be configured in the desktop app right now.')
     await page.mouse.click(1200, 900)
 
@@ -323,7 +330,7 @@ async function main() {
     await expectNoText(page, '[data-theme-panel="true"]', 'Default Write Target')
     await expectNoText(page, '[data-theme-panel="true"]', 'Selected Text Role')
     await expectNoText(page, '[data-theme-panel="true"]', 'Provider History Ranking')
-    await expectNoText(page, '[data-theme-panel="true"]', 'Connection')
+    await expectNoText(page, '[data-theme-panel="true"]', 'AI Provider')
     await expectNoText(page, '[data-theme-panel="true"]', 'AI provider secrets can only be configured in the desktop app right now.')
 
     await page.locator('label').filter({ hasText: 'WYSIWYG (Live Preview)' }).locator('button').click()

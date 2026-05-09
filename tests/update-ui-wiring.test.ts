@@ -141,6 +141,12 @@ test('toolbar AI entry and setup panel locale copy exist across en, ja, and zh',
   assert.equal(getNestedValue(locales[0], 'ai.connection.save'), 'Save')
   assert.equal(getNestedValue(locales[1], 'ai.connection.save'), '保存')
   assert.equal(getNestedValue(locales[2], 'ai.connection.save'), '保存')
+  assert.equal(getNestedValue(locales[0], 'ai.connection.title'), 'AI Provider')
+  assert.equal(
+    getNestedValue(locales[0], 'ai.connection.providerDescription'),
+    'Configure the model provider, endpoint, project, and API key used by AI features.'
+  )
+  assert.equal(getNestedValue(locales[0], 'ai.connection.saveProvider'), 'Save Provider')
   assert.equal(getNestedValue(locales[0], 'ai.connection.clearClientSecret'), 'Clear Client Secret')
   assert.equal(getNestedValue(locales[1], 'ai.connection.clearClientSecret'), 'Client Secret を削除')
   assert.equal(getNestedValue(locales[2], 'ai.connection.clearClientSecret'), '清除 Client Secret')
@@ -168,10 +174,19 @@ test('UpdateAvailableDialog renders a modal with download, skip, and cancel acti
 test('UpdateAvailableDialog keeps actions reachable in compact window heights', async () => {
   const dialog = await readFile(new URL('../src/components/Updates/UpdateAvailableDialog.tsx', import.meta.url), 'utf8')
 
-  assert.match(dialog, /maxHeight:\s*'calc\(100dvh - 2rem\)'/)
-  assert.match(dialog, /className="flex flex-shrink-0 items-start gap-4 px-5 py-4"/)
-  assert.match(dialog, /className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5"/)
+  assert.match(dialog, /createPortal\(/)
+  assert.match(dialog, /document\.body/)
+  assert.match(dialog, /UPDATE_DIALOG_FRAME_SELECTOR = '\[data-overlay-boundary="true"\]'/)
+  assert.match(dialog, /data-update-dialog-frame="editor"/)
+  assert.match(dialog, /top: `\$\{dialogFrameBounds\.top\}px`/)
+  assert.match(dialog, /bottom: `\$\{dialogFrameBounds\.bottom\}px`/)
+  assert.match(dialog, /className="pointer-events-none fixed inset-x-0 flex items-center justify-center px-3 sm:px-4"/)
+  assert.match(dialog, /maxHeight:\s*'100%'/)
+  assert.match(dialog, /className="flex flex-shrink-0 items-start gap-4 px-5 py-3\.5"/)
+  assert.match(dialog, /className="grid grid-cols-2 gap-3"/)
+  assert.match(dialog, /className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4"/)
   assert.match(dialog, /scrollbarGutter:\s*'stable'/)
-  assert.match(dialog, /maxHeight:\s*'clamp\(120px, 32dvh, 240px\)'/)
-  assert.match(dialog, /className="flex flex-shrink-0 flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-end"/)
+  assert.match(dialog, /maxHeight:\s*'clamp\(96px, 26dvh, 220px\)'/)
+  assert.match(dialog, /className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2 px-5 py-3"/)
+  assert.match(dialog, /trapUpdateDialogTabFocus\(event, dialogRef\.current\)/)
 })

@@ -6,8 +6,17 @@ import {
   MARKDOWN_HARD_LINE_BREAK,
 } from '../src/components/Editor/extensions.ts'
 import { buildRichClipboardPayload } from '../src/lib/clipboardHtml.ts'
-import { buildStandaloneHtml, renderMarkdown } from '../src/lib/markdown.ts'
+import {
+  buildStandaloneHtml as buildStandaloneHtmlRaw,
+  renderMarkdown as renderMarkdownRaw,
+} from '../src/lib/markdown.ts'
+import { stripSourceLineMarkers } from '../src/lib/sourceLineMarkers.ts'
 import { renderInlineMarkdownFragment } from '../src/components/Editor/wysiwygInlineMarkdown.ts'
+
+const renderMarkdown = async (...args: Parameters<typeof renderMarkdownRaw>): Promise<string> =>
+  stripSourceLineMarkers(await renderMarkdownRaw(...args))
+const buildStandaloneHtml: typeof buildStandaloneHtmlRaw = (title, bodyHtml, options) =>
+  buildStandaloneHtmlRaw(title, stripSourceLineMarkers(bodyHtml), options)
 
 function applyShiftEnter(doc: string, anchor: number): string {
   const state = EditorState.create({

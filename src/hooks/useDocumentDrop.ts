@@ -1,17 +1,17 @@
 import { useEffect } from 'react'
-import { useRecentFilesStore } from '../store/recentFiles'
 import { useEditorStore } from '../store/editor'
-import { ensureFsPathAccess } from '../lib/fsAccess'
 import { isSupportedDocumentName } from '../lib/fileTypes'
+import { openDesktopDocumentPaths } from '../lib/desktopFileOpen'
 import { pushErrorNotice } from '../lib/notices'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 export function useDocumentDrop() {
   const openDocument = useEditorStore((state) => state.openDocument)
-  const addRecent = useRecentFilesStore((state) => state.addRecent)
 
   useEffect(() => {
+    if (isTauri) return
+
     const handleDragOver = (event: DragEvent) => {
       if (!event.dataTransfer?.types.includes('Files')) return
       event.preventDefault()
@@ -19,31 +19,15 @@ export function useDocumentDrop() {
     }
 
     const handleDrop = async (event: DragEvent) => {
-      const files = Array.from(event.dataTransfer?.files ?? []).filter((file) => isSupportedDocumentName(file.name))
+      const files = Array.from(event.dataTransfer?.files ?? []).filter((file) =>
+        isSupportedDocumentName(file.name)
+      )
       if (files.length === 0) return
 
       event.preventDefault()
 
       try {
         for (const file of files) {
-          if (isTauri) {
-            const path = (file as { path?: string }).path ?? null
-            if (path) await ensureFsPathAccess(path)
-            const text = path
-              ? await (await import('@tauri-apps/plugin-fs')).readTextFile(path)
-              : await file.text()
-
-            openDocument({
-              path,
-              name: file.name,
-              content: text,
-              savedContent: text,
-              isDirty: false,
-            })
-            if (path) addRecent(path, file.name)
-            continue
-          }
-
           const text = await file.text()
           openDocument({
             path: null,
@@ -65,5 +49,33 @@ export function useDocumentDrop() {
       window.removeEventListener('dragover', handleDragOver)
       window.removeEventListener('drop', handleDrop)
     }
-  }, [addRecent, openDocument])
+  }, [openDocument])
+
+  useEffect(() => {
+    if (!isTauri) return
+
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+
+    void (async () => {
+      try {
+        const { getCurrentWebview } = await import('@tauri-apps/api/webview')
+        const off = await getCurrentWebview().onDragDropEvent((event) => {
+          if (event.payload.type !== 'drop') return
+          const paths = event.payload.paths.filter((path) => isSupportedDocumentName(path))
+          if (paths.length === 0) return
+          void openDesktopDocumentPaths(paths)
+        })
+        if (cancelled) off()
+        else unlisten = off
+      } catch (error) {
+        console.error('Register Tauri drag-drop listener error:', error)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      if (unlisten) unlisten()
+    }
+  }, [])
 }

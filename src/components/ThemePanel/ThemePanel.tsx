@@ -47,6 +47,8 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
     setPreviewLineBreakMode,
     previewAutoRenderMermaid,
     setPreviewAutoRenderMermaid,
+    splitScrollSyncEnabled,
+    setSplitScrollSyncEnabled,
     zoom,
   } = useEditorStore()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -356,6 +358,39 @@ export default function ThemePanel({ onClose, triggerRef }: Props) {
                 </label>
                 <div className="mt-2 text-[10px] leading-4" style={{ color: 'var(--text-secondary)' }}>
                   {t('themePanel.previewAutoRenderMermaidHint')}
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center justify-between cursor-pointer gap-3">
+                  <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {t('themePanel.splitScrollSync')}
+                  </span>
+                  <button
+                    type="button"
+                    aria-pressed={splitScrollSyncEnabled}
+                    onClick={() => setSplitScrollSyncEnabled(!splitScrollSyncEnabled)}
+                    className="relative rounded-full transition-colors flex-shrink-0"
+                    style={{
+                      width: '36px',
+                      height: '20px',
+                      background: splitScrollSyncEnabled ? 'var(--accent)' : 'var(--bg-tertiary)',
+                    }}
+                  >
+                    <span
+                      className="absolute top-0.5 rounded-full transition-transform"
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        background: 'white',
+                        left: splitScrollSyncEnabled ? '18px' : '2px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                      }}
+                    />
+                  </button>
+                </label>
+                <div className="mt-2 text-[10px] leading-4" style={{ color: 'var(--text-secondary)' }}>
+                  {t('themePanel.splitScrollSyncHint')}
                 </div>
               </div>
 

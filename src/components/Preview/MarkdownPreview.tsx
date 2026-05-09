@@ -19,7 +19,12 @@ import { pushErrorNotice } from '../../lib/notices'
 import { loadLocalPreviewImage } from '../../lib/previewLocalImage'
 import { convertPreviewSelectionHtmlToMarkdown, extractPreviewSelectionFragment } from '../../lib/previewClipboard'
 import { buildLocalPreviewImageKey, rewritePreviewHtmlLocalImages } from '../../lib/previewLocalImages'
+import { resolveTauriLocalMediaAssetUrl, rewritePreviewHtmlLocalMedia } from '../../lib/previewLocalMedia'
 import { buildExternalPreviewImageKey, rewritePreviewHtmlExternalImages } from '../../lib/previewExternalImages'
+import {
+  activatePreviewExternalEmbed,
+  rewritePreviewHtmlNoisyExternalEmbeds,
+} from '../../lib/previewExternalEmbeds'
 import { getPreviewExternalLink } from '../../lib/previewLinks'
 import { flashPreviewTarget, getPreviewInternalAnchorId, resolvePreviewAnchorTarget, scrollPreviewToTarget } from '../../lib/previewNavigation'
 import { loadExternalPreviewImage } from '../../lib/previewRemoteImage'
@@ -27,6 +32,7 @@ import { wasDynamicImportRecoveryTriggered } from '../../lib/vitePreloadRecovery
 import { resolveActiveHeadingId, updateVisibleHeadingIds } from '../../lib/previewScrollSpy'
 import { useMarkdown } from '../../hooks/useMarkdown'
 import { useActiveTab, useEditorStore } from '../../store/editor'
+import { useScrollSyncStore } from '../../store/scrollSync'
 
 const MERMAID_AUTO_RENDER_DELAY_MS = 650
 const MERMAID_AUTO_RENDER_ROOT_MARGIN = '240px 0px'
@@ -49,26 +55,51 @@ export default function MarkdownPreview() {
   const previewLocationHref = typeof window === 'undefined' ? 'http://localhost/' : window.location.href
   const previewHtml = useMemo(
     () =>
-      rewritePreviewHtmlExternalImages(
-        rewritePreviewHtmlLocalImages(html, {
-          documentPath,
-          resolvedImages: resolvedLocalImages,
-        }),
+      rewritePreviewHtmlNoisyExternalEmbeds(
+        rewritePreviewHtmlExternalImages(
+          rewritePreviewHtmlLocalMedia(
+            rewritePreviewHtmlLocalImages(html, {
+              documentPath,
+              resolvedImages: resolvedLocalImages,
+            }),
+            {
+              documentPath,
+              resolveMediaSource: isTauri
+                ? (_filePath, originalSource) => resolveTauriLocalMediaAssetUrl(originalSource, documentPath)
+                : undefined,
+            }
+          ),
+          {
+            blockedLabel: t('preview.externalImageBlocked'),
+            clickLabel: t('preview.externalImageClickToLoad'),
+          },
+          previewOrigin,
+          {
+            enableDirectExternalImageFallback: isTauri,
+            resolvedImages: resolvedExternalImages,
+          }
+        ),
         {
-          blockedLabel: t('preview.externalImageBlocked'),
-          clickLabel: t('preview.externalImageClickToLoad'),
+          blockedLabel: t('preview.externalEmbedBlocked'),
+          clickLabel: t('preview.externalEmbedClickToLoad'),
         },
-        previewOrigin,
-        {
-          enableDirectExternalImageFallback: isTauri,
-          resolvedImages: resolvedExternalImages,
-        }
+        previewOrigin
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is keyed off `i18n.language`; depending on its identity would re-run unnecessarily.
     [documentPath, html, i18n.language, isTauri, previewOrigin, resolvedExternalImages, resolvedLocalImages]
   )
   const previewRef = useRef<HTMLDivElement>(null)
   const pendingExternalFallbacksRef = useRef(new Set<string>())
+
+  useEffect(() => {
+    const setPreviewContainer = useScrollSyncStore.getState().setPreviewContainer
+    setPreviewContainer(previewRef.current)
+    return () => {
+      const current = useScrollSyncStore.getState().previewContainer
+      if (current === previewRef.current) setPreviewContainer(null)
+    }
+  }, [])
+
   const [pendingMermaidCount, setPendingMermaidCount] = useState(0)
   const [renderingAll, setRenderingAll] = useState(false)
 
@@ -489,6 +520,12 @@ export default function MarkdownPreview() {
     if (!preview) return
 
     const onClick = (event: MouseEvent) => {
+      if (activatePreviewExternalEmbed(event.target)) {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+
       const externalImage = (event.target as HTMLElement | null)?.closest('img[data-external-src]') as HTMLImageElement | null
       if (externalImage) {
         event.preventDefault()

@@ -118,6 +118,7 @@ test('AI composer template resolution prefers selection, falls back to current b
   assert.deepEqual(
     resolveAIComposerTemplateResolution(translate!, {
       hasSelection: true,
+      hasSlashCommandContext: true,
       hasCurrentBlock: true,
       aiDefaultWriteTarget: 'insert-below',
     }),
@@ -132,6 +133,7 @@ test('AI composer template resolution prefers selection, falls back to current b
   assert.deepEqual(
     resolveAIComposerTemplateResolution(translate!, {
       hasSelection: false,
+      hasSlashCommandContext: false,
       hasCurrentBlock: true,
       aiDefaultWriteTarget: 'insert-below',
     }),
@@ -146,6 +148,7 @@ test('AI composer template resolution prefers selection, falls back to current b
   assert.deepEqual(
     resolveAIComposerTemplateResolution(explain!, {
       hasSelection: false,
+      hasSlashCommandContext: false,
       hasCurrentBlock: true,
       aiDefaultWriteTarget: 'insert-below',
     }),
@@ -160,6 +163,7 @@ test('AI composer template resolution prefers selection, falls back to current b
   assert.deepEqual(
     resolveAIComposerTemplateResolution(translate!, {
       hasSelection: false,
+      hasSlashCommandContext: false,
       hasCurrentBlock: false,
       aiDefaultWriteTarget: 'insert-below',
     }),
@@ -169,6 +173,60 @@ test('AI composer template resolution prefers selection, falls back to current b
       outputTarget: 'replace-current-block',
       enabled: false,
       targetKind: null,
+    }
+  )
+})
+
+test('AI composer template resolution treats enabled slash-prefix context as a safe transform target', () => {
+  const models = getAITemplateModels(t)
+  const translate = models.find((model) => model.id === 'translate')
+  const explain = models.find((model) => model.id === 'explain')
+
+  assert.ok(translate)
+  assert.ok(explain)
+  assert.deepEqual(
+    resolveAIComposerTemplateResolution(translate!, {
+      hasSelection: false,
+      hasSlashCommandContext: true,
+      hasCurrentBlock: true,
+      aiDefaultWriteTarget: 'replace-selection',
+    }),
+    {
+      intent: 'edit',
+      scope: 'current-block',
+      outputTarget: 'at-cursor',
+      enabled: true,
+      targetKind: 'slash-context',
+    }
+  )
+  assert.deepEqual(
+    resolveAIComposerTemplateResolution(translate!, {
+      hasSelection: false,
+      hasSlashCommandContext: true,
+      hasCurrentBlock: false,
+      aiDefaultWriteTarget: 'insert-below',
+    }),
+    {
+      intent: 'edit',
+      scope: 'current-block',
+      outputTarget: 'insert-below',
+      enabled: true,
+      targetKind: 'slash-context',
+    }
+  )
+  assert.deepEqual(
+    resolveAIComposerTemplateResolution(explain!, {
+      hasSelection: false,
+      hasSlashCommandContext: true,
+      hasCurrentBlock: false,
+      aiDefaultWriteTarget: 'insert-below',
+    }),
+    {
+      intent: 'ask',
+      scope: 'current-block',
+      outputTarget: 'chat-only',
+      enabled: true,
+      targetKind: 'slash-context',
     }
   )
 })

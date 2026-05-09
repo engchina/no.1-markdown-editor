@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.19.4`.
+This document is a draft for the next public release after `v0.20.10`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,62 +8,65 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.19.5`
+`No.1 Markdown Editor v0.20.11`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.19.5 improves the AI Composer result layout so generated answers stay first while retrieval sources remain easy to inspect. It also adds detailed implementation notes for strict Markdown line break semantics, Typora compatibility, visual soft-break preview, WYSIWYG hard breaks, and export/clipboard separation.
+No.1 Markdown Editor v0.20.11 improves split-view writing by keeping the source editor and rendered preview aligned while scrolling. It also keeps copied and exported HTML clean by removing preview-only source-line markers outside the live preview.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- AI Composer now keeps the generated answer anchored ahead of retrieval details.
-- Retrieval source summaries are available from the answer header without pushing the answer out of view.
-- Expanded retrieval details now sit below the result panel with compact previews and localized source labels.
-- New implementation notes document line break semantics, Typora compatibility, visual soft-break preview, WYSIWYG hard breaks, and export/clipboard behavior.
+- Split view now keeps the editor and preview panes aligned while scrolling.
+- A new Theme panel toggle lets users turn split scroll sync off when they want the panes to move independently.
+- Preview source-line mapping now covers ordinary Markdown, raw HTML, and math blocks.
+- Clipboard HTML and standalone exports strip preview-only source-line markers before content leaves the app.
 
 ### Why This Release Matters
 
-AI answers should remain the primary writing surface even when retrieval metadata is available. This release keeps sources inspectable without letting reference details displace the draft, and documents the line-break compatibility rules that keep writing preview comfort separate from portable Markdown output.
+Split view is most useful when the source and preview stay oriented around the same part of the document. This release makes long-form editing feel more predictable by keeping both panes in step while still preserving a user-controlled escape hatch for independent scrolling.
 
 ### User-Facing Improvements
 
-#### AI Composer
+#### Split View
 
-- Result panels now stay answer-first when retrieval details are available.
-- Source summaries are shown as compact header actions with English, Japanese, and Chinese labels.
-- Retrieval details can be expanded below the answer and include compact previews before the full detail view.
+- Scrolling the editor now moves the preview to the matching source line.
+- Scrolling the preview now moves the editor to the corresponding Markdown line.
+- The sync behavior can be disabled from the Theme panel.
 
-#### Documentation
+#### Markdown Preview
 
-- Added Qiita implementation notes for line break semantics and Typora compatibility.
-- Documented how strict Markdown semantics, Preview visual soft breaks, WYSIWYG hard breaks, tables, clipboard, and export stay separated.
+- Source-line mapping works across headings, paragraphs, lists, blockquotes, fenced code, raw HTML, tables, and math blocks.
+- Math display blocks keep reliable source-line anchors after KaTeX rendering.
+
+#### Export and Clipboard
+
+- Preview-only source-line markers are removed from copied HTML.
+- Standalone HTML export output remains clean and free of internal sync metadata.
 
 ### Suggested "Upgrade Notes" Section
 
-- No migration steps are required.
-- Existing documents, file associations, and AI provider settings are unchanged.
+- Split scroll sync is enabled by default in split view.
+- Users who prefer independent editor and preview scrolling can disable it from the Theme panel.
+- Existing documents are unchanged.
 
 ### Suggested "Who Should Update" Section
 
 This release is especially relevant for users who:
 
-- use AI Composer with retrieval-backed answers
-- review or cite source material before applying AI output
-- want Typora-like line break preview without changing saved Markdown semantics
-- need export and clipboard output to stay portable Markdown-compatible
+- write or review long Markdown documents in split view
+- compare source Markdown with rendered preview output
+- use math blocks, raw HTML, or complex Markdown structures
+- copy rendered Markdown or export standalone HTML
 
 ## Packaging Checklist Before Release
 
-- Fill this draft using the current `CHANGELOG.md` `## Unreleased` section.
-- Run `npm run release:prepare -- 0.19.5 --date 2026-04-28` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
 - Confirm the final version in:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:validate` after the version bump so local metadata checks, changelog checks, and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.19.5` if you want to inspect the generated GitHub release body before pushing the tag.
-- Review the `0.19.5` release notes before tagging.
-- Capture fresh screenshots for the product surfaces this release highlights.
-- After the release is published, run `npm run release:draft:advance -- 0.19.5` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.20.11 --date 2026-05-09` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.20.11` after the version bump so local metadata and changelog checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.20.11` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.20.11` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

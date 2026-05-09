@@ -1,4 +1,5 @@
-const IMG_TAG_PATTERN = /<img\b([^>]*?)(\s*\/?)>/gi
+const IMG_TAG_PATTERN = /<img\b((?:[^>"']+|"[^"]*"|'[^']*')*?)(\s*\/?)>/gi
+const SOURCE_TAG_PATTERN = /<source\b((?:[^>"']+|"[^"]*"|'[^']*')*?)(\s*\/?)>/gi
 const LOCAL_PREVIEW_PLACEHOLDER =
   'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2218%22 viewBox=%220 0 24 18%22%3E%3Crect width=%2224%22 height=%2218%22 rx=%223%22 fill=%22%23e5e7eb%22/%3E%3C/svg%3E'
 
@@ -11,10 +12,22 @@ export function rewritePreviewHtmlLocalImages(
   html: string,
   options: RewritePreviewHtmlLocalImagesOptions = {}
 ): string {
-  if (!html.includes('<img')) return html
+  if (!html.includes('<img') && !html.includes('<source')) return html
 
   const documentPath = options.documentPath?.trim() ?? ''
-  return html.replace(IMG_TAG_PATTERN, (_, rawAttributes: string, selfClosingSlash: string) => {
+  const htmlWithSafeSourceSets = html.replace(
+    SOURCE_TAG_PATTERN,
+    (_, rawAttributes: string, selfClosingSlash: string) => {
+      const sourceSet = getHtmlAttribute(rawAttributes, 'srcset')
+      if (!sourceSetHasLocalImageSource(sourceSet, documentPath)) {
+        return buildSourceTag(rawAttributes, selfClosingSlash)
+      }
+
+      return buildSourceTag(removeHtmlAttribute(rawAttributes, 'srcset'), selfClosingSlash)
+    }
+  )
+
+  return htmlWithSafeSourceSets.replace(IMG_TAG_PATTERN, (_, rawAttributes: string, selfClosingSlash: string) => {
     const source = getHtmlAttribute(rawAttributes, 'src')
     if (!isLocalPreviewImageSource(source, documentPath)) {
       return buildImageTag(rawAttributes, selfClosingSlash)
@@ -37,6 +50,10 @@ export function rewritePreviewHtmlLocalImages(
     nextAttributes = upsertHtmlAttribute(nextAttributes, 'data-local-placeholder', LOCAL_PREVIEW_PLACEHOLDER)
     return buildImageTag(nextAttributes, selfClosingSlash)
   })
+}
+
+function sourceSetHasLocalImageSource(sourceSet: string, documentPath: string): boolean {
+  return collectSrcSetCandidateSources(sourceSet).some((source) => isLocalPreviewImageSource(source, documentPath))
 }
 
 export function isLocalPreviewImageSource(source: string, documentPath: string | null | undefined): boolean {
@@ -75,6 +92,39 @@ function buildImageTag(attributes: string, selfClosingSlash: string): string {
   return normalizedAttributes
     ? `<img ${normalizedAttributes}${selfClosingSlash}>`
     : `<img${selfClosingSlash}>`
+}
+
+function buildSourceTag(attributes: string, selfClosingSlash: string): string {
+  const normalizedAttributes = attributes.replace(/\s+/g, ' ').trim()
+  return normalizedAttributes
+    ? `<source ${normalizedAttributes}${selfClosingSlash}>`
+    : `<source${selfClosingSlash}>`
+}
+
+function collectSrcSetCandidateSources(value: string): string[] {
+  const sources: string[] = []
+  let index = 0
+
+  while (index < value.length) {
+    while (index < value.length && (value[index] === ',' || /\s/u.test(value[index]))) {
+      index += 1
+    }
+
+    const start = index
+    const isDataUrl = value.slice(index, index + 5).toLowerCase() === 'data:'
+    while (index < value.length && !/\s/u.test(value[index]) && (isDataUrl || value[index] !== ',')) {
+      index += 1
+    }
+
+    const source = value.slice(start, index).trim()
+    if (source) sources.push(source)
+
+    while (index < value.length && value[index] !== ',') {
+      index += 1
+    }
+  }
+
+  return sources
 }
 
 function getHtmlAttribute(attributes: string, name: string): string {

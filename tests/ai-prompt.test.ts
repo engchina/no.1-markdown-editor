@@ -122,6 +122,25 @@ test('buildAIRequestMessages sends only the user instruction when there is no ex
   assert.doesNotMatch(messages[1].content, /Before context/u)
 })
 
+test('buildAIRequestMessages uses slash-prefix context when a slash command attached it', () => {
+  const messages = buildAIRequestMessages({
+    prompt: 'Continue from here.',
+    context: {
+      ...baseContext,
+      intent: 'generate',
+      scope: 'current-block',
+      outputTarget: 'at-cursor',
+      selectedText: undefined,
+      selectedTextRole: undefined,
+      slashCommandContext: 'Paragraph before the slash command.',
+    },
+  })
+
+  assert.match(messages[1].content, /Input source: slash-prefix/u)
+  assert.match(messages[1].content, /Input role: context-before-cursor/u)
+  assert.match(messages[1].content, /<input_content>\nParagraph before the slash command\.\n<\/input_content>/u)
+})
+
 test('buildAIRequestMessages keeps selected text as the only implicit input context', () => {
   const messages = buildAIRequestMessages({
     prompt: 'Explain this.',
@@ -129,6 +148,7 @@ test('buildAIRequestMessages keeps selected text as the only implicit input cont
       ...baseContext,
       selectedText: 'This selection should be used.',
       selectedTextRole: 'reference-only',
+      slashCommandContext: 'Slash context should not override the selected text.',
     },
   })
 
@@ -136,6 +156,8 @@ test('buildAIRequestMessages keeps selected text as the only implicit input cont
   assert.match(messages[1].content, /Input role: reference-only/u)
   assert.match(messages[1].content, /This selection should be used\./u)
   assert.doesNotMatch(messages[1].content, /slash-prefix/u)
+  assert.doesNotMatch(messages[1].content, /context-before-cursor/u)
+  assert.doesNotMatch(messages[1].content, /Slash context should not override/u)
   assert.doesNotMatch(messages[1].content, /continuation-context/u)
 })
 

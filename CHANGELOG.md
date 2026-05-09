@@ -20,6 +20,181 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.11 - 2026-05-09
+
+### Added
+
+- Split view can now keep the editor and preview panes aligned while scrolling, with a Theme panel toggle for users who prefer independent scrolling.
+
+### Changed
+
+- Preview rendering now carries internal source-line markers so split scrolling can stay aligned across ordinary Markdown, raw HTML, and math blocks.
+
+### Fixed
+
+- Clipboard HTML and standalone exports now strip internal preview source-line markers so copied or exported Markdown HTML remains clean.
+
+### Internal
+
+- Added unit and smoke coverage for source-line mapping, split scroll synchronization, and the persisted split-scroll setting.
+
+## 0.20.10 - 2026-05-08
+
+### Internal
+
+- Republish of 0.20.9. The 0.20.9 tag failed `Validate release metadata` in CI because `src-tauri/Cargo.toml` was not bumped alongside `package.json` and `tauri.conf.json`; this release ships the same user-visible changes with the version triple in sync.
+
+## 0.20.9 - 2026-05-08
+
+### Fixed
+
+- Markdown documents containing math blocks or inline math now fall back to main-thread rendering, avoiding Web Worker failures caused by `rehype-katex` dependencies on `DOMParser`.
+- Focus mode (F11) now correctly forces the editor surface into WYSIWYG-style rendering even when the user's global preference is set to source mode.
+
+### Internal
+
+- Refactored `CodeMirrorEditor` to use a computed `selectEffectiveWysiwygMode` selector for rendering decisions.
+- Added regression coverage for focus-mode WYSIWYG integration and Markdown worker fallback routing.
+
+## 0.20.8 - 2026-05-08
+
+### Fixed
+
+- Desktop drag-and-drop now uses the Tauri webview event listener directly, improving reliability and preventing duplicate drop handlers in the desktop app.
+
+### Internal
+
+- Refactored `useDocumentDrop` to separate Tauri-specific drag-and-drop logic from web-standard behavior.
+
+## 0.20.7 - 2026-05-08
+
+### Added
+
+### Changed
+
+- Very large restored documents in split view now keep preview rendering opt-in until the user opens preview manually, reducing startup work for large drafts.
+- Markdown preview rendering now uses the worker whenever workers are available, keeping development behavior closer to production rendering.
+
+### Fixed
+
+- Desktop file reads now run off the Tauri event loop so opening Markdown documents is less likely to block the app window.
+- CodePen iframe embeds that include fallback inner content are now deferred before activation, avoiding third-party iframe warnings during normal preview rendering.
+- Notification dismiss controls now keep a stable clickable icon target.
+- Worker-side Markdown rendering now resolves character reference decoding to the worker-safe implementation.
+
+### Internal
+
+- Added regression coverage for large preview activation, notification dismiss controls, desktop file reads, worker routing, external embeds, and Vite Markdown chunk aliases.
+
+## 0.20.6 - 2026-05-05
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Pressing Enter after a normal paragraph with one to three leading spaces no longer carries those non-semantic spaces onto the next line, while Markdown lists, blockquotes, and code blocks still keep their expected continuation behavior.
+
+### Internal
+
+- Added regression coverage for Enter behavior around non-semantic paragraph indentation and structural Markdown continuations.
+
+## 0.20.5 - 2026-05-01
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Clicking outside the AI Composer floating panel now keeps the composer open instead of dismissing the current AI workflow.
+- CodePen embeds in Markdown preview now load only after an explicit click, keeping third-party iframe permission warnings out of the console during normal document rendering.
+
+### Internal
+
+## 0.20.4 - 2026-04-30
+
+### Added
+
+### Changed
+
+### Fixed
+
+- AI Composer answers can now be selected directly in the result panel, so partial text can be copied with the system clipboard shortcuts in addition to the full-result Copy button.
+
+### Internal
+
+## 0.20.3 - 2026-04-30
+
+### Added
+
+- Added Continue to the `/` AI command flow so inline AI writing actions can continue text from the same entry point as ask, rewrite, translate, summarize, and explain.
+
+### Changed
+
+- `/` AI commands now use the text before `/` as optional context, with a `Use / context` toggle in AI Composer.
+- The AI selection bubble now appears only for real text selections, keeping ordinary cursor placement quiet.
+
+### Fixed
+
+- Whitespace-only or `<br />`-only slash prefixes no longer enable `/` context.
+- Removed the duplicate prompt-only context hint from AI Composer.
+
+### Internal
+
+- Added regression coverage for slash-command context handling, AI Composer context toggles, and selection-bubble wiring.
+
+## 0.20.2 - 2026-04-29
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Opening a Markdown document from the OS file association no longer reports a phantom batch-open failure when the desktop shell passes extra launch arguments.
+
+### Internal
+
+- Added regression coverage for filtering unsupported launch arguments before forwarding desktop file-open requests.
+
+## 0.20.1 - 2026-04-29
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Update download dialogs now stay inside the editor's visible area in compact, non-fullscreen windows so the header, release notes, and action buttons remain reachable.
+
+### Internal
+
+- Added regression coverage for compact update-dialog layout, body scrolling, and action reachability.
+
+## 0.20.0 - 2026-04-28
+
+### Added
+
+- Added OCI AI setup support for auth profiles, unstructured document stores, structured data stores, hosted agents, and MCP execution profiles.
+- AI Data mode can now prepare SQL drafts and surface structured execution actions from configured MCP tools.
+- Hosted Agent requests now support OCI OAuth token exchange, resolved endpoint previews, and streamed or JSON answer delivery.
+
+### Changed
+
+- AI Composer now keeps Hosted Agent entry points at the top level while moving SQL draft and MCP execution workflows into Data mode.
+- AI result metadata now includes generated SQL, structured execution status, tool names, retrieval query details, and result previews without mixing them into the editable answer text.
+
+### Fixed
+
+- PDF export now encodes output file URIs with spaces before handing them to print backends.
+- MCP execution errors now include clearer remote DNS and offline package-install hints.
+
+### Internal
+
+- Added regression coverage for OCI provider normalization, hosted agent URLs, generated SQL handling, MCP execution wiring, Tauri runner behavior, and the expanded AI Composer flows.
+
 ## 0.19.5 - 2026-04-28
 
 ### Added

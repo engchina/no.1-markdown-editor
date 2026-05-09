@@ -18,6 +18,7 @@ import {
   resolveAIComposerTemplateResolution,
   type AITemplateModel,
 } from '../../lib/ai/templateLibrary.ts'
+import { normalizeAISlashCommandContext } from '../../lib/ai/slashCommands.ts'
 import { formatPrimaryShortcut, matchesPrimaryShortcut } from '../../lib/platform.ts'
 import { focusElementWithoutScroll } from '../../hooks/useDialogFocusRestore'
 import AIWorkspaceExecutionPanel from './AIWorkspaceExecutionPanel'
@@ -75,6 +76,8 @@ export default function AIComposer() {
     setScope,
     setOutputTarget,
     setPrompt,
+    setUseSlashCommandContext,
+    setUseSelectedTextContext,
     resetDraftState,
   } = useAIStore()
   const initialTemplatePromptRef = useRef<string | null>(composer.prompt)
@@ -85,7 +88,10 @@ export default function AIComposer() {
   )
 
   const effectivePrompt = composer.prompt.trim()
-  const hasSelection = !!composer.context?.selectedText
+  const hasSelectionRange =
+    composer.sourceSnapshot !== null && composer.sourceSnapshot.selectionFrom !== composer.sourceSnapshot.selectionTo
+  const hasSelectedTextContext = !!composer.context?.selectedText?.trim()
+  const hasEnabledSelectedTextContext = hasSelectedTextContext && composer.useSelectedTextContext
   const hasCurrentBlock = !!composer.context?.currentBlock
   const effectiveContext = useMemo(
     () =>
@@ -95,13 +101,26 @@ export default function AIComposer() {
         intent: composer.intent,
         scope: composer.scope,
         outputTarget: composer.outputTarget,
+        includeSlashCommandContext: composer.useSlashCommandContext,
+        includeSelectedTextContext: hasEnabledSelectedTextContext,
       }),
-    [composer.context, composer.intent, composer.outputTarget, composer.scope, composer.sourceSnapshot]
+    [
+      composer.context,
+      composer.intent,
+      composer.outputTarget,
+      composer.scope,
+      composer.sourceSnapshot,
+      composer.useSlashCommandContext,
+      hasEnabledSelectedTextContext,
+    ]
   )
+  const hasSlashCommandContext =
+    composer.source === 'slash-command' &&
+    !!normalizeAISlashCommandContext(composer.context?.slashCommandContext ?? '')
+  const hasEnabledSlashCommandContext = hasSlashCommandContext && composer.useSlashCommandContext
   const replaceActionTarget: Extract<AIInsertTarget, 'replace-selection' | 'replace-current-block'> | null =
-    hasSelection ? 'replace-selection' : hasCurrentBlock ? 'replace-current-block' : null
+    hasSelectionRange ? 'replace-selection' : hasCurrentBlock ? 'replace-current-block' : null
   const canReplaceCurrentTarget = replaceActionTarget !== null && composer.draftFormat !== 'sql'
-  const showPromptOnlyContextHint = composer.source === 'slash-command' && !effectiveContext?.selectedText
   const normalizedDraft =
     composer.draftFormat === 'sql'
       ? composer.draftText.trim()
@@ -137,8 +156,10 @@ export default function AIComposer() {
     handleSelectKnowledgeType,
     handleSelectDocsStore,
     handleSelectDataStore,
+    handleSelectDataMode,
     handleSelectHostedAgentProfile,
     handleSubmit,
+    handleExecuteStructuredSql,
     handleCancelRequest,
     handleCopy,
   } = useAIComposerRuntime({
@@ -358,7 +379,8 @@ export default function AIComposer() {
 
   function applyTemplate(template: AITemplateModel) {
     const resolution = resolveAIComposerTemplateResolution(template, {
-      hasSelection,
+      hasSelection: hasEnabledSelectedTextContext,
+      hasSlashCommandContext: hasEnabledSlashCommandContext,
       hasCurrentBlock,
       aiDefaultWriteTarget,
     })
@@ -437,7 +459,9 @@ export default function AIComposer() {
       showConnectionHint={showConnectionHint}
       connectionHintTitle={connectionHintTitle}
       connectionHintMessage={connectionHintMessage}
-      showPromptOnlyContextHint={showPromptOnlyContextHint}
+      showSlashCommandContextToggle={composer.source === 'slash-command'}
+      canToggleSlashCommandContext={hasSlashCommandContext}
+      useSlashCommandContext={hasEnabledSlashCommandContext}
       oracleProviderConfig={oracleProviderConfig}
       knowledgeType={knowledgeType}
       hasWorkspaceExecutionTasks={hasWorkspaceExecutionTasks}
@@ -450,7 +474,11 @@ export default function AIComposer() {
       resultPanelMinHeight={resultPanelMinHeight}
       effectivePrompt={effectivePrompt}
       normalizedDraft={normalizedDraft}
-      hasSelection={hasSelection}
+      hasSelection={hasEnabledSelectedTextContext}
+      hasSlashCommandContext={hasEnabledSlashCommandContext}
+      showSelectedTextContextToggle={hasSelectionRange}
+      canToggleSelectedTextContext={hasSelectedTextContext}
+      useSelectedTextContext={hasEnabledSelectedTextContext}
       hasCurrentBlock={hasCurrentBlock}
       aiDefaultWriteTarget={aiDefaultWriteTarget}
       templateModels={templateModels}
@@ -463,6 +491,14 @@ export default function AIComposer() {
       hasInsertPreview={hasInsertPreview}
       diffBlocks={diffBlocks}
       canSubmit={canSubmit}
+      canExecuteStructuredSql={
+        composer.requestState !== 'streaming' &&
+        composer.knowledgeSelection.kind === 'oracle-structured-store' &&
+        composer.knowledgeSelection.mode === 'agent-answer' &&
+        !!(composer.generatedSql ?? (composer.draftFormat === 'sql' ? normalizedDraft : '')).trim() &&
+        !composer.structuredExecutionStatus &&
+        hasConnection
+      }
       canApplyToEditor={canApplyToEditor}
       canApplyToAnyTarget={canApplyToAnyTarget}
       canReplaceCurrentTarget={canReplaceCurrentTarget}
@@ -477,14 +513,18 @@ export default function AIComposer() {
       onOpenAISetup={handleOpenAISetup}
       onCancelRequest={handleCancelRequest}
       onRun={handleSubmit}
+      onExecuteStructuredSql={handleExecuteStructuredSql}
       onResetAndClose={() => {
         resetDraftState()
         void handleCloseComposer()
       }}
       onPromptChange={setPrompt}
+      onToggleSlashCommandContext={setUseSlashCommandContext}
+      onToggleSelectedTextContext={setUseSelectedTextContext}
       onSelectKnowledgeType={handleSelectKnowledgeType}
       onSelectDocsStore={handleSelectDocsStore}
       onSelectDataStore={handleSelectDataStore}
+      onSelectDataMode={handleSelectDataMode}
       onSelectHostedAgentProfile={handleSelectHostedAgentProfile}
       onSelectTemplate={applyTemplate}
       onRetry={handleSubmit}

@@ -106,9 +106,21 @@ test('buildAIContextPacket captures selection, heading path, front matter, and n
   assert.match(packet.frontMatter ?? '', /title: Demo/u)
   assert.match(packet.beforeText ?? '', /First paragraph line|## Details/u)
   assert.match(packet.afterText ?? '', /Another line\./u)
+
+  const blankSelection = buildAIContextPacket({
+    tabId: 'tab-1',
+    tabPath: 'notes/demo.md',
+    content: 'Before\n   \nAfter',
+    intent: 'edit',
+    outputTarget: 'replace-selection',
+    selection: { from: 'Before\n'.length, to: 'Before\n   '.length },
+  })
+
+  assert.equal(blankSelection.selectedText, undefined)
+  assert.equal(blankSelection.selectedTextRole, undefined)
 })
 
-test('buildAIComposerContextPacket rebuilds current-block transform context from the captured snapshot without slash-prefix carryover', () => {
+test('buildAIComposerContextPacket rebuilds context and preserves slash-prefix context when enabled', () => {
   const from = sampleDocument.indexOf('Target sentence for editing.')
   const to = from + 'Target sentence for editing.'.length
   const baseContext = buildAIContextPacket({
@@ -119,8 +131,12 @@ test('buildAIComposerContextPacket rebuilds current-block transform context from
     outputTarget: 'replace-selection',
     selection: { from, to },
   })
+  const slashCommandContext = 'Draft paragraph before the slash trigger.'
   const context = buildAIComposerContextPacket({
-    baseContext,
+    baseContext: {
+      ...baseContext,
+      slashCommandContext,
+    },
     sourceSnapshot: {
       tabId: 'tab-1',
       selectionFrom: from,
@@ -133,6 +149,7 @@ test('buildAIComposerContextPacket rebuilds current-block transform context from
     intent: 'edit',
     scope: 'current-block',
     outputTarget: 'replace-current-block',
+    includeSlashCommandContext: true,
   })
 
   assert.ok(context)
@@ -140,7 +157,120 @@ test('buildAIComposerContextPacket rebuilds current-block transform context from
   assert.equal(context?.outputTarget, 'replace-current-block')
   assert.equal(context?.selectedText, undefined)
   assert.equal(context?.currentBlock, ['Target sentence for editing.', 'Another line.'].join('\n'))
-  assert.equal('slashCommandContext' in (context ?? {}), false)
+  assert.equal(context?.slashCommandContext, slashCommandContext)
+
+  const contextWithEmptySlashPrefix = buildAIComposerContextPacket({
+    baseContext: {
+      ...baseContext,
+      slashCommandContext: '  <br />  ',
+    },
+    sourceSnapshot: {
+      tabId: 'tab-1',
+      selectionFrom: from,
+      selectionTo: to,
+      anchorOffset: to,
+      blockFrom: sampleDocument.indexOf('Target sentence for editing.'),
+      blockTo: sampleDocument.indexOf('Another line.') + 'Another line.'.length,
+      docText: sampleDocument,
+    },
+    intent: 'edit',
+    scope: 'current-block',
+    outputTarget: 'replace-current-block',
+    includeSlashCommandContext: true,
+  })
+
+  assert.equal('slashCommandContext' in (contextWithEmptySlashPrefix ?? {}), false)
+
+  const contextWithoutSlashPrefix = buildAIComposerContextPacket({
+    baseContext: {
+      ...baseContext,
+      slashCommandContext,
+    },
+    sourceSnapshot: {
+      tabId: 'tab-1',
+      selectionFrom: from,
+      selectionTo: to,
+      anchorOffset: to,
+      blockFrom: sampleDocument.indexOf('Target sentence for editing.'),
+      blockTo: sampleDocument.indexOf('Another line.') + 'Another line.'.length,
+      docText: sampleDocument,
+    },
+    intent: 'edit',
+    scope: 'current-block',
+    outputTarget: 'replace-current-block',
+    includeSlashCommandContext: false,
+  })
+
+  assert.equal('slashCommandContext' in (contextWithoutSlashPrefix ?? {}), false)
+})
+
+test('buildAIComposerContextPacket can disable selected text context and trims blank selections', () => {
+  const from = sampleDocument.indexOf('Target sentence for editing.')
+  const to = from + 'Target sentence for editing.'.length
+  const baseContext = buildAIContextPacket({
+    tabId: 'tab-1',
+    tabPath: 'notes/demo.md',
+    content: sampleDocument,
+    intent: 'edit',
+    outputTarget: 'replace-selection',
+    selection: { from, to },
+  })
+  const snapshot: AIApplySnapshot = {
+    tabId: 'tab-1',
+    selectionFrom: from,
+    selectionTo: to,
+    anchorOffset: to,
+    blockFrom: sampleDocument.indexOf('Target sentence for editing.'),
+    blockTo: sampleDocument.indexOf('Another line.') + 'Another line.'.length,
+    docText: sampleDocument,
+  }
+
+  const contextWithoutSelection = buildAIComposerContextPacket({
+    baseContext,
+    sourceSnapshot: snapshot,
+    intent: 'edit',
+    scope: 'selection',
+    outputTarget: 'replace-selection',
+    includeSelectedTextContext: false,
+  })
+
+  assert.ok(contextWithoutSelection)
+  assert.equal(contextWithoutSelection?.scope, 'current-block')
+  assert.equal(contextWithoutSelection?.outputTarget, 'replace-selection')
+  assert.equal(contextWithoutSelection?.selectedText, undefined)
+  assert.equal(contextWithoutSelection?.selectedTextRole, undefined)
+
+  const blankDocument = 'Before\n   \nAfter'
+  const blankFrom = 'Before\n'.length
+  const blankTo = 'Before\n   '.length
+  const blankBaseContext = buildAIContextPacket({
+    tabId: 'tab-blank',
+    tabPath: null,
+    content: blankDocument,
+    intent: 'edit',
+    outputTarget: 'replace-selection',
+    selection: { from: blankFrom, to: blankTo },
+  })
+  const blankContext = buildAIComposerContextPacket({
+    baseContext: blankBaseContext,
+    sourceSnapshot: {
+      tabId: 'tab-blank',
+      selectionFrom: blankFrom,
+      selectionTo: blankTo,
+      anchorOffset: blankTo,
+      blockFrom: 0,
+      blockTo: blankDocument.length,
+      docText: blankDocument,
+    },
+    intent: 'edit',
+    scope: 'selection',
+    outputTarget: 'replace-selection',
+    includeSelectedTextContext: true,
+  })
+
+  assert.equal(blankContext?.scope, 'current-block')
+  assert.equal(blankContext?.selectedText, undefined)
+  assert.equal(blankContext?.selectedTextRole, undefined)
 })
 
 test('parseAIPromptMentions strips explicit context directives from the user instruction', () => {

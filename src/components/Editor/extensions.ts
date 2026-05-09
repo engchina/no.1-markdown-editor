@@ -5,7 +5,6 @@ import {
   lineNumbers,
   highlightActiveLine,
   highlightActiveLineGutter,
-  highlightSpecialChars,
   MatchDecorator,
   ViewPlugin,
   drawSelection,
@@ -120,38 +119,44 @@ const markdownUnderlineOverride = HighlightStyle.define([
   { tag: [tags.link, tags.heading], textDecoration: 'none' },
 ])
 // Keep ordinary spaces quiet. This mode focuses on Markdown-relevant invisibles:
-// tabs, non-breaking spaces, and line-ending whitespace handled separately below.
-const INVISIBLE_MARKDOWN_SPECIAL_CHARS = /[\t\u00a0]/g
-const trailingSpaceMark = Decoration.mark({ class: 'cm-trailingSpace' })
+// tabs, non-breaking/full-width spaces, and line-ending whitespace.
+const INVISIBLE_MARKDOWN_SPECIAL_CHARS = /[\t\u00a0\u3000]/g
 const trailingSpaceDecorator = createTrailingSpaceDecorator()
 const activeLineTrailingSpaceDecorator = createTrailingSpaceDecorator({ activeLineOnly: true })
-const activeLineSpecialCharDecorator = new MatchDecorator({
-  regexp: INVISIBLE_MARKDOWN_SPECIAL_CHARS,
-  decorate(add, from, to, match, view) {
-    if (!rangeStartsOnFocusedCursorLine(view, from)) return
-
-    if (match[0] === '\t') {
-      const line = view.state.doc.lineAt(from)
-      const col = countColumn(line.text, view.state.tabSize, from - line.from)
-      const width = (view.state.tabSize - (col % view.state.tabSize)) * view.defaultCharacterWidth / view.scaleX
-      add(from, to, Decoration.replace({ widget: new InvisibleTabWidget(width) }))
-      return
-    }
-
-    add(from, to, Decoration.replace({ widget: new InvisibleSpecialCharWidget() }))
-  },
-})
+const specialCharDecorator = createSpecialCharDecorator()
+const activeLineSpecialCharDecorator = createSpecialCharDecorator({ activeLineOnly: true })
 
 function createTrailingSpaceDecorator(options: { activeLineOnly?: boolean } = {}): MatchDecorator {
   return new MatchDecorator({
-    regexp: / +(?=[\t ]*$)/g,
-    // Decorate each trailing space separately so CSS can render exactly one dot per space.
+    regexp: / +(?=[\t \u00a0\u3000]*$)/g,
+    // Replace each trailing space separately so every visible marker keeps the same text cell.
     decorate(add, from, to, _match, view) {
       if (options.activeLineOnly && !rangeStartsOnFocusedCursorLine(view, from)) return
 
       for (let pos = from; pos < to; pos += 1) {
-        add(pos, pos + 1, trailingSpaceMark)
+        add(pos, pos + 1, Decoration.replace({ widget: new InvisibleSpaceWidget('space') }))
       }
+    },
+  })
+}
+
+function createSpecialCharDecorator(options: { activeLineOnly?: boolean } = {}): MatchDecorator {
+  return new MatchDecorator({
+    regexp: INVISIBLE_MARKDOWN_SPECIAL_CHARS,
+    decorate(add, from, to, match, view) {
+      if (options.activeLineOnly && !rangeStartsOnFocusedCursorLine(view, from)) return
+
+      if (match[0] === '\t') {
+        const line = view.state.doc.lineAt(from)
+        const col = countColumn(line.text, view.state.tabSize, from - line.from)
+        const width = (view.state.tabSize - (col % view.state.tabSize)) * view.defaultCharacterWidth / view.scaleX
+        add(from, to, Decoration.replace({ widget: new InvisibleTabWidget(width) }))
+        return
+      }
+
+      add(from, to, Decoration.replace({
+        widget: new InvisibleSpaceWidget(match[0] === '\u3000' ? 'ideographic' : 'non-breaking'),
+      }))
     },
   })
 }
@@ -189,13 +194,32 @@ class InvisibleTabWidget extends WidgetType {
   ignoreEvent() { return false }
 }
 
-class InvisibleSpecialCharWidget extends WidgetType {
+class InvisibleSpaceWidget extends WidgetType {
+  private readonly kind: 'space' | 'non-breaking' | 'ideographic'
+
+  constructor(kind: 'space' | 'non-breaking' | 'ideographic') {
+    super()
+    this.kind = kind
+  }
+
+  eq(other: InvisibleSpaceWidget) {
+    return this.kind === other.kind
+  }
+
   toDOM() {
     const span = document.createElement('span')
-    span.textContent = '\u2022'
-    span.title = 'Special whitespace'
-    span.setAttribute('aria-label', 'Special whitespace')
-    span.className = 'cm-specialChar'
+    const label =
+      this.kind === 'space'
+        ? 'Trailing space'
+        : this.kind === 'ideographic'
+          ? 'Full-width space'
+          : 'Non-breaking space'
+
+    span.title = label
+    span.setAttribute('aria-label', label)
+    span.className = this.kind === 'space'
+      ? 'cm-invisibleSpace cm-trailingSpace'
+      : 'cm-invisibleSpace cm-specialChar'
     return span
   }
 
@@ -211,6 +235,9 @@ export const MARKDOWN_HARD_LINE_BREAK = '<br />\n'
 export const MARKDOWN_PLAIN_LINE_BREAK = '\n'
 const ATX_HEADING_PATTERN = /^(#{1,6})\s/
 const SETEXT_HEADING_UNDERLINE_PATTERN = /^[ ]{0,3}(?:=+|-+)[ \t]*$/
+const INDENTATION_ONLY_LINE_PATTERN = /^[\t ]+$/
+const LEADING_INDENT_PATTERN = /^[\t ]+/
+const STRUCTURAL_MARKDOWN_LINE_PATTERN = /^[ ]{0,3}(?:#{1,6}\s|(?:[-*+]|\d+[.)])\s+|>\s?|`{3,}|~{3,}|\$\$\s*$)/
 
 function collectShiftEnterLiteralBlocks(markdown: string): readonly TextRange[] {
   const fencedCodeBlocks = collectFencedCodeBlocks(markdown)
@@ -223,6 +250,34 @@ function isPositionInsideTextRanges(position: number, ranges: readonly TextRange
 
 function isSetextHeadingUnderlineLine(text: string): boolean {
   return SETEXT_HEADING_UNDERLINE_PATTERN.test(text)
+}
+
+function isStructuralMarkdownLine(text: string): boolean {
+  return STRUCTURAL_MARKDOWN_LINE_PATTERN.test(text) ||
+    isThematicBreakLine(text) ||
+    isSetextHeadingUnderlineLine(text)
+}
+
+function isNonSemanticIndentNewlineCandidate(state: EditorState, position: number): boolean {
+  const line = state.doc.lineAt(position)
+  if (INDENTATION_ONLY_LINE_PATTERN.test(line.text)) return true
+  if (isStructuralMarkdownLine(line.text)) return false
+
+  const indent = line.text.match(LEADING_INDENT_PATTERN)?.[0] ?? ''
+  if (!indent) return false
+  if (line.text.trim().length === 0) return false
+
+  const indentColumn = countColumn(indent, state.tabSize, indent.length)
+  return indentColumn > 0 && indentColumn < 4
+}
+
+function shouldInsertPlainNewlineForNonSemanticIndent(
+  state: EditorState,
+  position: number,
+  literalBlocks: readonly TextRange[]
+): boolean {
+  return isNonSemanticIndentNewlineCandidate(state, position) &&
+    !isPositionInsideTextRanges(position, literalBlocks)
 }
 
 function shouldInsertPlainLineBreakInLine(
@@ -288,6 +343,30 @@ export function insertMarkdownHardLineBreak(
   return true
 }
 
+export function insertPlainNewlineForNonSemanticIndent(
+  view: Pick<EditorView, 'state' | 'dispatch'>
+): boolean {
+  const ranges = view.state.selection.ranges
+  if (!ranges.every((range) => range.empty)) return false
+  if (!ranges.every((range) => isNonSemanticIndentNewlineCandidate(view.state, range.from))) return false
+
+  const literalBlocks = collectShiftEnterLiteralBlocks(view.state.doc.toString())
+  const shouldInsertPlainNewline = ranges.every((range) =>
+    shouldInsertPlainNewlineForNonSemanticIndent(view.state, range.from, literalBlocks)
+  )
+  if (!shouldInsertPlainNewline) return false
+
+  view.dispatch({
+    ...view.state.changeByRange((range) => ({
+      changes: { from: range.from, to: range.to, insert: MARKDOWN_PLAIN_LINE_BREAK },
+      range: EditorSelection.cursor(range.from + MARKDOWN_PLAIN_LINE_BREAK.length),
+    })),
+    scrollIntoView: true,
+    userEvent: 'input.type',
+  })
+  return true
+}
+
 export function openKeyboardShortcutsFromEditor(): boolean {
   dispatchKeyboardShortcutsOpen()
   return true
@@ -316,6 +395,10 @@ export function buildCoreExtensions(options: {
           key: 'Mod-/',
           run: openKeyboardShortcutsFromEditor,
           preventDefault: true,
+        },
+        {
+          key: 'Enter',
+          run: insertPlainNewlineForNonSemanticIndent,
         },
       ])
     ),
@@ -391,9 +474,7 @@ export function buildInvisibleCharacterExtensions(
     ),
     options.activeLineOnly
       ? buildMatchDecoratorExtension(activeLineSpecialCharDecorator, { refreshOnSelectionSet: true })
-      : highlightSpecialChars({
-          addSpecialChars: INVISIBLE_MARKDOWN_SPECIAL_CHARS,
-        }),
+      : buildMatchDecoratorExtension(specialCharDecorator),
   ]
 }
 

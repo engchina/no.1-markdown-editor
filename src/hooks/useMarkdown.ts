@@ -24,7 +24,7 @@ export function useMarkdown(markdown: string) {
   }, [markdown, syntaxHighlightEngine])
 
   useEffect(() => {
-    if (import.meta.env.DEV || typeof Worker === 'undefined') {
+    if (typeof Worker === 'undefined') {
       workerUnavailableRef.current = true
       return
     }
@@ -41,8 +41,13 @@ export function useMarkdown(markdown: string) {
       }
 
       worker.onmessage = async (event: MessageEvent<MarkdownRenderResponse>) => {
-        const { id, html: renderedHtml, error } = event.data
+        const { id, html: renderedHtml, error, requiresMainThread } = event.data
         if (id !== requestIdRef.current) return
+
+        if (requiresMainThread) {
+          await fallbackToMainThread(id)
+          return
+        }
 
         if (error) {
           workerUnavailableRef.current = true

@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import type { MarkdownRenderRequest, MarkdownRenderResponse } from './markdownMessages'
+import { containsLikelyMath } from '../lib/markdownMath.ts'
 
 declare const self: DedicatedWorkerGlobalScope
 
@@ -17,6 +18,15 @@ async function loadMarkdownRenderer() {
 
 self.onmessage = async (event: MessageEvent<MarkdownRenderRequest>) => {
   const { id, markdown, syntaxHighlightEngine } = event.data
+
+  // rehype-katex pulls in hast-util-from-html-isomorphic, which evaluates
+  // `new DOMParser()` at module load. DOMParser is unavailable in Web Workers,
+  // so let the host render math documents on the main thread instead.
+  if (containsLikelyMath(markdown)) {
+    const response: MarkdownRenderResponse = { id, requiresMainThread: true }
+    self.postMessage(response)
+    return
+  }
 
   try {
     const { renderMarkdownInWorker } = await loadMarkdownRenderer()
