@@ -539,7 +539,7 @@ function syncTableWidgetDom(
   activeCell: ActiveWysiwygTableCell | null,
   spellcheckConfig: WysiwygSpellcheckConfig
 ): void {
-  wrapper.className = 'cm-wysiwyg-table'
+  wrapper.className = activeCell ? 'cm-wysiwyg-table cm-wysiwyg-table--active' : 'cm-wysiwyg-table'
   wrapper.dataset.tableEditStart = String(table.editAnchor)
   wrapper.dataset.tableEditEnd = String(table.editAnchor)
   wrapper.dataset.tableFrom = String(table.from)

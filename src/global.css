@@ -2095,6 +2095,7 @@ a:focus-visible {
 .focus-mode-container {
   background: var(--editor-bg);
   animation: focusFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --md-block-shell-inset: var(--focus-column-inline-padding);
 }
 
 @keyframes focusFadeIn {
@@ -2123,17 +2124,19 @@ a:focus-visible {
   padding: 24px 0 var(--document-bottom-buffer) !important;
 }
 
-.focus-mode-container .cm-line {
-  padding: 0 var(--focus-column-inline-padding) !important;
-}
-
 /* Hide gutters (line numbers) in focus mode */
 .focus-mode-container .cm-gutters {
   display: none !important;
 }
 
-/* Dim non-active lines — iA Writer paragraph focus */
-.focus-mode .focus-mode-container .cm-line:not(.cm-activeLine) {
+/* Dim non-active lines and block widgets — iA Writer paragraph focus */
+.focus-mode .focus-mode-container .cm-line:not(.cm-activeLine),
+.focus-mode .focus-mode-container .cm-wysiwyg-table:not(.cm-wysiwyg-table--active),
+.focus-mode .focus-mode-container .cm-wysiwyg-mermaid,
+.focus-mode .focus-mode-container .cm-wysiwyg-math-block,
+.focus-mode .focus-mode-container .cm-wysiwyg-raw-html-block,
+.focus-mode .focus-mode-container .cm-wysiwyg-details,
+.focus-mode .focus-mode-container .cm-wysiwyg-hr {
   opacity: 0.35;
   transition: opacity 0.3s ease;
 }
