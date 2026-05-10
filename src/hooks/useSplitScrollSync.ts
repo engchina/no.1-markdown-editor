@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { EditorView } from '@codemirror/view'
 import {
   buildSourceLineMap,
   createScrollSyncGuard,
@@ -6,7 +7,6 @@ import {
   scrollTopForLine,
   type ScrollSyncGuard,
   type SourceLineEntry,
-  type SourceLineMap,
 } from '../lib/scrollSync'
 import { useEditorStore } from '../store/editor'
 import { useScrollSyncStore } from '../store/scrollSync'
@@ -16,18 +16,67 @@ const COOLDOWN_MS = 150
 function readSourceLineEntries(container: HTMLElement): SourceLineEntry[] {
   const elements = container.querySelectorAll<HTMLElement>('[data-source-line]')
   const entries: SourceLineEntry[] = []
+  // Use rect math instead of `element.offsetTop` so the position is always
+  // measured against the scroll container itself, regardless of which ancestor
+  // happens to be the offsetParent.
+  const containerRect = container.getBoundingClientRect()
+  const containerScrollTop = container.scrollTop
   for (const element of elements) {
     const raw = element.getAttribute('data-source-line')
     if (!raw) continue
     const line = Number.parseInt(raw, 10)
     if (!Number.isFinite(line) || line <= 0) continue
+    const elementRect = element.getBoundingClientRect()
+    const offsetTop = elementRect.top - containerRect.top + containerScrollTop
     entries.push({
       line,
-      offsetTop: element.offsetTop,
-      offsetHeight: element.offsetHeight,
+      offsetTop,
+      offsetHeight: elementRect.height,
     })
   }
   return entries
+}
+
+// Convert screen-y at the top of the editor viewport to a source line. Using
+// posAtCoords avoids any assumption about CM6's internal "documentTop" /
+// "documentPadding" properties and keeps the math symmetric with the
+// rect-based preview side.
+function lineAtEditorViewportTop(view: EditorView): { line: number; fraction: number } {
+  const rect = view.scrollDOM.getBoundingClientRect()
+  // Probe a few pixels in from the left edge so gutters/line-numbers don't
+  // intercept the hit-test.
+  const probeX = rect.left + Math.max(8, rect.width * 0.05)
+  // Probe a single pixel below the top so we always land inside content.
+  const probeY = rect.top + 1
+  const pos = view.posAtCoords({ x: probeX, y: probeY }, false)
+  if (pos === null) return { line: 1, fraction: 0 }
+  const docLine = view.state.doc.lineAt(pos)
+  const lineCoords = view.coordsAtPos(docLine.from)
+  if (!lineCoords) return { line: docLine.number, fraction: 0 }
+  const lineHeight = lineCoords.bottom - lineCoords.top
+  const fraction =
+    lineHeight > 0
+      ? Math.max(0, Math.min(1, (rect.top - lineCoords.top) / lineHeight))
+      : 0
+  return { line: docLine.number, fraction }
+}
+
+// Scroll the editor so the requested source line lands at the top of the
+// viewport. Uses screen coords end-to-end so we never depend on CM6's
+// documentTop. Adjusts by the actual delta between the target line's screen
+// position and the viewport's current screen position.
+function scrollEditorToLine(view: EditorView, line: number, fraction: number): void {
+  const docLineCount = view.state.doc.lines
+  const safeLine = Math.max(1, Math.min(line, docLineCount))
+  const docLine = view.state.doc.line(safeLine)
+  const coords = view.coordsAtPos(docLine.from)
+  if (!coords) return
+  const rect = view.scrollDOM.getBoundingClientRect()
+  const lineHeight = coords.bottom - coords.top
+  // Position the line so that `fraction` of it has scrolled past the top.
+  const desiredScreenTop = rect.top - lineHeight * Math.max(0, Math.min(1, fraction))
+  const delta = coords.top - desiredScreenTop
+  view.scrollDOM.scrollTop = view.scrollDOM.scrollTop + delta
 }
 
 export function useSplitScrollSync(): void {
@@ -36,7 +85,6 @@ export function useSplitScrollSync(): void {
   const editorView = useScrollSyncStore((state) => state.editorView)
   const previewContainer = useScrollSyncStore((state) => state.previewContainer)
   const guardRef = useRef<ScrollSyncGuard | null>(null)
-  const mapRef = useRef<SourceLineMap | null>(null)
 
   useEffect(() => {
     if (!enabled || viewMode !== 'split' || !editorView || !previewContainer) return
@@ -46,35 +94,22 @@ export function useSplitScrollSync(): void {
 
     const editorScroller = editorView.scrollDOM
 
-    const rebuildMap = () => {
-      mapRef.current = buildSourceLineMap(readSourceLineEntries(previewContainer))
-    }
-
-    const ensureMap = (): SourceLineMap => {
-      if (!mapRef.current) rebuildMap()
-      return mapRef.current ?? { entries: [] }
-    }
-
     let editorScrollFrame = 0
     const onEditorScroll = () => {
       if (!guard.canDrive('editor')) return
       if (editorScrollFrame) cancelAnimationFrame(editorScrollFrame)
       editorScrollFrame = requestAnimationFrame(() => {
         editorScrollFrame = 0
-        if (!editorView.dom.isConnected) return
-        const scrollTop = editorScroller.scrollTop
-        // Use CodeMirror's coordinate APIs to find the source-document line at
-        // the top of the viewport. We resolve via lineBlockAtHeight for precision.
-        const block = editorView.lineBlockAtHeight(scrollTop)
-        const line = editorView.state.doc.lineAt(block.from).number
-        const fractionalProgress =
-          block.bottom > block.top ? (scrollTop - block.top) / (block.bottom - block.top) : 0
-
-        const map = ensureMap()
+        if (!editorView.dom.isConnected || !previewContainer.isConnected) return
+        // Rebuild the map JIT — getBoundingClientRect on a few-hundred entries
+        // is fast enough and eliminates every stale-map class of bug we hit
+        // when caching across mutations / async layout shifts.
+        const map = buildSourceLineMap(readSourceLineEntries(previewContainer))
         if (map.entries.length === 0) return
-        const targetTop = scrollTopForLine(map, { line, fraction: fractionalProgress })
+        const { line, fraction } = lineAtEditorViewportTop(editorView)
+        const targetTop = scrollTopForLine(map, { line, fraction })
         guard.noteDrove('editor')
-        previewContainer.scrollTo({ top: targetTop, behavior: 'auto' })
+        previewContainer.scrollTop = targetTop
       })
     }
 
@@ -84,52 +119,24 @@ export function useSplitScrollSync(): void {
       if (previewScrollFrame) cancelAnimationFrame(previewScrollFrame)
       previewScrollFrame = requestAnimationFrame(() => {
         previewScrollFrame = 0
-        if (!previewContainer.isConnected) return
-        const map = ensureMap()
+        if (!previewContainer.isConnected || !editorView.dom.isConnected) return
+        const map = buildSourceLineMap(readSourceLineEntries(previewContainer))
         if (map.entries.length === 0) return
         const lookup = lineFromScrollTop(map, previewContainer.scrollTop)
-        const docLineCount = editorView.state.doc.lines
-        const safeLine = Math.max(1, Math.min(lookup.line, docLineCount))
-        const lineBlock = editorView.lineBlockAt(editorView.state.doc.line(safeLine).from)
-        const targetTop = lineBlock.top + (lineBlock.bottom - lineBlock.top) * lookup.fraction
         guard.noteDrove('preview')
-        editorScroller.scrollTo({ top: targetTop, behavior: 'auto' })
+        scrollEditorToLine(editorView, lookup.line, lookup.fraction)
       })
     }
 
-    // Map gets stale on content changes (re-render replaces innerHTML), images
-    // loading (height changes), and KaTeX/Shiki async typesetting. A
-    // MutationObserver covers content swaps; load events on bubbling and a
-    // ResizeObserver on the preview container itself cover async layout shifts.
-    const mutationObserver = new MutationObserver(() => {
-      mapRef.current = null
-    })
-    mutationObserver.observe(previewContainer, { childList: true, subtree: true })
-
-    const resizeObserver = new ResizeObserver(() => {
-      mapRef.current = null
-    })
-    resizeObserver.observe(previewContainer)
-
-    const onLoad = () => {
-      mapRef.current = null
-    }
-    previewContainer.addEventListener('load', onLoad, true)
-
-    rebuildMap()
     editorScroller.addEventListener('scroll', onEditorScroll, { passive: true })
     previewContainer.addEventListener('scroll', onPreviewScroll, { passive: true })
 
     return () => {
       editorScroller.removeEventListener('scroll', onEditorScroll)
       previewContainer.removeEventListener('scroll', onPreviewScroll)
-      previewContainer.removeEventListener('load', onLoad, true)
-      mutationObserver.disconnect()
-      resizeObserver.disconnect()
       if (editorScrollFrame) cancelAnimationFrame(editorScrollFrame)
       if (previewScrollFrame) cancelAnimationFrame(previewScrollFrame)
       guardRef.current = null
-      mapRef.current = null
     }
   }, [enabled, viewMode, editorView, previewContainer])
 }

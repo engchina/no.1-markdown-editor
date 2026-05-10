@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.20.10`.
+This document is a draft for the next public release after `v0.20.11`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,47 +8,35 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.20.11`
+`No.1 Markdown Editor v0.20.12`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.20.11 improves split-view writing by keeping the source editor and rendered preview aligned while scrolling. It also keeps copied and exported HTML clean by removing preview-only source-line markers outside the live preview.
+No.1 Markdown Editor v0.20.12 fixes split-view scroll synchronization: scrolling the preview no longer snaps the editor to the top, and the two panes stay aligned even after images load or math/code blocks finish typesetting.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Split view now keeps the editor and preview panes aligned while scrolling.
-- A new Theme panel toggle lets users turn split scroll sync off when they want the panes to move independently.
-- Preview source-line mapping now covers ordinary Markdown, raw HTML, and math blocks.
-- Clipboard HTML and standalone exports strip preview-only source-line markers before content leaves the app.
+- Split view scroll sync now stays aligned in both directions.
+- Scrolling the preview no longer jumps the editor back to the top of the document.
+- The sync continues to track correctly after images load and after KaTeX or Shiki finish rendering math and code blocks.
 
 ### Why This Release Matters
 
-Split view is most useful when the source and preview stay oriented around the same part of the document. This release makes long-form editing feel more predictable by keeping both panes in step while still preserving a user-controlled escape hatch for independent scrolling.
+Long-form split-view writing depends on the editor and preview tracking each other reliably. v0.20.11 introduced split scroll sync, but the preview-to-editor direction could snap the editor to the top in some documents. v0.20.12 makes the sync robust by reworking how source-line positions are measured.
 
 ### User-Facing Improvements
 
 #### Split View
 
-- Scrolling the editor now moves the preview to the matching source line.
-- Scrolling the preview now moves the editor to the corresponding Markdown line.
-- The sync behavior can be disabled from the Theme panel.
-
-#### Markdown Preview
-
-- Source-line mapping works across headings, paragraphs, lists, blockquotes, fenced code, raw HTML, tables, and math blocks.
-- Math display blocks keep reliable source-line anchors after KaTeX rendering.
-
-#### Export and Clipboard
-
-- Preview-only source-line markers are removed from copied HTML.
-- Standalone HTML export output remains clean and free of internal sync metadata.
+- Preview-driven scrolling now moves the editor to the matching source line instead of snapping to the top.
+- Editor-driven scrolling continues to move the preview to the matching rendered block.
+- Scroll alignment survives content updates, image-load layout shifts, and async math/code typesetting.
 
 ### Suggested "Upgrade Notes" Section
 
-- Split scroll sync is enabled by default in split view.
-- Users who prefer independent editor and preview scrolling can disable it from the Theme panel.
+- No configuration changes required. Split scroll sync remains enabled by default and can still be toggled from the Theme panel.
 - Existing documents are unchanged.
 
 ### Suggested "Who Should Update" Section
@@ -56,9 +44,8 @@ Split view is most useful when the source and preview stay oriented around the s
 This release is especially relevant for users who:
 
 - write or review long Markdown documents in split view
-- compare source Markdown with rendered preview output
-- use math blocks, raw HTML, or complex Markdown structures
-- copy rendered Markdown or export standalone HTML
+- rely on preview-to-editor scroll tracking when navigating rendered output
+- work with documents containing images, math blocks, or large fenced code blocks
 
 ## Packaging Checklist Before Release
 
@@ -66,7 +53,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.20.11 --date 2026-05-09` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.20.11` after the version bump so local metadata and changelog checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.20.11` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.20.11` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.20.12 --date 2026-05-10` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.20.12` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.20.12` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.20.12` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

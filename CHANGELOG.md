@@ -20,6 +20,16 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.12 - 2026-05-10
+
+### Fixed
+
+- Split view scroll synchronization no longer snaps the editor to the top when scrolling the preview, and stays aligned after content, image-load, or KaTeX/Shiki layout shifts.
+
+### Internal
+
+- Rewrote `useSplitScrollSync` to use screen-coordinate math (`posAtCoords`/`coordsAtPos` + `getBoundingClientRect`) and to rebuild the source-line map just-in-time on every scroll event, eliminating the stale-cache class of bugs that the previous `MutationObserver`/`ResizeObserver` invalidation approach left open.
+
 ## 0.20.11 - 2026-05-09
 
 ### Added

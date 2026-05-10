@@ -1271,6 +1271,10 @@ a:focus-visible {
   padding: 32px 48px var(--document-bottom-buffer);
   overflow-y: auto;
   height: 100%;
+  /* Make this the offsetParent for its descendants so any code that reads
+     element.offsetTop measures relative to the scroll container, not the
+     outer wrapper. Required by the split-mode scroll-sync line map. */
+  position: relative;
 }
 
 .markdown-preview p {
