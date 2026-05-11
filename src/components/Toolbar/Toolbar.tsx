@@ -444,7 +444,7 @@ export default function Toolbar({
     <div
       role="toolbar"
       aria-label={t('app.name')}
-      className="relative flex min-w-max flex-shrink-0 items-center gap-1.5 rounded-xl px-3 transition-colors duration-150 glass-panel"
+      className="relative flex min-w-max flex-shrink-0 items-center gap-1.5 rounded-[8px] px-3 transition-colors duration-150 glass-panel"
       style={{
         height: '42px',
         boxShadow: 'var(--shadow-sm)',

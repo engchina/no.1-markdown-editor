@@ -28,7 +28,7 @@ export default function DocumentTabs() {
         return (
           <div
             key={tab.id}
-            className="group -mb-px mt-2 flex h-8 max-w-[220px] flex-shrink-0 items-center rounded-t-[14px] border border-b-0 transition-colors"
+            className="group -mb-px mt-2 flex h-8 max-w-[220px] flex-shrink-0 items-center rounded-t-[8px] border border-b-0 transition-colors"
             style={{
               background: isActive ? 'var(--bg-primary)' : 'transparent',
               borderColor: isActive ? 'var(--border)' : 'transparent',

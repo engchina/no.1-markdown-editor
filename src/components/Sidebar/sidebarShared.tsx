@@ -17,7 +17,7 @@ export function SidebarSectionSurface({
       style={{
         background: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)',
         border: '1px solid color-mix(in srgb, var(--border) 78%, transparent)',
-        borderRadius: '20px',
+        borderRadius: '8px',
       }}
     >
       {children}
