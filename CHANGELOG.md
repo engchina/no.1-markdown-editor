@@ -20,6 +20,34 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.15 - 2026-05-11
+
+### Changed
+
+- Tightened chrome corner radii (outer panels 12–28px → 8px, inner controls → 6px) and outer-window padding (12px → 6px) so the editor, sidebar, toolbar, and document tabs read closer to VS Code / Cursor density rather than consumer-app spacing.
+- Reduced sidebar inner panel padding (12px → 6px) so the outline, file tree, search, and recent panels gain horizontal breathing room for long file and heading names.
+- Trimmed the toolbar shell minimum height (64px → 52px) to remove the empty band that previously sat between the toolbar and the document tab row.
+
+### Internal
+
+- Republish of 0.20.13 and 0.20.14. Both tags failed `Validate release metadata` in CI because `CHANGELOG.md` was missing dedicated version sections; this release ships the combined user-visible changes with a properly authored changelog entry.
+
+## 0.20.14 - 2026-05-11
+
+### Internal
+
+- Tag did not publish. `Validate release metadata` failed because `CHANGELOG.md` was missing a dedicated `0.20.14` section. The chrome-radius and outer-padding refactor originally tagged here is republished under 0.20.15.
+
+## 0.20.13 - 2026-05-10
+
+### Changed
+
+- Focus mode now dims inactive WYSIWYG block widgets (tables, mermaid, math blocks, raw HTML, details, hr) alongside inactive `.cm-line` rows so the active paragraph stands out evenly across plain text and block elements.
+
+### Internal
+
+- Tag did not publish. `Validate release metadata` failed because `CHANGELOG.md` was missing a dedicated `0.20.13` section. The focus-mode change is republished under 0.20.15.
+
 ## 0.20.12 - 2026-05-10
 
 ### Fixed

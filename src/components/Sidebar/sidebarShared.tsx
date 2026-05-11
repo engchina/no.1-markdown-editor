@@ -6,7 +6,7 @@ import AppIcon from '../Icons/AppIcon'
 
 export function SidebarSectionSurface({
   children,
-  className = 'px-3 py-3',
+  className = 'p-1.5',
 }: {
   children: ReactNode
   className?: string

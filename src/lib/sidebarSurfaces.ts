@@ -22,7 +22,7 @@ const SIDEBAR_SURFACE_META_BY_ID: Record<
   Omit<SidebarSurfaceMeta, 'id'>
 > = {
   outline: { icon: 'outline', titleKey: 'sidebar.outline' },
-  files: { icon: 'folder', titleKey: 'sidebar.files', surfaceClassName: 'p-2' },
+  files: { icon: 'folder', titleKey: 'sidebar.files', surfaceClassName: 'p-1.5' },
   search: { icon: 'search', titleKey: 'sidebar.search' },
   recent: { icon: 'clock', titleKey: 'menu.recentFiles' },
 }
