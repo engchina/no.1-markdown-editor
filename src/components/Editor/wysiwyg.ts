@@ -457,20 +457,45 @@ function applyTableToolbarAction(
       plan = resolveDeleteTableColumn(table, location)
       break
     case 'set-alignment':
-      plan = resolveSetTableColumnAlignment(table, location.columnIndex, action.alignment)
+      plan = resolveSetTableColumnAlignment(table, location, action.alignment)
       break
   }
 
   if (!plan) return
 
-  const nextActiveTableCell = buildActiveTableCell(table.from, plan.focusLocation, 0, 0)
-
   const focusedInput = button.closest<HTMLElement>('.cm-wysiwyg-table')?.querySelector<HTMLTextAreaElement>('.cm-wysiwyg-table__input')
+
+  const preserveCaret = action.kind === 'set-alignment'
+  const liveSelectionStart = preserveCaret ? focusedInput?.selectionStart ?? 0 : 0
+  const liveSelectionEnd = preserveCaret ? focusedInput?.selectionEnd ?? 0 : 0
+  const nextActiveTableCell = buildActiveTableCell(
+    table.from,
+    plan.focusLocation,
+    liveSelectionStart,
+    liveSelectionEnd
+  )
+
+  let dispatchSelection: { anchor: number; head?: number } = { anchor: plan.from + plan.insert.length }
+  if (preserveCaret && plan.focusCellEditAnchor !== undefined) {
+    const sourceCell = location.section === 'head'
+      ? table.header.cells[location.columnIndex]
+      : table.rows[location.rowIndex]?.cells[location.columnIndex]
+    if (sourceCell) {
+      const displayText = decodeMarkdownTableCellText(sourceCell.text)
+      const rawStart = resolveEncodedTableCellOffset(displayText, liveSelectionStart)
+      const rawEnd = resolveEncodedTableCellOffset(displayText, liveSelectionEnd)
+      dispatchSelection = {
+        anchor: plan.focusCellEditAnchor + rawStart,
+        head: plan.focusCellEditAnchor + rawEnd,
+      }
+    }
+  }
+
   focusedInput?.blur()
 
   view.dispatch({
     changes: { from: plan.from, to: plan.to, insert: plan.insert },
-    selection: { anchor: plan.from + plan.insert.length },
+    selection: dispatchSelection,
     userEvent: 'input',
     scrollIntoView: true,
   })

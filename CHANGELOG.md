@@ -20,6 +20,18 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.19 - 2026-05-12
+
+### Added
+
+### Changed
+
+### Fixed
+
+- WYSIWYG table column alignment toggles no longer move the cursor: changing alignment from any body cell keeps focus and caret position inside the originating cell instead of jumping to the column header or the last cell of the table.
+
+### Internal
+
 ## 0.20.18 - 2026-05-12
 
 ### Internal
