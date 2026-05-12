@@ -20,6 +20,21 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.16 - 2026-05-12
+
+### Added
+
+- The editor now supports Ctrl/Cmd-click on external links in both Source and WYSIWYG modes, including Markdown inline links, angle-bracket autolinks, HTML anchors, and bare URLs.
+
+### Changed
+
+- Holding the primary modifier over a detected external link now switches the editor cursor to a pointer so link-following is discoverable without changing normal editing clicks.
+
+### Internal
+
+- Added focused link-detection coverage for external URL handling and unsafe/relative link rejection.
+- Ignored local Playwright MCP logs and custom Cargo target output so release commits stay free of generated test artifacts.
+
 ## 0.20.15 - 2026-05-11
 
 ### Changed

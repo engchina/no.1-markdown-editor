@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.20.11`.
+This document is a draft for the next public release after `v0.20.15`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,44 +8,45 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.20.12`
+`No.1 Markdown Editor v0.20.16`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.20.12 fixes split-view scroll synchronization: scrolling the preview no longer snaps the editor to the top, and the two panes stay aligned even after images load or math/code blocks finish typesetting.
+No.1 Markdown Editor v0.20.16 makes external links easier to follow while writing. Users can Ctrl-click on Windows/Linux or Cmd-click on macOS from either Source or WYSIWYG mode, while normal clicks still keep editing behavior predictable.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Split view scroll sync now stays aligned in both directions.
-- Scrolling the preview no longer jumps the editor back to the top of the document.
-- The sync continues to track correctly after images load and after KaTeX or Shiki finish rendering math and code blocks.
+- Ctrl/Cmd-click now opens external Markdown links directly from the editor.
+- The behavior works in both Source and WYSIWYG modes.
+- The editor shows a pointer cursor only while the primary modifier is held over a supported external link.
 
 ### Why This Release Matters
 
-Long-form split-view writing depends on the editor and preview tracking each other reliably. v0.20.11 introduced split scroll sync, but the preview-to-editor direction could snap the editor to the top in some documents. v0.20.12 makes the sync robust by reworking how source-line positions are measured.
+Markdown writers often move between source text and referenced material. This release makes that workflow faster without turning ordinary editing clicks into navigation, which keeps the editor predictable for long-form writing and review.
 
 ### User-Facing Improvements
 
-#### Split View
+#### Writing and Editing
 
-- Preview-driven scrolling now moves the editor to the matching source line instead of snapping to the top.
-- Editor-driven scrolling continues to move the preview to the matching rendered block.
-- Scroll alignment survives content updates, image-load layout shifts, and async math/code typesetting.
+- Ctrl/Cmd-click opens supported external links with the system default browser or app.
+- Supported links include Markdown inline links, angle-bracket autolinks, HTML anchors, and bare `http`, `https`, `mailto`, or `tel` URLs.
+- Relative links, fragments, and unsafe protocols are ignored by the editor link opener.
+- The pointer cursor appears only when a link can be followed, so users get feedback before opening it.
 
-### Suggested "Upgrade Notes" Section
+### Suggested Upgrade Notes Section
 
-- No configuration changes required. Split scroll sync remains enabled by default and can still be toggled from the Theme panel.
-- Existing documents are unchanged.
+- No configuration changes required.
+- Normal click and selection behavior is unchanged.
 
-### Suggested "Who Should Update" Section
+### Suggested Who Should Update Section
 
 This release is especially relevant for users who:
 
-- write or review long Markdown documents in split view
-- rely on preview-to-editor scroll tracking when navigating rendered output
-- work with documents containing images, math blocks, or large fenced code blocks
+- write documents with many external references
+- switch between Source and WYSIWYG editing modes
+- want desktop-style Markdown link navigation without losing editor-first click behavior
 
 ## Packaging Checklist Before Release
 
@@ -53,7 +54,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.20.12 --date 2026-05-10` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.20.12` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.20.12` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.20.12` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.20.16 --date 2026-05-12` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.20.16` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.20.16` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.20.16` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

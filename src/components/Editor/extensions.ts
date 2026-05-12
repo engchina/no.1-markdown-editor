@@ -36,6 +36,7 @@ import { isThematicBreakLine } from './thematicBreak.ts'
 import { collectInlineCodeRanges, findContainingTextRange } from './wysiwygInlineCode.ts'
 import { findInlineMathRanges } from './wysiwygInlineMath.ts'
 import { findBlockFootnoteRanges, findInlineFootnoteRanges } from './wysiwygFootnote.ts'
+import { buildEditorLinkOpenerExtensions } from './editorLinkOpener.ts'
 import { dispatchKeyboardShortcutsOpen } from '../../lib/keyboardShortcuts.ts'
 
 export const CODEMIRROR_MARKDOWN_COMMENT_SHORTCUTS = new Set(['Mod-/', 'Alt-A'])
@@ -108,6 +109,11 @@ export const lightTheme = EditorView.theme(
       borderRadius: '0',
       borderBottom: 'none',
       textDecoration: 'none',
+    },
+    // While the primary modifier is held over a link, switch to a pointer
+    // cursor everywhere in the editor so the affordance reads as "clickable".
+    '&.cm-link-followable .cm-content, &.cm-link-followable .cm-content *': {
+      cursor: 'pointer',
     },
   },
   { dark: false }
@@ -425,6 +431,7 @@ export function buildCoreExtensions(options: {
         options.onSelectionChange?.(update.view, update)
       }
     }),
+    ...buildEditorLinkOpenerExtensions(),
     lightTheme,
   ]
 }
