@@ -20,6 +20,17 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.17 - 2026-05-12
+
+### Changed
+
+- AI Composer result panels are cleaner: retrieval details now stay in the dedicated disclosure area instead of duplicating source badges and "View sources" controls in the result header.
+- Structured SQL previews no longer repeat the composer source label, keeping execution actions and SQL content easier to scan.
+
+### Internal
+
+- Removed unused retrieval summary locale strings and updated AI flow wiring coverage for the simplified result panel.
+
 ## 0.20.16 - 2026-05-12
 
 ### Added

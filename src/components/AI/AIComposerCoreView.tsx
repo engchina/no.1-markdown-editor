@@ -193,16 +193,9 @@ export default function AIComposerCoreView({
   const { t } = useTranslation()
   const formScrollerRef = useRef<HTMLDivElement>(null)
   const resultPanelRef = useRef<HTMLDivElement>(null)
-  const retrievalPanelRef = useRef<HTMLDivElement>(null)
   const showResultPanel =
     composer.requestState !== 'idle' || normalizedDraft.trim().length > 0 || composer.errorMessage !== null
   const showRetrievalPanel = showResultPanel && hasRetrievalDetails && !composer.errorMessage && !workspaceExecutionPanel
-  const retrievalVisibleResultCount = composer.retrievalResults.length
-  const retrievalSummaryCount = composer.retrievalResultCount ?? retrievalVisibleResultCount
-  const retrievalSummaryLabel =
-    composer.retrievalResultCount === null && retrievalVisibleResultCount === 0
-      ? t('ai.retrieval.sourcesSummaryUnavailable')
-      : t('ai.retrieval.sourcesSummary', { count: retrievalSummaryCount })
   const selectedTextContextEnabledMessage =
     composer.context?.selectedTextRole === 'reference-only'
       ? t('ai.context.selectionReference')
@@ -218,21 +211,6 @@ export default function AIComposerCoreView({
     paddingTop: `${AI_COMPOSER_SOURCE_EDGE_GAP_PX}px`,
     paddingBottom: `${AI_COMPOSER_SOURCE_EDGE_GAP_PX}px`,
   }
-  const handleViewRetrievalSources = () => {
-    setRetrievalPanelOpen(true)
-
-    const scrollToRetrievalPanel = () => {
-      retrievalPanelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-    }
-
-    if (typeof window === 'undefined') {
-      scrollToRetrievalPanel()
-      return
-    }
-
-    window.requestAnimationFrame(scrollToRetrievalPanel)
-  }
-
   useEffect(() => {
     if (!showResultPanel) return
 
@@ -767,40 +745,6 @@ export default function AIComposerCoreView({
                   ))}
                 </div>
                 <div className="hidden flex-1 sm:block" />
-                {composer.sourceLabel && (
-                  <span
-                    className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
-                    style={{
-                      borderColor: 'color-mix(in srgb, var(--border) 72%, transparent)',
-                      background: 'color-mix(in srgb, var(--bg-secondary) 76%, transparent)',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    {composer.sourceLabel}
-                  </span>
-                )}
-                {showRetrievalPanel && (
-                  <button
-                    type="button"
-                    onClick={handleViewRetrievalSources}
-                    data-ai-result-source-summary="true"
-                    aria-expanded={retrievalPanelOpen}
-                    className="inline-flex max-w-full shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors"
-                    style={{
-                      borderColor: 'color-mix(in srgb, var(--accent) 24%, var(--border))',
-                      background: 'color-mix(in srgb, var(--accent) 7%, var(--bg-primary))',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    <AppIcon name="search" size={12} />
-                    <span className="min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>
-                      {retrievalSummaryLabel}
-                    </span>
-                    <span className="hidden shrink-0 sm:inline" style={{ color: 'var(--text-muted)' }}>
-                      {t('ai.retrieval.viewSources')}
-                    </span>
-                  </button>
-                )}
                 {normalizedDraft && (
                   <div
                     data-ai-result-actions="true"
@@ -967,7 +911,6 @@ export default function AIComposerCoreView({
                         sql={normalizedDraft}
                         explanationText={composer.explanationText}
                         warningText={composer.warningText}
-                        sourceLabel={composer.sourceLabel}
                         generatedSql={composer.generatedSql}
                         executionStatus={composer.structuredExecutionStatus}
                         executionToolName={composer.structuredExecutionToolName}
@@ -981,7 +924,6 @@ export default function AIComposerCoreView({
                         generatedSql={composer.generatedSql}
                         explanationText={composer.explanationText}
                         warningText={composer.warningText}
-                        sourceLabel={composer.sourceLabel}
                         executionStatus={composer.structuredExecutionStatus}
                         executionToolName={composer.structuredExecutionToolName}
                         typography={composerContentTypography}
@@ -1028,7 +970,6 @@ export default function AIComposerCoreView({
           )}
           {showRetrievalPanel && (
             <AIRetrievalDisclosure
-              panelRef={retrievalPanelRef}
               expanded={retrievalPanelOpen}
               onToggle={() => setRetrievalPanelOpen((value) => !value)}
               retrievalExecuted={composer.retrievalExecuted}
@@ -1046,7 +987,6 @@ export default function AIComposerCoreView({
 }
 
 function AIRetrievalDisclosure({
-  panelRef,
   expanded,
   onToggle,
   retrievalExecuted,
@@ -1055,7 +995,6 @@ function AIRetrievalDisclosure({
   totalResultCount,
   typography,
 }: {
-  panelRef: RefObject<HTMLDivElement>
   expanded: boolean
   onToggle: () => void
   retrievalExecuted: boolean
@@ -1075,7 +1014,6 @@ function AIRetrievalDisclosure({
 
   return (
     <div
-      ref={panelRef}
       data-ai-retrieval-panel="true"
       className="min-w-0 shrink-0 overflow-hidden rounded-2xl border"
       style={{
@@ -1523,7 +1461,6 @@ function AISqlDraftPreview({
   sql,
   explanationText,
   warningText,
-  sourceLabel,
   generatedSql,
   executionStatus,
   executionToolName,
@@ -1534,7 +1471,6 @@ function AISqlDraftPreview({
   sql: string
   explanationText: string
   warningText: string | null
-  sourceLabel: string | null
   generatedSql: string | null
   executionStatus: string | null
   executionToolName: string | null
@@ -1563,19 +1499,6 @@ function AISqlDraftPreview({
             data-ai-sql-draft-header-actions="true"
             className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2"
           >
-            {sourceLabel ? (
-              <span
-                className="min-w-0 max-w-full truncate rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
-                style={{
-                  borderColor: 'color-mix(in srgb, var(--border) 72%, transparent)',
-                  background: 'color-mix(in srgb, var(--bg-primary) 90%, transparent)',
-                  color: 'var(--text-muted)',
-                }}
-                title={sourceLabel}
-              >
-                {sourceLabel}
-              </span>
-            ) : null}
             {canExecuteStructuredSql ? (
               <button
                 type="button"
@@ -1640,7 +1563,6 @@ function AIStructuredExecutionPreview({
   generatedSql,
   explanationText,
   warningText,
-  sourceLabel,
   executionStatus,
   executionToolName,
   typography,
@@ -1649,7 +1571,6 @@ function AIStructuredExecutionPreview({
   generatedSql: string
   explanationText: string
   warningText: string | null
-  sourceLabel: string | null
   executionStatus: string | null
   executionToolName: string | null
   typography: AIComposerContentTypography
@@ -1663,7 +1584,6 @@ function AIStructuredExecutionPreview({
         generatedSql={generatedSql}
         explanationText=""
         warningText={null}
-        sourceLabel={sourceLabel}
         executionStatus={null}
         executionToolName={null}
         canExecuteStructuredSql={false}
