@@ -6,15 +6,31 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 ### Added
 
-<!-- New capability hint -->
+<!-- New user-visible capability. Prefer Markdown editing, workspace, export, or AI improvements users will actually notice. -->
 
 ### Changed
 
-<!-- UX refinement hint -->
+<!-- Behavior, default, workflow, or quality change users will notice in everyday writing. -->
 
 ### Fixed
 
-<!-- Fix hint -->
+<!-- User-visible fix affecting Markdown fidelity, files, preview, export, performance, or stability. -->
+
+### Internal
+
+<!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
+
+## 0.20.21 - 2026-05-12
+
+### Fixed
+
+- Fixed an issue where clicking on blockquotes and decorative headings in WYSIWYG mode did not transition back to source view.
+
+### Added
+
+### Changed
+
+### Fixed
 
 ## 0.20.20 - 2026-05-12
 
@@ -87,9 +103,9 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 ### Changed
 
-- Tightened chrome corner radii (outer panels 12â€?8px â†?8px, inner controls â†?6px) and outer-window padding (12px â†?6px) so the editor, sidebar, toolbar, and document tabs read closer to VS Code / Cursor density rather than consumer-app spacing.
-- Reduced sidebar inner panel padding (12px â†?6px) so the outline, file tree, search, and recent panels gain horizontal breathing room for long file and heading names.
-- Trimmed the toolbar shell minimum height (64px â†?52px) to remove the empty band that previously sat between the toolbar and the document tab row.
+- Tightened chrome corner radii (outer panels 12ï¿½?8px ï¿½?8px, inner controls ï¿½?6px) and outer-window padding (12px ï¿½?6px) so the editor, sidebar, toolbar, and document tabs read closer to VS Code / Cursor density rather than consumer-app spacing.
+- Reduced sidebar inner panel padding (12px ï¿½?6px) so the outline, file tree, search, and recent panels gain horizontal breathing room for long file and heading names.
+- Trimmed the toolbar shell minimum height (64px ï¿½?52px) to remove the empty band that previously sat between the toolbar and the document tab row.
 
 ### Internal
 
@@ -559,4 +575,3 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 ### Changed
 
 - AI settings moved out of the general theme/settings panel into a clearer dedicated setup surface.
-
