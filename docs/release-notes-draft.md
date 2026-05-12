@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.20.16`.
+This document is a draft for the next public release after `v0.20.19`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,11 +8,11 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.20.17`
+`No.1 Markdown Editor v0.20.20`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.20.17 streamlines the AI Composer result view. Retrieval details remain available in their dedicated disclosure panel, while duplicate source badges and header controls are removed so the answer and actions stay easier to scan.
+No.1 Markdown Editor v0.20.20 streamlines the AI Composer result view. Retrieval details remain available in their dedicated disclosure panel, while duplicate source badges and header controls are removed so the answer and actions stay easier to scan.
 
 ## Suggested GitHub Release Body
 
@@ -53,7 +53,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.20.17 --date 2026-05-12` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.20.17` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.20.17` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.20.17` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.20.20 --date 2026-05-12` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.20.20` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.20.20` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.20.20` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

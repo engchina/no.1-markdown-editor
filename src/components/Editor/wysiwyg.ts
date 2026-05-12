@@ -1393,7 +1393,7 @@ function isTauriRuntime(): boolean {
 
 function cursorIsOnLine(view: WysiwygDecorationView, lineFrom: number, lineTo: number): boolean {
   const { ranges } = view.state.selection
-  return ranges.some((r) => r.from >= lineFrom && r.from <= lineTo)
+  return ranges.some((r) => r.from <= lineTo && r.to >= lineFrom)
 }
 
 function isMacPlatform(): boolean {
@@ -1693,6 +1693,8 @@ export function buildWysiwygDecorations(
             lineFrom + prefixLen,
             Decoration.replace({})
           )
+          processInlineMath(decorations, text, lineFrom)
+          processInline(decorations, text, lineFrom, line.number < doc.lines, footnoteIndices, documentContext)
         }
         // Style the whole line
         queueDecoration(
@@ -1825,6 +1827,10 @@ export function buildWysiwygDecorations(
             lineFrom + blockquoteLine.prefix.length,
             Decoration.replace({})
           )
+        }
+        if (!onLine) {
+          processInlineMath(decorations, text, lineFrom)
+          processInline(decorations, text, lineFrom, line.number < doc.lines, footnoteIndices, documentContext)
         }
         pos = line.to + 1
         continue

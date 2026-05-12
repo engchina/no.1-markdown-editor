@@ -1,5 +1,5 @@
-import i18n from '../i18n'
-import { useNotificationsStore, type NoticeKind } from '../store/notifications'
+import i18n from '../i18n/index.ts'
+import { useNotificationsStore, type NoticeKind } from '../store/notifications.ts'
 
 interface TranslatedNoticeOptions {
   messageKey?: string

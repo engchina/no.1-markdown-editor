@@ -2,6 +2,20 @@
 
 This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
+## Unreleased
+
+### Added
+
+<!-- New capability hint -->
+
+### Changed
+
+<!-- UX refinement hint -->
+
+### Fixed
+
+<!-- Fix hint -->
+
 ## 0.20.20 - 2026-05-12
 
 ### Added
@@ -73,9 +87,9 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 ### Changed
 
-- Tightened chrome corner radii (outer panels 12â€“28px â†’ 8px, inner controls â†’ 6px) and outer-window padding (12px â†’ 6px) so the editor, sidebar, toolbar, and document tabs read closer to VS Code / Cursor density rather than consumer-app spacing.
-- Reduced sidebar inner panel padding (12px â†’ 6px) so the outline, file tree, search, and recent panels gain horizontal breathing room for long file and heading names.
-- Trimmed the toolbar shell minimum height (64px â†’ 52px) to remove the empty band that previously sat between the toolbar and the document tab row.
+- Tightened chrome corner radii (outer panels 12â€?8px â†?8px, inner controls â†?6px) and outer-window padding (12px â†?6px) so the editor, sidebar, toolbar, and document tabs read closer to VS Code / Cursor density rather than consumer-app spacing.
+- Reduced sidebar inner panel padding (12px â†?6px) so the outline, file tree, search, and recent panels gain horizontal breathing room for long file and heading names.
+- Trimmed the toolbar shell minimum height (64px â†?52px) to remove the empty band that previously sat between the toolbar and the document tab row.
 
 ### Internal
 
@@ -545,3 +559,4 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 ### Changed
 
 - AI settings moved out of the general theme/settings panel into a clearer dedicated setup surface.
+
