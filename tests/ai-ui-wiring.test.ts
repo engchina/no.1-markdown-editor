@@ -233,7 +233,7 @@ test('AI settings keep secret inputs in a submit form while matching the Setting
 
   assert.match(section, /function handleSubmit\(event: FormEvent<HTMLFormElement>\)/)
   assert.match(section, /event\.preventDefault\(\)\s*\n\s*void saveAiConnection\('connection'\)/)
-  assert.match(section, /<form data-ai-settings="true" className="space-y-2" onSubmit=\{handleSubmit\}>/)
+  assert.match(section, /<div data-ai-settings="true" className="space-y-2">\s*\n\s*<form className="space-y-2" onSubmit=\{handleSubmit\}>/)
   assert.match(section, /const hasChildren = Children\.count\(children\) > 0/)
   assert.match(section, /\{hasChildren \? <div className="grid gap-2 border-l pl-3" style=\{sectionBodyStyle\}>\{children\}<\/div> : null\}/)
   assert.match(section, /function SettingsSectionHeader\(/)

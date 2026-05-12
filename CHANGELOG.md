@@ -20,6 +20,12 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.18 - 2026-05-12
+
+### Internal
+
+- AI settings panel no longer wraps every provider sub-section inside the connection submit form, removing Chromium's "Multiple forms" password-manager warning while keeping the API key field inside its own submit form.
+
 ## 0.20.17 - 2026-05-12
 
 ### Changed

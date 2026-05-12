@@ -499,9 +499,10 @@ export default function AISettingsSection() {
   }
 
   return (
-    <form data-ai-settings="true" className="space-y-2" onSubmit={handleSubmit}>
-      <fieldset className="min-w-0 space-y-2">
-        <legend className="sr-only">{t('ai.connection.title')}</legend>
+    <div data-ai-settings="true" className="space-y-2">
+      <form className="space-y-2" onSubmit={handleSubmit}>
+        <fieldset className="min-w-0 space-y-2">
+          <legend className="sr-only">{t('ai.connection.title')}</legend>
         <SettingsSectionHeader
           title={t('ai.connection.title')}
           trailing={
@@ -597,6 +598,7 @@ export default function AISettingsSection() {
           </FormField>
         </div>
       </fieldset>
+      </form>
 
       {renderOCIAuthSection({
         t,
@@ -666,7 +668,7 @@ export default function AISettingsSection() {
           {t('ai.loadingShort')}
         </div>
       ) : null}
-    </form>
+    </div>
   )
 }
 
