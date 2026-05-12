@@ -68,6 +68,54 @@ test('collectWysiwygDetailsBlocks keeps quoted angle brackets inside details att
   assert.equal(details.editAnchor, markdown.indexOf('Campaign follow-up'))
 })
 
+test('collectWysiwygDetailsBlocks supports inline summary on the opening line', () => {
+  const markdown = [
+    '<details><summary>クリックで展開</summary>',
+    '',
+    '長いログや補足説明、あとで読みたいコードなどを入れられます。',
+    '',
+    '</details>',
+  ].join('\n')
+
+  const [details] = collectWysiwygDetailsBlocks(markdown)
+
+  assert.ok(details)
+  assert.equal(details.open, false)
+  assert.equal(details.summaryMarkdown, 'クリックで展開')
+  assert.match(details.bodyMarkdown, /長いログや補足説明/u)
+  assert.equal(details.from, 0)
+  assert.equal(details.closingLineFrom, markdown.indexOf('</details>'))
+  assert.equal(details.editAnchor, markdown.indexOf('クリックで展開'))
+})
+
+test('collectWysiwygDetailsBlocks supports inline summary with open attribute', () => {
+  const markdown = [
+    '<details open><summary>Inline title</summary>',
+    '',
+    'Body line',
+    '',
+    '</details>',
+  ].join('\n')
+
+  const [details] = collectWysiwygDetailsBlocks(markdown)
+
+  assert.ok(details)
+  assert.equal(details.open, true)
+  assert.equal(details.summaryMarkdown, 'Inline title')
+  assert.match(details.bodyMarkdown, /Body line/u)
+})
+
+test('collectWysiwygDetailsBlocks rejects opening line with trailing non-summary content', () => {
+  const markdown = [
+    '<details>extra text',
+    '<summary>Title</summary>',
+    'Body',
+    '</details>',
+  ].join('\n')
+
+  assert.deepEqual(collectWysiwygDetailsBlocks(markdown), [])
+})
+
 test('collectWysiwygDetailsBlocks ignores details-looking text inside fenced code blocks', () => {
   const markdown = [
     '```html',
@@ -113,6 +161,39 @@ test('renderWysiwygDetailsMarkdown renders markdown while sanitizing unsafe html
   assert.match(html, /<table>/u)
   assert.doesNotMatch(html, /<script/iu)
   assert.doesNotMatch(html, /bad\(\)/u)
+})
+
+test('renderWysiwygDetailsMarkdown annotates fenced code blocks with language label', () => {
+  const html = renderWysiwygDetailsMarkdown([
+    '```python',
+    'for i in range(5):',
+    '    print(i)',
+    '```',
+  ].join('\n'))
+
+  assert.match(html, /<pre[^>]*data-code-language-label="Code \(python\)"/u)
+})
+
+test('renderWysiwygDetailsMarkdown applies highlight.js classes to fenced code blocks', () => {
+  const html = renderWysiwygDetailsMarkdown([
+    '```python',
+    'for i in range(5):',
+    '    print(i)',
+    '```',
+  ].join('\n'))
+
+  assert.match(html, /<code[^>]*class="[^"]*\bhljs\b[^"]*language-python/u)
+  assert.match(html, /<span class="hljs-keyword">for<\/span>/u)
+})
+
+test('renderWysiwygDetailsMarkdown falls back to plain Code label without language', () => {
+  const html = renderWysiwygDetailsMarkdown([
+    '```',
+    'plain text block',
+    '```',
+  ].join('\n'))
+
+  assert.match(html, /<pre[^>]*data-code-language-label="Code"/u)
 })
 
 test('renderWysiwygDetailsMarkdown hardens raw html media like preview', () => {
@@ -190,5 +271,6 @@ test('wysiwyg details widget is wired as a source-activating disclosure block', 
   assert.match(source, /'\.cm-wysiwyg-details__body ul, \.cm-wysiwyg-details__body ol': \{[\s\S]*?paddingLeft: 'var\(--md-list-indent, 1\.75em\)'[\s\S]*?margin: '0'/u)
   assert.match(source, /'\.cm-wysiwyg-details__body li \+ li': \{[\s\S]*?marginTop: 'var\(--md-list-item-space, 0\.2em\)'/u)
   assert.match(source, /'\.cm-wysiwyg-details__body pre': \{[\s\S]*?whiteSpace: 'pre'/u)
+  assert.match(source, /'\.cm-wysiwyg-details__body pre::before': \{[\s\S]*?content: 'attr\(data-code-language-label\)'/u)
   assert.match(source, /'\.cm-wysiwyg-details__body th, \.cm-wysiwyg-details__body td': \{[\s\S]*?whiteSpace: 'pre-line'/u)
 })

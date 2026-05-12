@@ -863,7 +863,9 @@
     "theme": "Theme: {{name}}",
     "languageEnglish": "Language: English",
     "languageJapanese": "Language: 日本語",
-    "languageChinese": "Language: 中文"
+    "languageChinese": "Language: 中文",
+    "normalizeSetextHeadings": "Convert decorative === / --- headings to # ATX",
+    "normalizeSetextHeadingsDescription": "Replaces title-wrapping equals/dash lines with a plain # heading"
   },
   "palette": {
     "file": "File",
@@ -952,6 +954,10 @@
     "externalFileRelinkAlreadyOpenMessage": "\"{{name}}\" is already open in another tab.",
     "externalFileWatchErrorTitle": "External file watcher unavailable",
     "externalFileWatchErrorMessage": "Changes made outside the editor may not be detected automatically. Reopen the file to refresh.",
+    "normalizeSetextHeadingsDoneTitle": "Headings converted",
+    "normalizeSetextHeadingsDoneMessage": "Rewrote {{count}} decorative === / --- heading(s) as # ATX.",
+    "normalizeSetextHeadingsNoneTitle": "Nothing to convert",
+    "normalizeSetextHeadingsNoneMessage": "No decorative === / --- wrapped headings were found in this document.",
     "openMultipleFilesErrorTitle": "Some files couldn't be opened",
     "openMultipleFilesErrorMessage": "{{count}} of {{total}} files failed to open. Check the file paths and try again.",
     "aiProviderMissingTitle": "AI setup required",

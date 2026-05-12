@@ -2,23 +2,28 @@
 
 This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
-## Unreleased
+## 0.20.20 - 2026-05-12
 
 ### Added
 
-<!-- New user-visible capability. Prefer Markdown editing, workspace, export, or AI improvements users will actually notice. -->
+- Added a "Convert decorative headings" command to the command palette and toolbar, which rewrites Setext-style `===` or `---` title lines into standard `#` or `##` ATX headings.
+- WYSIWYG mode now supports inline `<details><summary>...</summary>` blocks, allowing collapsible sections to be defined on a single line.
+- The editor now provides syntax highlighting for code blocks within Markdown, using a curated highlight style for better readability.
+- WYSIWYG `details` and `blockquote` blocks now display a language label (e.g., "typescript") for nested code blocks.
 
 ### Changed
 
-<!-- Behavior, default, workflow, or quality change users will notice in everyday writing. -->
+- WYSIWYG `details` blocks now use a quieter surface background and border styling to better distinguish them from the main writing area.
 
 ### Fixed
 
-<!-- User-visible fix affecting Markdown fidelity, files, preview, export, performance, or stability. -->
+- Setext-style underline lines (`===` or `---`) are now hidden in WYSIWYG mode when the cursor is on a different line, keeping the document cleaner while editing.
+- Thematic breaks (`---`) are no longer misidentified when they sit directly under a paragraph, ensuring they are treated as Setext H2 underlines instead.
 
 ### Internal
 
-<!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
+- Integrated `codeBlockSyntaxHighlight` and `rehypeCodeBlockLanguageLabel` into the WYSIWYG and Preview rendering pipelines.
+- Added regression coverage for Setext heading normalization, inline details parsing, and code-block language labels.
 
 ## 0.20.19 - 2026-05-12
 

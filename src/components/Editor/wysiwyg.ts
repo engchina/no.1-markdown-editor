@@ -67,6 +67,10 @@ import {
   collectWysiwygRawHtmlBlocks,
   type WysiwygRawHtmlBlock,
 } from './wysiwygRawHtml.ts'
+import {
+  collectWysiwygSetextHeadings,
+  type WysiwygSetextHeading,
+} from './wysiwygSetextHeading.ts'
 import { detectDocumentLanguage, resolveDocumentSpellcheckConfig } from '../../lib/documentLanguage.ts'
 import { hasTerminalBlankLine } from '../../lib/editorTerminalBlankLine.ts'
 import { stripFrontMatter, type FrontMatterMeta } from '../../lib/markdownShared.ts'
@@ -1464,6 +1468,7 @@ export function buildWysiwygDecorations(
   tables: readonly MarkdownTableBlock[],
   detailsBlocks: readonly WysiwygDetailsBlock[],
   rawHtmlBlocks: readonly WysiwygRawHtmlBlock[],
+  setextHeadings: readonly WysiwygSetextHeading[],
   footnoteIndices: Map<string, number>
 ): DecorationSet {
   // Mixed replace/mark decorations often start at the same position.
@@ -1473,6 +1478,18 @@ export function buildWysiwygDecorations(
   const docText = doc.toString()
   const documentContext = resolveWysiwygDocumentContext(docText)
   const blockquoteLines = collectWysiwygBlockquoteLines(docText)
+  const setextContentLevelByLineStart = new Map<number, 1 | 2>()
+  const setextUnderlineLineStarts = new Map<number, 1 | 2>()
+  for (const heading of setextHeadings) {
+    setextUnderlineLineStarts.set(heading.underlineFrom, heading.level)
+    let cursor = heading.contentFrom
+    while (cursor <= heading.contentTo) {
+      const contentLine = doc.lineAt(cursor)
+      setextContentLevelByLineStart.set(contentLine.from, heading.level)
+      if (contentLine.to >= heading.contentTo) break
+      cursor = contentLine.to + 1
+    }
+  }
   let fenceIndex = 0
   let mathIndex = 0
   let tableIndex = 0
@@ -1688,6 +1705,49 @@ export function buildWysiwygDecorations(
         continue
       }
 
+      // ── Setext heading underline (===/---) ────────────────────────────
+      const setextUnderlineLevel = setextUnderlineLineStarts.get(lineFrom)
+      if (setextUnderlineLevel !== undefined) {
+        if (!onLine) {
+          queueDecoration(
+            decorations,
+            lineFrom,
+            lineFrom,
+            Decoration.line({ attributes: { class: 'cm-wysiwyg-setext-underline-line' } })
+          )
+          if (lineTo > lineFrom) {
+            queueDecoration(
+              decorations,
+              lineFrom,
+              lineTo,
+              Decoration.replace({})
+            )
+          }
+        }
+        pos = line.to + 1
+        continue
+      }
+
+      // ── Setext heading content: apply heading mark, fall through to inline ──
+      const setextContentLevel = setextContentLevelByLineStart.get(lineFrom)
+      if (setextContentLevel !== undefined) {
+        queueDecoration(
+          decorations,
+          lineFrom,
+          lineTo,
+          Decoration.mark({ class: `cm-wysiwyg-h${setextContentLevel}` })
+        )
+        // Continue with inline processing (bold/italic/links/etc.); skip block
+        // detectors below since a setext content line is by definition a
+        // paragraph line, not a thematic break/list/blockquote start.
+        if (!onLine) {
+          processInlineMath(decorations, text, lineFrom)
+          processInline(decorations, text, lineFrom, line.number < doc.lines, footnoteIndices, documentContext)
+        }
+        pos = line.to + 1
+        continue
+      }
+
       // ── Horizontal rule ───────────────────────────────────────────────
       if (isThematicBreakLine(text)) {
         if (!onLine) {
@@ -1883,10 +1943,11 @@ function safeBuildDecorations(
   tables: readonly MarkdownTableBlock[],
   detailsBlocks: readonly WysiwygDetailsBlock[],
   rawHtmlBlocks: readonly WysiwygRawHtmlBlock[],
+  setextHeadings: readonly WysiwygSetextHeading[],
   footnoteIndices: Map<string, number>
 ): DecorationSet {
   try {
-    return buildWysiwygDecorations(view, fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks, footnoteIndices)
+    return buildWysiwygDecorations(view, fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks, setextHeadings, footnoteIndices)
   } catch {
     return Decoration.none
   }
@@ -1917,6 +1978,7 @@ interface WysiwygStructuralBlocks {
   tables: MarkdownTableBlock[]
   detailsBlocks: WysiwygDetailsBlock[]
   rawHtmlBlocks: WysiwygRawHtmlBlock[]
+  setextHeadings: WysiwygSetextHeading[]
 }
 
 function collectWysiwygStructuralBlocks(markdown: string): WysiwygStructuralBlocks {
@@ -1937,13 +1999,22 @@ function collectWysiwygStructuralBlocks(markdown: string): WysiwygStructuralBloc
     ...detailsBlocks,
     ...rawHtmlBlocks,
   ].sort((left, right) => left.from - right.from || left.to - right.to)
+  const tables = collectMarkdownTableBlocks(markdown, ignoredTableRanges)
+  const setextHeadings = collectWysiwygSetextHeadings(markdown, [
+    ...allFencedCodeBlocks,
+    ...allMathBlocks,
+    ...detailsBlocks,
+    ...rawHtmlBlocks,
+    ...tables,
+  ])
 
   return {
     fencedCodeBlocks: allFencedCodeBlocks.filter((block) => !rangeIntersectsAnyRange(block, detailsBlocks)),
     mathBlocks: allMathBlocks.filter((block) => !rangeIntersectsAnyRange(block, detailsBlocks)),
-    tables: collectMarkdownTableBlocks(markdown, ignoredTableRanges),
+    tables,
     detailsBlocks,
     rawHtmlBlocks,
+    setextHeadings,
   }
 }
 
@@ -1966,9 +2037,10 @@ function markDetailsGapGutterLine(
 
 function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarker> {
   const markdown = state.doc.toString()
-  const { fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks } = collectWysiwygStructuralBlocks(markdown)
+  const { fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks, setextHeadings } = collectWysiwygStructuralBlocks(markdown)
   const { doc } = state
   const markers = new Map<number, GutterMarker>()
+  const setextUnderlineLineStarts = new Set<number>(setextHeadings.map((heading) => heading.underlineFrom))
   const nonTextBlockRanges = [
     ...fencedCodeBlocks.map(({ from, to }) => ({ from, to })),
     ...mathBlocks.map(({ from, to }) => ({ from, to })),
@@ -2055,7 +2127,21 @@ function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarke
       continue
     }
 
+    if (
+      setextUnderlineLineStarts.has(line.from) &&
+      !stateSelectionTouchesRange(state, line.from, line.to)
+    ) {
+      if (!markers.has(line.from)) markers.set(line.from, hiddenGutterMarker)
+      continue
+    }
+
     if (!isThematicBreakLine(line.text) || stateSelectionTouchesRange(state, line.from, line.to)) {
+      continue
+    }
+
+    // A `---` line directly under a paragraph is a setext H2 underline, not a
+    // thematic break — skip it here so it doesn't get hr treatment.
+    if (setextUnderlineLineStarts.has(line.from)) {
       continue
     }
 
@@ -2659,6 +2745,7 @@ class WysiwygPluginValue {
   tables: MarkdownTableBlock[]
   detailsBlocks: WysiwygDetailsBlock[]
   rawHtmlBlocks: WysiwygRawHtmlBlock[]
+  setextHeadings: WysiwygSetextHeading[]
   footnoteIndices: Map<string, number>
   activeTableCell: ActiveWysiwygTableCell | null
 
@@ -2669,6 +2756,7 @@ class WysiwygPluginValue {
     this.tables = structuralBlocks.tables
     this.detailsBlocks = structuralBlocks.detailsBlocks
     this.rawHtmlBlocks = structuralBlocks.rawHtmlBlocks
+    this.setextHeadings = structuralBlocks.setextHeadings
     this.footnoteIndices = collectFootnoteIndices(view.state.doc.toString())
     this.activeTableCell = null
     this.syncActiveTableCell(view)
@@ -2680,6 +2768,7 @@ class WysiwygPluginValue {
       this.tables,
       this.detailsBlocks,
       this.rawHtmlBlocks,
+      this.setextHeadings,
       this.footnoteIndices
     )
   }
@@ -2692,6 +2781,7 @@ class WysiwygPluginValue {
       this.tables = structuralBlocks.tables
       this.detailsBlocks = structuralBlocks.detailsBlocks
       this.rawHtmlBlocks = structuralBlocks.rawHtmlBlocks
+      this.setextHeadings = structuralBlocks.setextHeadings
       this.footnoteIndices = collectFootnoteIndices(update.state.doc.toString())
       pruneTableColumnWidthSnapshots(this.tables)
     }
@@ -2726,6 +2816,7 @@ class WysiwygPluginValue {
         this.tables,
         this.detailsBlocks,
         this.rawHtmlBlocks,
+        this.setextHeadings,
         this.footnoteIndices
       )
     }
@@ -3817,6 +3908,14 @@ export const wysiwygTheme = EditorView.baseTheme({
     lineHeight: '0',
     fontSize: '0',
   },
+  '.cm-wysiwyg-setext-underline-line': {
+    height: '0',
+    minHeight: '0',
+    padding: '0 !important',
+    lineHeight: '0',
+    fontSize: '0',
+    overflow: 'hidden',
+  },
   '.cm-wysiwyg-hr': {
     display: 'block',
     width: '100%',
@@ -4527,19 +4626,10 @@ export const wysiwygTheme = EditorView.baseTheme({
     cursor: 'text',
     userSelect: 'none',
     verticalAlign: 'top',
-    transition: 'background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease',
-  },
-  '.cm-wysiwyg-details:hover': {
-    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 46%, transparent)',
-    borderColor: 'color-mix(in srgb, var(--border) 70%, transparent)',
-    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent)',
   },
   '.cm-wysiwyg-details:focus-visible': {
     outline: '2px solid color-mix(in srgb, var(--accent) 72%, transparent)',
     outlineOffset: '2px',
-    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 62%, transparent)',
-    borderColor: 'color-mix(in srgb, var(--accent) 42%, transparent)',
-    boxShadow: '0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent)',
   },
   '.cm-wysiwyg-details[data-details-open="false"] .cm-wysiwyg-details__body': {
     display: 'none',
@@ -4655,15 +4745,39 @@ export const wysiwygTheme = EditorView.baseTheme({
     padding: 'var(--md-inline-code-padding, 0.125em 0.375em)',
   },
   '.cm-wysiwyg-details__body pre': {
+    position: 'relative',
     margin: '0',
-    padding: 'var(--md-code-block-padding-block, 16px) var(--md-code-block-padding-inline, 16px)',
+    padding: `calc(10px + 1.35rem + 14px) ${CODE_BLOCK_PADDING_INLINE} var(--md-code-block-padding-block, 16px)`,
     borderRadius: CODE_BLOCK_RADIUS,
-    backgroundColor: 'var(--md-code-block-bg, #18181b)',
-    color: 'var(--md-code-block-text, #d4d4d8)',
+    border: '1px solid color-mix(in srgb, var(--border) 82%, transparent)',
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-tertiary))',
+    color: 'var(--text-primary)',
     overflowX: 'auto',
     whiteSpace: 'pre',
+    boxSizing: 'border-box',
+  },
+  '.cm-wysiwyg-details__body pre::before': {
+    content: 'attr(data-code-language-label)',
+    position: 'absolute',
+    top: '10px',
+    left: CODE_BLOCK_PADDING_INLINE,
+    display: 'inline-flex',
+    alignItems: 'center',
+    minHeight: '1.35rem',
+    padding: '0 0.55rem',
+    borderRadius: '999px',
+    backgroundColor: 'color-mix(in srgb, var(--accent) 12%, var(--bg-primary))',
+    color: 'var(--text-secondary)',
+    fontFamily: 'var(--font-ui, inherit)',
+    fontSize: '0.74rem',
+    fontWeight: '600',
+    letterSpacing: '0.01em',
+    lineHeight: '1',
+    textTransform: 'none',
   },
   '.cm-wysiwyg-details__body pre code': {
+    fontFamily: MONO_FONT_FAMILY,
+    fontSize: '0.94em',
     backgroundColor: 'transparent',
     padding: '0',
     color: 'inherit',

@@ -858,7 +858,9 @@
     "theme": "テーマ: {{name}}",
     "languageEnglish": "言語: English",
     "languageJapanese": "言語: 日本語",
-    "languageChinese": "言語: 中文"
+    "languageChinese": "言語: 中文",
+    "normalizeSetextHeadings": "装飾的な === / --- 見出しを # ATX に変換",
+    "normalizeSetextHeadingsDescription": "タイトルを囲む =/− の線を取り除き、通常の # 見出しに置き換えます"
   },
   "palette": {
     "file": "ファイル",
@@ -946,6 +948,10 @@
     "externalFileRelinkAlreadyOpenMessage": "「{{name}}」は別のタブですでに開かれています。",
     "externalFileWatchErrorTitle": "外部ファイルの監視を開始できませんでした",
     "externalFileWatchErrorMessage": "エディター外部での変更が自動検出されない場合があります。ファイルを開き直してください。",
+    "normalizeSetextHeadingsDoneTitle": "見出しを変換しました",
+    "normalizeSetextHeadingsDoneMessage": "装飾的な === / --- 見出し {{count}} 件を # ATX に書き換えました。",
+    "normalizeSetextHeadingsNoneTitle": "変換対象がありません",
+    "normalizeSetextHeadingsNoneMessage": "このドキュメントには === / --- で囲まれた装飾的な見出しは見つかりませんでした。",
     "openMultipleFilesErrorTitle": "一部のファイルを開けませんでした",
     "openMultipleFilesErrorMessage": "{{total}} 件中 {{count}} 件のファイルを開けませんでした。パスを確認して再試行してください。",
     "aiProviderMissingTitle": "AI 設定が必要です",

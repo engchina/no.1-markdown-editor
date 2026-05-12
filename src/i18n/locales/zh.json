@@ -858,7 +858,9 @@
     "theme": "主题: {{name}}",
     "languageEnglish": "语言: English",
     "languageJapanese": "语言: 日本語",
-    "languageChinese": "语言: 中文"
+    "languageChinese": "语言: 中文",
+    "normalizeSetextHeadings": "将装饰性 === / --- 标题转换为 # ATX",
+    "normalizeSetextHeadingsDescription": "去掉包裹标题的等号/短横线，替换为普通的 # 标题"
   },
   "palette": {
     "file": "文件",
@@ -946,6 +948,10 @@
     "externalFileRelinkAlreadyOpenMessage": "「{{name}}」已经在另一个标签中打开。",
     "externalFileWatchErrorTitle": "无法监控外部文件变更",
     "externalFileWatchErrorMessage": "在编辑器外部所做的修改可能无法被自动检测，重新打开文件以刷新。",
+    "normalizeSetextHeadingsDoneTitle": "已转换标题",
+    "normalizeSetextHeadingsDoneMessage": "已将 {{count}} 个装饰性 === / --- 标题改写为 # ATX。",
+    "normalizeSetextHeadingsNoneTitle": "没有需要转换的标题",
+    "normalizeSetextHeadingsNoneMessage": "在当前文档中没有发现 === / --- 包裹的装饰性标题。",
     "openMultipleFilesErrorTitle": "部分文件无法打开",
     "openMultipleFilesErrorMessage": "{{total}} 个文件中有 {{count}} 个打开失败，请检查路径后重试。",
     "aiProviderMissingTitle": "需要先完成 AI 设置",

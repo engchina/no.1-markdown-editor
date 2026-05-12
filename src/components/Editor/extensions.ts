@@ -30,6 +30,7 @@ import {
   foldKeymap,
 } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+import { codeBlockSyntaxHighlight } from './codeSyntaxHighlight.ts'
 import { collectFencedCodeBlocks, type TextRange } from './fencedCodeRanges.ts'
 import { collectMathBlocks } from './mathBlockRanges.ts'
 import { isThematicBreakLine } from './thematicBreak.ts'
@@ -234,6 +235,7 @@ class InvisibleSpaceWidget extends WidgetType {
 
 export const markdownHighlight = [
   syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+  syntaxHighlighting(codeBlockSyntaxHighlight),
   syntaxHighlighting(markdownUnderlineOverride),
 ]
 
