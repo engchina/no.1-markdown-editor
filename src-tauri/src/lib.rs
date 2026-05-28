@@ -1,4 +1,5 @@
 mod ai;
+mod image_hosting;
 mod pdf_export;
 mod update;
 
@@ -419,6 +420,12 @@ pub fn run() {
             ai::ai_list_enrichment_jobs,
             ai::ai_generate_enrichment_job,
             ai::ai_get_enrichment_job,
+            image_hosting::image_hosting_load_state,
+            image_hosting::image_hosting_save_config,
+            image_hosting::image_hosting_store_pat,
+            image_hosting::image_hosting_clear_pat,
+            image_hosting::image_hosting_verify,
+            image_hosting::image_hosting_upload,
             read_file,
             write_file,
             write_binary_file,

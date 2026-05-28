@@ -61,7 +61,9 @@
     "wysiwyg": "WYSIWYG",
     "structure": "Structure",
     "inline": "Inline Styles",
-    "moreActions": "More Formatting Tools"
+    "moreActions": "More Formatting Tools",
+    "imageHosting": "Image Hosting",
+    "uploadImagesToHosting": "Upload local images to GitHub image hosting"
   },
   "viewMode": {
     "source": "Source",
@@ -865,7 +867,8 @@
     "languageJapanese": "Language: 日本語",
     "languageChinese": "Language: 中文",
     "normalizeSetextHeadings": "Convert decorative === / --- headings to # ATX",
-    "normalizeSetextHeadingsDescription": "Replaces title-wrapping equals/dash lines with a plain # heading"
+    "normalizeSetextHeadingsDescription": "Replaces title-wrapping equals/dash lines with a plain # heading",
+    "uploadLocalImagesToHosting": "Upload local images to GitHub image hosting"
   },
   "palette": {
     "file": "File",
@@ -1038,6 +1041,89 @@
     "collapsedDetailsPasteTitle": "Collapsed details body was not copied",
     "collapsedDetailsPasteMessage": "When a webpage copies a closed <details> block, the browser only puts the summary on the clipboard. Expand that block on the webpage and copy again.",
     "dismissLabel": "Dismiss notification"
+  },
+  "imageHosting": {
+    "sectionLabel": "Image Hosting",
+    "panelTitle": "Image Hosting (GitHub)",
+    "title": "GitHub Image Hosting",
+    "description": "Upload local images in the current document to a public GitHub repository and replace the Markdown links with public URLs served from the jsDelivr CDN.",
+    "desktopOnly": "Image hosting is only available in the desktop app.",
+    "enableToggle": "Enable GitHub image hosting",
+    "fields": {
+      "owner": "GitHub user or organization",
+      "repo": "Repository name",
+      "branch": "Branch",
+      "directory": "Directory inside the repository",
+      "commitMessage": "Commit message template",
+      "commitMessageHint": "Use {filename} to insert the uploaded file name."
+    },
+    "placeholders": {
+      "owner": "octocat",
+      "repo": "markdown-images",
+      "commitMessage": "Upload image: {filename}"
+    },
+    "actions": {
+      "saveConfig": "Save settings",
+      "saving": "Saving...",
+      "verify": "Test connection",
+      "verifying": "Testing..."
+    },
+    "pat": {
+      "title": "Personal Access Token",
+      "savedDescription": "A token is securely stored in the system keychain.",
+      "missingDescription": "Paste a fine-grained PAT with Contents: Read and write on the target repository.",
+      "inputPlaceholder": "github_pat_...",
+      "save": "Save token",
+      "clear": "Remove token",
+      "openGithubNewRepo": "Create markdown-images repository",
+      "openGithubPatPage": "Generate fine-grained PAT"
+    },
+    "instructions": {
+      "show": "How to set up GitHub image hosting",
+      "hide": "Hide setup instructions",
+      "step1": "Click \"Create markdown-images repository\" above, keep visibility Public, and click \"Create repository\". Private repos cannot serve image URLs anonymously.",
+      "step2": "Click \"Generate fine-grained PAT\" above. This is the account-level token page (github.com/settings/personal-access-tokens), NOT the repository's Settings tab — the form only exists at the account level.",
+      "step3": "Token name: any label (e.g. \"No.1 Markdown Editor\"). Resource owner: your personal account. Expiration: 7/30/60/90 days, Custom, or No expiration — a shorter expiry is safer.",
+      "step4": "Repository access: choose \"Only select repositories\" and pick markdown-images. Do not grant access to all repositories.",
+      "step5": "Expand \"Repository permissions\" → set Contents to \"Read and write\". Leave every other permission as default.",
+      "step6": "Click \"Generate token\" at the bottom. The token starts with github_pat_ and is shown only once — copy it now.",
+      "step7": "Paste it into the Personal Access Token field above and click \"Save token\". Stored in the OS keychain only.",
+      "step8": "Fill Owner (your GitHub username) and Repository (markdown-images) above, click \"Test connection\", enable the toggle, then run \"Upload local images to GitHub image hosting\" from the command palette."
+    },
+    "notices": {
+      "configSavedTitle": "Settings saved",
+      "configSavedMessage": "Image hosting settings have been updated.",
+      "configSaveErrorTitle": "Could not save settings",
+      "configSaveErrorMessage": "{{reason}}",
+      "patSavedTitle": "Token saved",
+      "patSavedMessage": "The GitHub personal access token is stored in the system keychain.",
+      "patSaveErrorTitle": "Could not save token",
+      "patSaveErrorMessage": "{{reason}}",
+      "patClearedTitle": "Token removed",
+      "patClearedMessage": "The GitHub personal access token has been removed from the keychain.",
+      "patClearErrorTitle": "Could not remove token",
+      "patClearErrorMessage": "{{reason}}",
+      "verifyOkTitle": "GitHub connection works",
+      "verifyOkMessage": "Verified write access to {{repo}}.",
+      "verifyFailedTitle": "GitHub connection failed",
+      "verifyFailedMessage": "{{reason}}",
+      "noDocumentTitle": "No active document",
+      "noDocumentMessage": "Open a Markdown document before uploading images.",
+      "unsavedDocumentTitle": "Save the document first",
+      "unsavedDocumentMessage": "Save the document to disk so local image paths can be resolved.",
+      "notConfiguredTitle": "Image hosting is not ready",
+      "notConfiguredMessage": "Enable image hosting and save a GitHub PAT before uploading.",
+      "noLocalImagesTitle": "Nothing to upload",
+      "noLocalImagesMessage": "This document does not contain local image references.",
+      "uploadStartedTitle": "Uploading images",
+      "uploadStartedMessage": "Local images are being uploaded to GitHub. This may take a moment.",
+      "uploadCompletedTitle": "Upload complete",
+      "uploadCompletedMessage": "{{uploaded}} image(s) uploaded and rewritten to GitHub URLs.",
+      "uploadPartialTitle": "Some images failed to upload",
+      "uploadPartialMessage": "{{uploaded}} uploaded, {{failed}} failed. The document was updated for successful uploads.",
+      "uploadFailedTitle": "Upload failed",
+      "uploadFailedMessage": "{{reason}}"
+    }
   },
   "runtimeError": {
     "appEyebrow": "Runtime Error",

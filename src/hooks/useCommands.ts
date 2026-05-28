@@ -11,6 +11,7 @@ import { getFormatShortcutLabel } from '../components/Editor/formatShortcuts'
 import type { Language } from '../i18n'
 import { formatPrimaryShortcut } from '../lib/platform'
 import { runManualUpdateCheck } from '../lib/updateActions'
+import { triggerImageHostingUploadForActiveDocument } from '../lib/imageHosting/triggerUpload'
 import { dispatchKeyboardShortcutsOpen, getKeyboardShortcutsShortcutLabel } from '../lib/keyboardShortcuts'
 import {
   SIDEBAR_SURFACE_META,
@@ -135,6 +136,15 @@ export function useCommands(): Command[] {
         category: 'file',
         action: () => {
           void runManualUpdateCheck()
+        },
+      },
+      {
+        id: 'edit.uploadLocalImagesToHosting',
+        label: t('commands.uploadLocalImagesToHosting'),
+        icon: '🖼',
+        category: 'edit',
+        action: () => {
+          void triggerImageHostingUploadForActiveDocument()
         },
       },
       ...recentCommands,

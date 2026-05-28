@@ -59,6 +59,7 @@ export type IconName =
   | 'arrowDown'
   | 'arrowUp'
   | 'checkCircle'
+  | 'cloudUpload'
 
 const PATHS: Record<IconName, string> = {
   bookmark: 'M7 4h10a1 1 0 0 1 1 1v16l-6-3-6 3V5a1 1 0 0 1 1-1z',
@@ -119,6 +120,7 @@ const PATHS: Record<IconName, string> = {
   arrowDown: 'M12 5v14 M5 12l7 7 7-7',
   arrowUp: 'M12 19V5 M5 12l7-7 7 7',
   checkCircle: 'M9 12l2 2 4-4 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
+  cloudUpload: 'M7 18a4.6 4.4 0 0 1 0-9 5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1 M9 15l3-3 3 3 M12 12v6',
 }
 
 interface AppIconProps {

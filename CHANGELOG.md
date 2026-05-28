@@ -20,6 +20,20 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.21.0 - 2026-05-28
+
+### Added
+
+- Added GitHub-backed image hosting for local Markdown images, including repository setup, PAT storage, verification, and one-click upload from the toolbar or command palette.
+
+### Changed
+
+### Fixed
+
+### Internal
+
+- Added regression coverage for image-hosting URL generation, local image replacement, and Japanese/English/Chinese copy completeness.
+
 ## 0.20.21 - 2026-05-12
 
 ### Fixed

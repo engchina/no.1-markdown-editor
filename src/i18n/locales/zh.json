@@ -61,7 +61,9 @@
     "wysiwyg": "实时预览",
     "structure": "文档结构",
     "inline": "行内样式",
-    "moreActions": "更多格式与插入"
+    "moreActions": "更多格式与插入",
+    "imageHosting": "图片图床",
+    "uploadImagesToHosting": "将本地图片上传到 GitHub 图床"
   },
   "viewMode": {
     "source": "源码",
@@ -860,7 +862,8 @@
     "languageJapanese": "语言: 日本語",
     "languageChinese": "语言: 中文",
     "normalizeSetextHeadings": "将装饰性 === / --- 标题转换为 # ATX",
-    "normalizeSetextHeadingsDescription": "去掉包裹标题的等号/短横线，替换为普通的 # 标题"
+    "normalizeSetextHeadingsDescription": "去掉包裹标题的等号/短横线，替换为普通的 # 标题",
+    "uploadLocalImagesToHosting": "将本地图片上传到 GitHub 图床"
   },
   "palette": {
     "file": "文件",
@@ -1032,6 +1035,89 @@
     "collapsedDetailsPasteTitle": "折叠内容没有包含在剪贴板中",
     "collapsedDetailsPasteMessage": "网页在折叠状态下复制 <details> 时，浏览器只会提供标题。请先在网页中展开该块，再复制。",
     "dismissLabel": "关闭通知"
+  },
+  "imageHosting": {
+    "sectionLabel": "图片图床",
+    "panelTitle": "图片图床 (GitHub)",
+    "title": "GitHub 图片图床",
+    "description": "将当前文档中的本地图片上传到一个公开的 GitHub 仓库，并把 Markdown 中的本地链接替换为通过 jsDelivr CDN 加速的公开 URL。",
+    "desktopOnly": "图片图床仅在桌面应用中可用。",
+    "enableToggle": "启用 GitHub 图片图床",
+    "fields": {
+      "owner": "GitHub 用户或组织",
+      "repo": "仓库名",
+      "branch": "分支",
+      "directory": "仓库内的目录",
+      "commitMessage": "提交信息模板",
+      "commitMessageHint": "可用 {filename} 占位符插入上传文件名。"
+    },
+    "placeholders": {
+      "owner": "octocat",
+      "repo": "markdown-images",
+      "commitMessage": "Upload image: {filename}"
+    },
+    "actions": {
+      "saveConfig": "保存设置",
+      "saving": "保存中...",
+      "verify": "测试连接",
+      "verifying": "测试中..."
+    },
+    "pat": {
+      "title": "个人访问令牌 (PAT)",
+      "savedDescription": "令牌已安全保存在系统密钥库中。",
+      "missingDescription": "请粘贴对目标仓库具有 Contents: Read and write 权限的 Fine-grained PAT。",
+      "inputPlaceholder": "github_pat_...",
+      "save": "保存令牌",
+      "clear": "删除令牌",
+      "openGithubNewRepo": "创建 markdown-images 仓库",
+      "openGithubPatPage": "生成 Fine-grained PAT"
+    },
+    "instructions": {
+      "show": "查看 GitHub 图床配置步骤",
+      "hide": "隐藏配置步骤",
+      "step1": "点击上方 \"创建 markdown-images 仓库\"，保持 Public 不变，点击 \"Create repository\" 完成创建。私有仓库无法匿名提供图片 URL。",
+      "step2": "点击上方 \"生成 Fine-grained PAT\"。这是账户级别的令牌页面(github.com/settings/personal-access-tokens)，不是仓库内的 Settings 标签页 —— PAT 表单只存在于账户层级。",
+      "step3": "Token name 填任意名称(例如 \"No.1 Markdown Editor\")；Resource owner 保持个人账户；Expiration 可选 7/30/60/90 天、Custom、No expiration —— 越短越安全。",
+      "step4": "Repository access 选 \"Only select repositories\"，勾选 markdown-images。不要授予对全部仓库的访问权限。",
+      "step5": "展开 \"Repository permissions\"，把 Contents 改为 \"Read and write\"，其余保持默认。",
+      "step6": "滚到底部点击 \"Generate token\"。令牌以 github_pat_ 开头且只显示一次 —— 请立即复制。",
+      "step7": "粘贴到上面的 Personal Access Token 输入框，点击 \"保存令牌\"。仅保存在系统密钥库中。",
+      "step8": "在上方填 Owner(GitHub 用户名)和 Repository(markdown-images)，点击 \"测试连接\" → 开启开关 → 在命令面板运行 \"将本地图片上传到 GitHub 图床\"。"
+    },
+    "notices": {
+      "configSavedTitle": "设置已保存",
+      "configSavedMessage": "图片图床的设置已更新。",
+      "configSaveErrorTitle": "无法保存设置",
+      "configSaveErrorMessage": "{{reason}}",
+      "patSavedTitle": "令牌已保存",
+      "patSavedMessage": "GitHub 个人访问令牌已保存到系统密钥库。",
+      "patSaveErrorTitle": "无法保存令牌",
+      "patSaveErrorMessage": "{{reason}}",
+      "patClearedTitle": "令牌已删除",
+      "patClearedMessage": "已从系统密钥库中移除 GitHub 个人访问令牌。",
+      "patClearErrorTitle": "无法删除令牌",
+      "patClearErrorMessage": "{{reason}}",
+      "verifyOkTitle": "GitHub 连接正常",
+      "verifyOkMessage": "已确认对 {{repo}} 拥有写入权限。",
+      "verifyFailedTitle": "GitHub 连接失败",
+      "verifyFailedMessage": "{{reason}}",
+      "noDocumentTitle": "没有活动文档",
+      "noDocumentMessage": "请先打开一个 Markdown 文档，再上传图片。",
+      "unsavedDocumentTitle": "请先保存文档",
+      "unsavedDocumentMessage": "为了解析本地图片路径，请先把文档保存到磁盘。",
+      "notConfiguredTitle": "图片图床尚未就绪",
+      "notConfiguredMessage": "请先启用图片图床并保存 GitHub PAT 再执行上传。",
+      "noLocalImagesTitle": "没有可上传的图片",
+      "noLocalImagesMessage": "当前文档没有包含本地图片引用。",
+      "uploadStartedTitle": "正在上传图片",
+      "uploadStartedMessage": "正在把本地图片上传到 GitHub，请稍候。",
+      "uploadCompletedTitle": "上传完成",
+      "uploadCompletedMessage": "已上传 {{uploaded}} 张图片，并替换为 GitHub URL。",
+      "uploadPartialTitle": "部分图片上传失败",
+      "uploadPartialMessage": "成功 {{uploaded}} 张，失败 {{failed}} 张。文档中已上传成功的链接已更新。",
+      "uploadFailedTitle": "上传失败",
+      "uploadFailedMessage": "{{reason}}"
+    }
   },
   "runtimeError": {
     "appEyebrow": "运行时错误",

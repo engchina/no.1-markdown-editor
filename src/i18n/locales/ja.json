@@ -61,7 +61,9 @@
     "wysiwyg": "ライブ",
     "structure": "文書構造",
     "inline": "インライン装飾",
-    "moreActions": "その他の書式と挿入"
+    "moreActions": "その他の書式と挿入",
+    "imageHosting": "画像ホスティング",
+    "uploadImagesToHosting": "ローカル画像を GitHub 画像ホスティングへアップロード"
   },
   "viewMode": {
     "source": "ソース",
@@ -860,7 +862,8 @@
     "languageJapanese": "言語: 日本語",
     "languageChinese": "言語: 中文",
     "normalizeSetextHeadings": "装飾的な === / --- 見出しを # ATX に変換",
-    "normalizeSetextHeadingsDescription": "タイトルを囲む =/− の線を取り除き、通常の # 見出しに置き換えます"
+    "normalizeSetextHeadingsDescription": "タイトルを囲む =/− の線を取り除き、通常の # 見出しに置き換えます",
+    "uploadLocalImagesToHosting": "ローカル画像を GitHub 画像ホスティングへアップロード"
   },
   "palette": {
     "file": "ファイル",
@@ -1032,6 +1035,89 @@
     "collapsedDetailsPasteTitle": "折りたたみ内の本文はクリップボードに含まれていません",
     "collapsedDetailsPasteMessage": "Web ページ上で閉じた <details> をコピーすると、ブラウザーは見出しだけを渡します。元のページでそのブロックを開いてからコピーしてください。",
     "dismissLabel": "通知を閉じる"
+  },
+  "imageHosting": {
+    "sectionLabel": "画像ホスティング",
+    "panelTitle": "画像ホスティング (GitHub)",
+    "title": "GitHub 画像ホスティング",
+    "description": "現在のドキュメントに含まれるローカル画像を公開 GitHub リポジトリへアップロードし、Markdown のリンクを jsDelivr CDN 配信の公開 URL に置き換えます。",
+    "desktopOnly": "画像ホスティングはデスクトップアプリでのみ利用できます。",
+    "enableToggle": "GitHub 画像ホスティングを有効化",
+    "fields": {
+      "owner": "GitHub ユーザーまたは組織",
+      "repo": "リポジトリ名",
+      "branch": "ブランチ",
+      "directory": "リポジトリ内のディレクトリ",
+      "commitMessage": "コミットメッセージのテンプレート",
+      "commitMessageHint": "{filename} を使うとアップロードしたファイル名に置換されます。"
+    },
+    "placeholders": {
+      "owner": "octocat",
+      "repo": "markdown-images",
+      "commitMessage": "Upload image: {filename}"
+    },
+    "actions": {
+      "saveConfig": "設定を保存",
+      "saving": "保存中...",
+      "verify": "接続テスト",
+      "verifying": "確認中..."
+    },
+    "pat": {
+      "title": "パーソナルアクセストークン",
+      "savedDescription": "OS のキーチェーンにトークンを安全に保存しました。",
+      "missingDescription": "対象リポジトリに対し Contents: Read and write 権限を持つ Fine-grained PAT を貼り付けてください。",
+      "inputPlaceholder": "github_pat_...",
+      "save": "トークンを保存",
+      "clear": "トークンを削除",
+      "openGithubNewRepo": "markdown-images リポジトリを作成",
+      "openGithubPatPage": "Fine-grained PAT を生成"
+    },
+    "instructions": {
+      "show": "GitHub 画像ホスティングの設定手順を表示",
+      "hide": "手順を非表示",
+      "step1": "上の「markdown-images リポジトリを作成」を押し、Public のまま「Create repository」をクリック。Private リポジトリでは匿名で画像 URL を配信できません。",
+      "step2": "上の「Fine-grained PAT を生成」を押します。これはアカウント単位のトークンページ(github.com/settings/personal-access-tokens)で、リポジトリ側の Settings タブではありません。PAT 発行フォームはアカウント側にしかありません。",
+      "step3": "Token name は任意のラベル(例: 「No.1 Markdown Editor」)。Resource owner は自分の個人アカウント。Expiration は 7/30/60/90 日、Custom、No expiration から選択 — 短いほど安全です。",
+      "step4": "Repository access で「Only select repositories」を選び、markdown-images を指定。全リポジトリへのアクセスは付与しないでください。",
+      "step5": "「Repository permissions」を展開し、Contents を「Read and write」に変更。その他はデフォルトのままで構いません。",
+      "step6": "一番下の「Generate token」をクリック。github_pat_ で始まるトークンは一度しか表示されないので、すぐにコピーしてください。",
+      "step7": "上の Personal Access Token 欄に貼り付け「トークンを保存」を押します。OS のキーチェーンにのみ保存されます。",
+      "step8": "上の Owner(GitHub ユーザー名)とリポジトリ名(markdown-images)を入力し、「接続テスト」→ トグルをオン → コマンドパレットから「ローカル画像を GitHub 画像ホスティングへアップロード」を実行します。"
+    },
+    "notices": {
+      "configSavedTitle": "設定を保存しました",
+      "configSavedMessage": "画像ホスティングの設定を更新しました。",
+      "configSaveErrorTitle": "設定を保存できませんでした",
+      "configSaveErrorMessage": "{{reason}}",
+      "patSavedTitle": "トークンを保存しました",
+      "patSavedMessage": "GitHub のパーソナルアクセストークンをキーチェーンに保存しました。",
+      "patSaveErrorTitle": "トークンを保存できませんでした",
+      "patSaveErrorMessage": "{{reason}}",
+      "patClearedTitle": "トークンを削除しました",
+      "patClearedMessage": "キーチェーンから GitHub パーソナルアクセストークンを削除しました。",
+      "patClearErrorTitle": "トークンを削除できませんでした",
+      "patClearErrorMessage": "{{reason}}",
+      "verifyOkTitle": "GitHub への接続を確認しました",
+      "verifyOkMessage": "{{repo}} への書き込み権限を確認しました。",
+      "verifyFailedTitle": "GitHub への接続に失敗しました",
+      "verifyFailedMessage": "{{reason}}",
+      "noDocumentTitle": "アクティブなドキュメントがありません",
+      "noDocumentMessage": "画像をアップロードする前に Markdown ドキュメントを開いてください。",
+      "unsavedDocumentTitle": "先にドキュメントを保存してください",
+      "unsavedDocumentMessage": "ローカル画像のパスを解決するため、まずドキュメントをディスクに保存してください。",
+      "notConfiguredTitle": "画像ホスティングの準備ができていません",
+      "notConfiguredMessage": "画像ホスティングを有効化し、GitHub PAT を保存してから実行してください。",
+      "noLocalImagesTitle": "アップロード対象がありません",
+      "noLocalImagesMessage": "このドキュメントにはローカル画像の参照が含まれていません。",
+      "uploadStartedTitle": "画像をアップロード中",
+      "uploadStartedMessage": "ローカル画像を GitHub にアップロードしています。少しお待ちください。",
+      "uploadCompletedTitle": "アップロードが完了しました",
+      "uploadCompletedMessage": "{{uploaded}} 枚の画像をアップロードし、GitHub URL に置き換えました。",
+      "uploadPartialTitle": "一部の画像のアップロードに失敗しました",
+      "uploadPartialMessage": "成功: {{uploaded}} 件 / 失敗: {{failed}} 件。成功した画像については本文を更新しました。",
+      "uploadFailedTitle": "アップロードに失敗しました",
+      "uploadFailedMessage": "{{reason}}"
+    }
   },
   "runtimeError": {
     "appEyebrow": "ランタイムエラー",

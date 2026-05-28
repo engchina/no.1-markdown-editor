@@ -8,6 +8,7 @@ import { useAnchoredOverlayStyle } from '../../hooks/useAnchoredOverlayStyle'
 import { useExport } from '../../hooks/useExport'
 import { formatPrimaryShortcut, matchesPrimaryShortcut } from '../../lib/platform'
 import { EDITOR_AI_SETUP_OPEN_EVENT } from '../../lib/ai/events'
+import { triggerImageHostingUploadForActiveDocument } from '../../lib/imageHosting/triggerUpload'
 import { getKeyboardShortcutsShortcutLabel } from '../../lib/keyboardShortcuts'
 import type { FormatAction } from '../Editor/formatCommands'
 import { getFormatShortcutLabel } from '../Editor/formatShortcuts'
@@ -17,6 +18,7 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const ThemePanel = lazy(() => import('../ThemePanel/ThemePanel'))
 const AISetupPanel = lazy(() => import('../AI/AISetupPanel'))
 const AboutPanel = lazy(() => import('../Updates/AboutPanel'))
+const ImageHostingPanel = lazy(() => import('../ImageHosting/ImageHostingPanel'))
 
 type ToolbarButtonVariant = 'square' | 'wide' | 'mode'
 type ToolbarMenuAlign = 'left' | 'right'
@@ -353,12 +355,14 @@ export default function Toolbar({
   const [showAbout, setShowAbout] = useState(false)
   const [showAISetup, setShowAISetup] = useState(false)
   const [showTheme, setShowTheme] = useState(false)
+  const [showImageHosting, setShowImageHosting] = useState(false)
   const [showHeadings, setShowHeadings] = useState(false)
   const [showMoreActions, setShowMoreActions] = useState(false)
   const exportButtonRef = useRef<HTMLButtonElement | null>(null)
   const aboutButtonRef = useRef<HTMLButtonElement | null>(null)
   const aiSetupButtonRef = useRef<HTMLButtonElement | null>(null)
   const themeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const imageHostingButtonRef = useRef<HTMLButtonElement | null>(null)
   const headingButtonRef = useRef<HTMLButtonElement | null>(null)
   const moreActionsButtonRef = useRef<HTMLButtonElement | null>(null)
 
@@ -468,6 +472,14 @@ export default function Toolbar({
         </ToolbarBtn>
         <ToolbarBtn title={`${t('toolbar.save')} (${saveShortcut})`} onClick={() => void saveFile()}>
           <AppIcon name="save" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn
+          title={t('toolbar.uploadImagesToHosting')}
+          onClick={() => void triggerImageHostingUploadForActiveDocument()}
+        >
+          <span data-toolbar-action="upload-images-to-hosting" className="contents">
+            <AppIcon name="cloudUpload" size={16} />
+          </span>
         </ToolbarBtn>
         <div className="relative">
           <ToolbarBtn
@@ -633,6 +645,7 @@ export default function Toolbar({
             setShowTheme((open) => !open)
             setShowAISetup(false)
             setShowAbout(false)
+            setShowImageHosting(false)
           }}
           active={showTheme}
         >
@@ -655,6 +668,7 @@ export default function Toolbar({
             setShowAISetup((open) => !open)
             setShowTheme(false)
             setShowAbout(false)
+            setShowImageHosting(false)
           }}
           active={showAISetup}
         >
@@ -671,12 +685,39 @@ export default function Toolbar({
 
       <div className="relative">
         <ToolbarBtn
+          title={t('toolbar.imageHosting')}
+          buttonRef={imageHostingButtonRef}
+          onClick={() => {
+            setShowImageHosting((open) => !open)
+            setShowTheme(false)
+            setShowAISetup(false)
+            setShowAbout(false)
+          }}
+          active={showImageHosting}
+        >
+          <span data-toolbar-action="image-hosting" className="contents">
+          <AppIcon name="image" size={16} />
+          </span>
+        </ToolbarBtn>
+        {showImageHosting && (
+          <Suspense fallback={null}>
+            <ImageHostingPanel
+              onClose={() => setShowImageHosting(false)}
+              triggerRef={imageHostingButtonRef}
+            />
+          </Suspense>
+        )}
+      </div>
+
+      <div className="relative">
+        <ToolbarBtn
           title={t('toolbar.about')}
           buttonRef={aboutButtonRef}
           onClick={() => {
             setShowAbout((open) => !open)
             setShowTheme(false)
             setShowAISetup(false)
+            setShowImageHosting(false)
           }}
           active={showAbout}
         >
