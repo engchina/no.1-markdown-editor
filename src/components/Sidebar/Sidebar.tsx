@@ -19,9 +19,9 @@ export default function Sidebar({ width }: Props) {
       className="sidebar-surface flex h-full min-h-0 flex-shrink-0 flex-col"
       style={{ width }}
     >
-      <div className="flex flex-shrink-0 items-center px-3 pb-2 pt-3">
+      <div className="flex flex-shrink-0 items-center px-1.5 pb-1 pt-1.5">
         <div
-          className="flex w-full items-center p-1 rounded-[14px]"
+          className="flex w-full items-center p-1 rounded-[8px]"
           style={{
             background: 'color-mix(in srgb, var(--bg-secondary) 92%, transparent)',
             border: '1px solid color-mix(in srgb, var(--border) 72%, transparent)',
@@ -38,7 +38,7 @@ export default function Sidebar({ width }: Props) {
                 aria-label={title}
                 data-sidebar-tab={surface.id}
                 onClick={() => setSidebarTab(surface.id)}
-                className="flex-1 h-8 rounded-[10px] flex items-center justify-center text-sm transition-all duration-300 ease-out"
+                className="flex-1 h-8 rounded-[6px] flex items-center justify-center text-sm transition-all duration-300 ease-out"
                 style={{
                   color: selected ? 'var(--text-primary)' : 'var(--text-muted)',
                   background: selected ? 'var(--bg-primary)' : 'transparent',
@@ -53,7 +53,7 @@ export default function Sidebar({ width }: Props) {
         </div>
       </div>
 
-      <div className="sidebar-surface__scroll flex-1 min-h-0 overflow-y-auto px-3 pb-3">
+      <div className="sidebar-surface__scroll flex-1 min-h-0 overflow-y-auto px-1.5 pb-1.5">
         <SidebarSectionSurface className={activeSurface.surfaceClassName ?? 'px-3 py-3'}>
           <ActivePanel />
         </SidebarSectionSurface>

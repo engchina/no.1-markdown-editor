@@ -6,6 +6,8 @@
 import { EditorView } from '@codemirror/view'
 import { EditorSelection, type TransactionSpec } from '@codemirror/state'
 import { appendEditorSelectionScrollEffect } from '../../lib/editorScroll.ts'
+import { rewriteDecorativeSetextHeadingsToATX } from '../../lib/decorativeSetextHeading.ts'
+import { pushInfoNotice, pushSuccessNotice } from '../../lib/notices.ts'
 
 export type FormatAction =
   | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'highlight'
@@ -14,6 +16,7 @@ export type FormatAction =
   | 'link' | 'image'
   | 'quote' | 'ul' | 'ol' | 'task'
   | 'hr' | 'table'
+  | 'normalizeSetextHeadings'
 
 export function applyFormat(view: EditorView, action: FormatAction): void {
   switch (action) {
@@ -39,7 +42,28 @@ export function applyFormat(view: EditorView, action: FormatAction): void {
     case 'hr':        return insertBlock(view, '\n---\n')
     case 'codeblock': return insertCodeBlock(view)
     case 'table':     return insertTable(view)
+    case 'normalizeSetextHeadings': return normalizeDecorativeSetextHeadings(view)
   }
+}
+
+function normalizeDecorativeSetextHeadings(view: EditorView): void {
+  const original = view.state.doc.toString()
+  const { replacedCount, changes } = rewriteDecorativeSetextHeadingsToATX(original)
+  if (replacedCount === 0) {
+    pushInfoNotice(
+      'notices.normalizeSetextHeadingsNoneTitle',
+      'notices.normalizeSetextHeadingsNoneMessage',
+    )
+    return
+  }
+  dispatchFormatChange(view, {
+    changes,
+  })
+  pushSuccessNotice(
+    'notices.normalizeSetextHeadingsDoneTitle',
+    'notices.normalizeSetextHeadingsDoneMessage',
+    { values: { count: replacedCount } },
+  )
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.20.10`.
+This document is a draft for the next public release after `v0.20.20`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,57 +8,44 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.20.11`
+`No.1 Markdown Editor v0.20.21`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.20.11 improves split-view writing by keeping the source editor and rendered preview aligned while scrolling. It also keeps copied and exported HTML clean by removing preview-only source-line markers outside the live preview.
+No.1 Markdown Editor v0.20.21 streamlines the AI Composer result view. Retrieval details remain available in their dedicated disclosure panel, while duplicate source badges and header controls are removed so the answer and actions stay easier to scan.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Split view now keeps the editor and preview panes aligned while scrolling.
-- A new Theme panel toggle lets users turn split scroll sync off when they want the panes to move independently.
-- Preview source-line mapping now covers ordinary Markdown, raw HTML, and math blocks.
-- Clipboard HTML and standalone exports strip preview-only source-line markers before content leaves the app.
+- AI Composer result headers are cleaner and less crowded.
+- Retrieval details stay grouped in the disclosure panel below the answer.
+- Structured SQL previews focus on the generated SQL and execution actions without repeating source labels.
 
 ### Why This Release Matters
 
-Split view is most useful when the source and preview stay oriented around the same part of the document. This release makes long-form editing feel more predictable by keeping both panes in step while still preserving a user-controlled escape hatch for independent scrolling.
+AI-assisted writing works best when the result is visually calm and the next action is obvious. This release removes repeated source chrome from the result header while preserving access to retrieval details, making the composer feel closer to a focused writing tool than a dashboard.
 
 ### User-Facing Improvements
 
-#### Split View
+#### AI Composer
 
-- Scrolling the editor now moves the preview to the matching source line.
-- Scrolling the preview now moves the editor to the corresponding Markdown line.
-- The sync behavior can be disabled from the Theme panel.
+- The answer area no longer repeats retrieval source summaries in the header.
+- The "Query & Search Results" disclosure remains the single place for inspecting retrieval context.
+- SQL draft previews no longer repeat the composer source label beside the execution controls.
 
-#### Markdown Preview
+### Suggested Upgrade Notes Section
 
-- Source-line mapping works across headings, paragraphs, lists, blockquotes, fenced code, raw HTML, tables, and math blocks.
-- Math display blocks keep reliable source-line anchors after KaTeX rendering.
+- No configuration changes required.
+- Existing AI provider settings and history are unchanged.
 
-#### Export and Clipboard
-
-- Preview-only source-line markers are removed from copied HTML.
-- Standalone HTML export output remains clean and free of internal sync metadata.
-
-### Suggested "Upgrade Notes" Section
-
-- Split scroll sync is enabled by default in split view.
-- Users who prefer independent editor and preview scrolling can disable it from the Theme panel.
-- Existing documents are unchanged.
-
-### Suggested "Who Should Update" Section
+### Suggested Who Should Update Section
 
 This release is especially relevant for users who:
 
-- write or review long Markdown documents in split view
-- compare source Markdown with rendered preview output
-- use math blocks, raw HTML, or complex Markdown structures
-- copy rendered Markdown or export standalone HTML
+- use AI Composer with retrieval-backed answers
+- review structured SQL drafts before execution
+- prefer a quieter answer-first AI panel
 
 ## Packaging Checklist Before Release
 
@@ -66,7 +53,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.20.11 --date 2026-05-09` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.20.11` after the version bump so local metadata and changelog checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.20.11` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.20.11` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.20.21 --date 2026-05-12` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.20.21` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.20.21` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.20.21` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

@@ -20,6 +20,123 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.20.21 - 2026-05-12
+
+### Fixed
+
+- Fixed an issue where clicking on blockquotes and decorative headings in WYSIWYG mode did not transition back to source view.
+
+### Added
+
+### Changed
+
+### Fixed
+
+## 0.20.20 - 2026-05-12
+
+### Added
+
+- Added a "Convert decorative headings" command to the command palette and toolbar, which rewrites Setext-style `===` or `---` title lines into standard `#` or `##` ATX headings.
+- WYSIWYG mode now supports inline `<details><summary>...</summary>` blocks, allowing collapsible sections to be defined on a single line.
+- The editor now provides syntax highlighting for code blocks within Markdown, using a curated highlight style for better readability.
+- WYSIWYG `details` and `blockquote` blocks now display a language label (e.g., "typescript") for nested code blocks.
+
+### Changed
+
+- WYSIWYG `details` blocks now use a quieter surface background and border styling to better distinguish them from the main writing area.
+
+### Fixed
+
+- Setext-style underline lines (`===` or `---`) are now hidden in WYSIWYG mode when the cursor is on a different line, keeping the document cleaner while editing.
+- Thematic breaks (`---`) are no longer misidentified when they sit directly under a paragraph, ensuring they are treated as Setext H2 underlines instead.
+
+### Internal
+
+- Integrated `codeBlockSyntaxHighlight` and `rehypeCodeBlockLanguageLabel` into the WYSIWYG and Preview rendering pipelines.
+- Added regression coverage for Setext heading normalization, inline details parsing, and code-block language labels.
+
+## 0.20.19 - 2026-05-12
+
+### Added
+
+### Changed
+
+### Fixed
+
+- WYSIWYG table column alignment toggles no longer move the cursor: changing alignment from any body cell keeps focus and caret position inside the originating cell instead of jumping to the column header or the last cell of the table.
+
+### Internal
+
+## 0.20.18 - 2026-05-12
+
+### Internal
+
+- AI settings panel no longer wraps every provider sub-section inside the connection submit form, removing Chromium's "Multiple forms" password-manager warning while keeping the API key field inside its own submit form.
+
+## 0.20.17 - 2026-05-12
+
+### Changed
+
+- AI Composer result panels are cleaner: retrieval details now stay in the dedicated disclosure area instead of duplicating source badges and "View sources" controls in the result header.
+- Structured SQL previews no longer repeat the composer source label, keeping execution actions and SQL content easier to scan.
+
+### Internal
+
+- Removed unused retrieval summary locale strings and updated AI flow wiring coverage for the simplified result panel.
+
+## 0.20.16 - 2026-05-12
+
+### Added
+
+- The editor now supports Ctrl/Cmd-click on external links in both Source and WYSIWYG modes, including Markdown inline links, angle-bracket autolinks, HTML anchors, and bare URLs.
+
+### Changed
+
+- Holding the primary modifier over a detected external link now switches the editor cursor to a pointer so link-following is discoverable without changing normal editing clicks.
+
+### Internal
+
+- Added focused link-detection coverage for external URL handling and unsafe/relative link rejection.
+- Ignored local Playwright MCP logs and custom Cargo target output so release commits stay free of generated test artifacts.
+
+## 0.20.15 - 2026-05-11
+
+### Changed
+
+- Tightened chrome corner radii (outer panels 12�?8px �?8px, inner controls �?6px) and outer-window padding (12px �?6px) so the editor, sidebar, toolbar, and document tabs read closer to VS Code / Cursor density rather than consumer-app spacing.
+- Reduced sidebar inner panel padding (12px �?6px) so the outline, file tree, search, and recent panels gain horizontal breathing room for long file and heading names.
+- Trimmed the toolbar shell minimum height (64px �?52px) to remove the empty band that previously sat between the toolbar and the document tab row.
+
+### Internal
+
+- Republish of 0.20.13 and 0.20.14. Both tags failed `Validate release metadata` in CI because `CHANGELOG.md` was missing dedicated version sections; this release ships the combined user-visible changes with a properly authored changelog entry.
+
+## 0.20.14 - 2026-05-11
+
+### Internal
+
+- Tag did not publish. `Validate release metadata` failed because `CHANGELOG.md` was missing a dedicated `0.20.14` section. The chrome-radius and outer-padding refactor originally tagged here is republished under 0.20.15.
+
+## 0.20.13 - 2026-05-10
+
+### Changed
+
+- Focus mode now dims inactive WYSIWYG block widgets (tables, mermaid, math blocks, raw HTML, details, hr) alongside inactive `.cm-line` rows so the active paragraph stands out evenly across plain text and block elements.
+
+### Internal
+
+- Tag did not publish. `Validate release metadata` failed because `CHANGELOG.md` was missing a dedicated `0.20.13` section. The focus-mode change is republished under 0.20.15.
+
+## 0.20.12 - 2026-05-10
+
+### Fixed
+
+- Split view scroll synchronization no longer snaps the editor to the top when scrolling the preview, and stays aligned after content, image-load, or KaTeX/Shiki layout shifts.
+
+### Internal
+
+- Rewrote `useSplitScrollSync` to use screen-coordinate math (`posAtCoords`/`coordsAtPos` + `getBoundingClientRect`) and to rebuild the source-line map just-in-time on every scroll event, eliminating the stale-cache class of bugs that the previous `MutationObserver`/`ResizeObserver` invalidation approach left open.
+
 ## 0.20.11 - 2026-05-09
 
 ### Added

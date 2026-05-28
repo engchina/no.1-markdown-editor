@@ -297,7 +297,7 @@ test('wysiwyg table integration keeps the table rendered while exposing an inlin
   const tableSource = await readFile(new URL('../src/components/Editor/wysiwygTable.ts', import.meta.url), 'utf8')
 
   assert.match(source, /class TableWidget extends WidgetType/u)
-  assert.match(source, /wrapper\.className = 'cm-wysiwyg-table'/u)
+  assert.match(source, /wrapper\.className = activeCell \? 'cm-wysiwyg-table cm-wysiwyg-table--active' : 'cm-wysiwyg-table'/u)
   assert.match(source, /wrapper\.dataset\.tableEditStart = String\(table\.editAnchor\)/u)
   assert.match(source, /new TableWidget\(table, activeTableCellForTable, spellcheckConfig\)/u)
   assert.match(source, /function createTableToolbarDom\(\): HTMLDivElement \{/u)

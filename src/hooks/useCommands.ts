@@ -536,6 +536,14 @@ export function useCommands(): Command[] {
         action: () => emitFormat('h6'),
       },
       {
+        id: 'edit.normalizeSetextHeadings',
+        label: t('commands.normalizeSetextHeadings'),
+        description: t('commands.normalizeSetextHeadingsDescription'),
+        icon: '#',
+        category: 'edit',
+        action: () => emitFormat('normalizeSetextHeadings'),
+      },
+      {
         id: 'export.html',
         label: t('commands.exportHtml'),
         icon: '🌐',

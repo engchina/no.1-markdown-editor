@@ -41,9 +41,9 @@ test('divider hint uses one custom tooltip without the native title tooltip', as
 test('sidebar and editor share the same relative content shell', async () => {
   const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
 
-  assert.match(app, /<div className="flex flex-1 min-h-0 px-3 pb-3">\s*<div className="relative flex flex-1 min-h-0 min-w-0">/)
+  assert.match(app, /<div className="flex flex-1 min-h-0 px-1.5 pb-1.5">\s*<div className="relative flex flex-1 min-h-0 min-w-0">/)
   assert.match(app, /className="relative z-10 flex min-h-0 flex-shrink-0 items-stretch"/)
-  assert.match(app, /className="relative flex flex-1 min-w-0 flex-col overflow-hidden rounded-\[28px\] shadow-elegant"/)
+  assert.match(app, /className="relative flex flex-1 min-w-0 flex-col overflow-hidden rounded-\[8px\] shadow-elegant"/)
   assert.doesNotMatch(app, /sidebar-peek-backdrop/)
 })
 
@@ -72,3 +72,4 @@ test('sidebar resets to a comfortable default width within the allowed range', a
   assert.match(layout, /export const SIDEBAR_DEFAULT_WIDTH = 320/)
   assert.doesNotMatch(layout, /export const SIDEBAR_DEFAULT_WIDTH = SIDEBAR_MAX_WIDTH/)
 })
+

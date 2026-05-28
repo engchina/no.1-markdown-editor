@@ -35,6 +35,15 @@
   --editor-invisible-outline: color-mix(in srgb, var(--accent) 14%, var(--text-muted));
   --editor-invisible-trailing: color-mix(in srgb, var(--accent) 26%, var(--text-muted));
 
+  /* Code syntax highlight — light (mirrors preview .hljs-* colors) */
+  --code-syntax-keyword: #7C3AED;
+  --code-syntax-string: #0369A1;
+  --code-syntax-number: #DB2777;
+  --code-syntax-comment: #6B7280;
+  --code-syntax-variable: #B45309;
+  --code-syntax-function: #1D4ED8;
+  --code-syntax-meta: #0EA5E9;
+
   /* Preview */
   --preview-bg: transparent;
   --preview-text: #1A1A1A;
@@ -99,7 +108,7 @@
   --glass-border: rgba(255, 255, 255, 0.5);
   --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   --shadow-elegant: 0 10px 40px -10px rgba(0, 0, 0, 0.1), 0 0 1px 1px rgba(0, 0, 0, 0.05);
-  --toolbar-shell-height: 64px;
+  --toolbar-shell-height: 52px;
   --focus-column-max-width: 1600px;
   --focus-column-inline-padding: 112px;
   --document-bottom-buffer: 5.4em;
@@ -133,6 +142,15 @@
   --editor-invisible-soft: color-mix(in srgb, var(--accent) 10%, transparent);
   --editor-invisible-outline: color-mix(in srgb, var(--accent) 16%, var(--text-secondary));
   --editor-invisible-trailing: color-mix(in srgb, var(--accent) 28%, var(--text-secondary));
+
+  /* Code syntax highlight — dark */
+  --code-syntax-keyword: #CBA6F7;
+  --code-syntax-string: #89DCEB;
+  --code-syntax-number: #F38BA8;
+  --code-syntax-comment: #6C7086;
+  --code-syntax-variable: #FAB387;
+  --code-syntax-function: #89B4FA;
+  --code-syntax-meta: #74C7EC;
 
   /* Preview */
   --preview-bg: transparent;
@@ -338,7 +356,7 @@ a:focus-visible {
 }
 
 .sidebar-surface {
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   background: color-mix(in srgb, var(--bg-primary) 98%, transparent);
   box-shadow: var(--shadow-sm);
@@ -1176,72 +1194,72 @@ a:focus-visible {
 .markdown-preview .hljs {
   color: var(--preview-text);
 }
-.markdown-preview .hljs-keyword,
-.markdown-preview .hljs-selector-tag {
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-keyword,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-selector-tag {
   color: #7C3AED;
 }
-.markdown-preview .hljs-string,
-.markdown-preview .hljs-meta .hljs-string {
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-string,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-meta .hljs-string {
   color: #0369A1;
 }
-.markdown-preview .hljs-number,
-.markdown-preview .hljs-literal,
-.markdown-preview .hljs-type,
-.markdown-preview .hljs-built_in {
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-number,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-literal,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-type,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-built_in {
   color: #DB2777;
 }
-.markdown-preview .hljs-comment,
-.markdown-preview .hljs-quote {
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-comment,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-quote {
   color: #6B7280;
   font-style: italic;
 }
-.markdown-preview .hljs-variable,
-.markdown-preview .hljs-template-variable,
-.markdown-preview .hljs-attribute {
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-variable,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-template-variable,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-attribute {
   color: #B45309;
 }
-.markdown-preview .hljs-title.function_,
-.markdown-preview .hljs-title.class_,
-.markdown-preview .hljs-title {
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-title.function_,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-title.class_,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-title {
   color: #1D4ED8;
   font-weight: 600;
 }
-.markdown-preview .hljs-meta,
-.markdown-preview .hljs-symbol {
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-meta,
+:is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-symbol {
   color: #0EA5E9;
 }
 
 /* highlight.js syntax colors — dark */
-.dark .markdown-preview .hljs-keyword,
-.dark .markdown-preview .hljs-selector-tag {
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-keyword,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-selector-tag {
   color: #CBA6F7;
 }
-.dark .markdown-preview .hljs-string,
-.dark .markdown-preview .hljs-meta .hljs-string {
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-string,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-meta .hljs-string {
   color: #89DCEB;
 }
-.dark .markdown-preview .hljs-number,
-.dark .markdown-preview .hljs-literal,
-.dark .markdown-preview .hljs-type,
-.dark .markdown-preview .hljs-built_in {
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-number,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-literal,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-type,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-built_in {
   color: #F38BA8;
 }
-.dark .markdown-preview .hljs-comment,
-.dark .markdown-preview .hljs-quote {
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-comment,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-quote {
   color: #6C7086;
 }
-.dark .markdown-preview .hljs-variable,
-.dark .markdown-preview .hljs-template-variable,
-.dark .markdown-preview .hljs-attribute {
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-variable,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-template-variable,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-attribute {
   color: #FAB387;
 }
-.dark .markdown-preview .hljs-title.function_,
-.dark .markdown-preview .hljs-title.class_,
-.dark .markdown-preview .hljs-title {
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-title.function_,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-title.class_,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-title {
   color: #89B4FA;
 }
-.dark .markdown-preview .hljs-meta,
-.dark .markdown-preview .hljs-symbol {
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-meta,
+.dark :is(.markdown-preview, .cm-wysiwyg-details__body) .hljs-symbol {
   color: #74C7EC;
 }
 
@@ -1271,6 +1289,10 @@ a:focus-visible {
   padding: 32px 48px var(--document-bottom-buffer);
   overflow-y: auto;
   height: 100%;
+  /* Make this the offsetParent for its descendants so any code that reads
+     element.offsetTop measures relative to the scroll container, not the
+     outer wrapper. Required by the split-mode scroll-sync line map. */
+  position: relative;
 }
 
 .markdown-preview p {
@@ -2091,6 +2113,7 @@ a:focus-visible {
 .focus-mode-container {
   background: var(--editor-bg);
   animation: focusFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --md-block-shell-inset: var(--focus-column-inline-padding);
 }
 
 @keyframes focusFadeIn {
@@ -2119,17 +2142,19 @@ a:focus-visible {
   padding: 24px 0 var(--document-bottom-buffer) !important;
 }
 
-.focus-mode-container .cm-line {
-  padding: 0 var(--focus-column-inline-padding) !important;
-}
-
 /* Hide gutters (line numbers) in focus mode */
 .focus-mode-container .cm-gutters {
   display: none !important;
 }
 
-/* Dim non-active lines — iA Writer paragraph focus */
-.focus-mode .focus-mode-container .cm-line:not(.cm-activeLine) {
+/* Dim non-active lines and block widgets — iA Writer paragraph focus */
+.focus-mode .focus-mode-container .cm-line:not(.cm-activeLine),
+.focus-mode .focus-mode-container .cm-wysiwyg-table:not(.cm-wysiwyg-table--active),
+.focus-mode .focus-mode-container .cm-wysiwyg-mermaid,
+.focus-mode .focus-mode-container .cm-wysiwyg-math-block,
+.focus-mode .focus-mode-container .cm-wysiwyg-raw-html-block,
+.focus-mode .focus-mode-container .cm-wysiwyg-details,
+.focus-mode .focus-mode-container .cm-wysiwyg-hr {
   opacity: 0.35;
   transition: opacity 0.3s ease;
 }

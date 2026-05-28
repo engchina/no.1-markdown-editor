@@ -9,7 +9,11 @@
       "Bash(cargo test:*)",
       "Bash(node --experimental-strip-types tests/editor-scroll-wiring.test.ts)",
       "Bash(node --experimental-strip-types --experimental-vm-modules tests/editor-scroll.test.ts)",
-      "Bash(node --experimental-strip-types --experimental-vm-modules tests/editor-scroll-wiring.test.ts)"
+      "Bash(node --experimental-strip-types --experimental-vm-modules tests/editor-scroll-wiring.test.ts)",
+      "Bash(git stash *)",
+      "Bash(git fsck *)",
+      "Bash(git apply *)",
+      "Bash(node --experimental-strip-types --test tests/editor-state-cache.test.ts)"
     ]
   }
 }

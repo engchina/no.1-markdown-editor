@@ -15,7 +15,7 @@ test('wysiwyg gutter hides secondary source lines for inactive block renderers',
   assert.match(source, /const allFencedCodeBlocks = collectFencedCodeBlocks\(markdown\)/u)
   assert.match(source, /const allMathBlocks = collectMathBlocks\(markdown, allFencedCodeBlocks\)/u)
   assert.match(source, /const detailsBlocks = collectWysiwygDetailsBlocks\(markdown, \[[\s\S]*?\.\.\.allFencedCodeBlocks,[\s\S]*?\.\.\.allMathBlocks,[\s\S]*?\]\)/u)
-  assert.match(source, /const \{ fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks \} = collectWysiwygStructuralBlocks\(markdown\)/u)
+  assert.match(source, /const \{ fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks, setextHeadings \} = collectWysiwygStructuralBlocks\(markdown\)/u)
   assert.match(source, /const markers = new Map<number, GutterMarker>\(\)/u)
   assert.match(source, /const nonTextBlockRanges = \[[\s\S]*?fencedCodeBlocks\.map\(\(\{ from, to \}\) => \(\{ from, to \}\)\)[\s\S]*?mathBlocks\.map\(\(\{ from, to \}\) => \(\{ from, to \}\)\)[\s\S]*?tables\.map\(\(\{ from, to \}\) => \(\{ from, to \}\)\)[\s\S]*?detailsBlocks\.map\(\(\{ from, to \}\) => \(\{ from, to \}\)\)[\s\S]*?rawHtmlBlocks\.map\(\(\{ from, to \}\) => \(\{ from, to \}\)\)[\s\S]*?sort\(\(left, right\) => left\.from - right\.from\)/u)
   assert.match(source, /for \(const fence of fencedCodeBlocks\) \{[\s\S]*?isRenderableWysiwygMermaidCodeBlock\(fence\)[\s\S]*?if \(!markers\.has\(hiddenLine\.from\)\) markers\.set\(hiddenLine\.from, hiddenGutterMarker\)[\s\S]*?continue/u)

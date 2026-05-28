@@ -14,6 +14,8 @@ import { rehypeHighlightMarkers } from '../../lib/rehypeHighlightMarkers.ts'
 import { rehypeSubscriptMarkers } from '../../lib/rehypeSubscriptMarkers.ts'
 import { rehypeSuperscriptMarkers } from '../../lib/rehypeSuperscriptMarkers.ts'
 import { rehypeHardenRawHtml, rehypePrepareRawHtmlForSanitize } from '../../lib/rehypeHardenRawHtml.ts'
+import { rehypeCodeBlockLanguageLabel } from '../../lib/rehypeCodeBlockLanguageLabel.ts'
+import rehypeHighlightSelectedLanguages from '../../lib/markdownHighlightJs.ts'
 
 interface MarkdownLine extends TextRange {
   text: string
@@ -56,6 +58,8 @@ const detailsBodyProcessor = unified()
   .use(rehypePrepareRawHtmlForSanitize)
   .use(rehypeSanitize, sanitizeSchema)
   .use(rehypeHardenRawHtml)
+  .use(rehypeCodeBlockLanguageLabel)
+  .use(rehypeHighlightSelectedLanguages)
   .use(rehypeKatex)
   .use(rehypeStringify)
 
@@ -81,15 +85,16 @@ export function collectWysiwygDetailsBlocks(
       const opening = parseDetailsOpeningLine(line.text)
       if (!opening) continue
 
+      const inlineSummary = opening.inlineSummary
       pending = {
         from: line.from,
         openingLineTo: line.to,
         open: opening.open,
         depth: 1,
-        summaryMarkdown: null,
-        summaryLineFrom: null,
-        summaryContentFrom: null,
-        bodyFrom: null,
+        summaryMarkdown: inlineSummary ? inlineSummary.markdown : null,
+        summaryLineFrom: inlineSummary ? line.from : null,
+        summaryContentFrom: inlineSummary ? line.from + inlineSummary.contentOffset : null,
+        bodyFrom: inlineSummary ? nextLineStart(markdown, line.to) : null,
       }
       continue
     }
@@ -164,12 +169,30 @@ function escapeHtml(value: string): string {
     .replace(/'/gu, '&#39;')
 }
 
-function parseDetailsOpeningLine(text: string): { open: boolean } | null {
-  const openingTag = parseWholeLineOpeningTag(text, 'details')
+function parseDetailsOpeningLine(text: string): {
+  open: boolean
+  inlineSummary?: { markdown: string; contentOffset: number }
+} | null {
+  const openingTag = parseLineOpeningTag(text, 'details')
   if (!openingTag) return null
+
+  const remainder = text.slice(openingTag.tagEnd)
+  if (remainder.trim().length === 0) {
+    return { open: hasOpenAttribute(openingTag.attributes) }
+  }
+
+  const summaryOpen = parseLineOpeningTag(remainder, 'summary')
+  if (!summaryOpen) return null
+
+  const closingMatch = summaryClosingLinePattern.exec(remainder)
+  if (!closingMatch || closingMatch.index < summaryOpen.tagEnd) return null
 
   return {
     open: hasOpenAttribute(openingTag.attributes),
+    inlineSummary: {
+      markdown: remainder.slice(summaryOpen.tagEnd, closingMatch.index).trim(),
+      contentOffset: openingTag.tagEnd + summaryOpen.tagEnd,
+    },
   }
 }
 
@@ -188,16 +211,6 @@ function parseSummaryLine(line: MarkdownLine): { markdown: string; contentFrom: 
   return {
     markdown: markdown.trim(),
     contentFrom: line.from + openingTag.tagEnd,
-  }
-}
-
-function parseWholeLineOpeningTag(text: string, tagName: string): { attributes: string } | null {
-  const openingTag = parseLineOpeningTag(text, tagName)
-  if (!openingTag) return null
-  if (text.slice(openingTag.tagEnd).trim().length > 0) return null
-
-  return {
-    attributes: openingTag.attributes,
   }
 }
 

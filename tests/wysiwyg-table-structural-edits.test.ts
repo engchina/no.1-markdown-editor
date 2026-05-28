@@ -130,7 +130,7 @@ test('resolveDeleteTableColumn refuses to drop a column when only two remain', (
 test('resolveSetTableColumnAlignment rewrites only the separator row', () => {
   const { table } = loadTable(SAMPLE_TABLE)
 
-  const plan = resolveSetTableColumnAlignment(table, 0, 'center')
+  const plan = resolveSetTableColumnAlignment(table, { section: 'head', rowIndex: 0, columnIndex: 0 }, 'center')
   assert.ok(plan)
   assert.deepEqual(plan!.focusLocation, { section: 'head', rowIndex: 0, columnIndex: 0 })
   assert.equal(
@@ -144,7 +144,29 @@ test('resolveSetTableColumnAlignment rewrites only the separator row', () => {
   )
 })
 
+test('resolveSetTableColumnAlignment keeps focus on the originating body cell', () => {
+  const { table } = loadTable(SAMPLE_TABLE)
+
+  const plan = resolveSetTableColumnAlignment(table, { section: 'body', rowIndex: 1, columnIndex: 2 }, 'center')
+  assert.ok(plan)
+  assert.deepEqual(plan!.focusLocation, { section: 'body', rowIndex: 1, columnIndex: 2 })
+
+  const oldCellEditAnchor = table.rows[1].cells[2].editAnchor
+  const oldSeparatorLength = '| --- | :---: | ---: |'.length
+  const newSeparatorLength = '| --- | :---: | :---: |'.length
+  const expectedFocus = oldCellEditAnchor + (newSeparatorLength - oldSeparatorLength)
+  assert.equal(plan!.focusCellEditAnchor, expectedFocus)
+})
+
+test('resolveSetTableColumnAlignment leaves head cell editAnchor unchanged', () => {
+  const { table } = loadTable(SAMPLE_TABLE)
+
+  const plan = resolveSetTableColumnAlignment(table, { section: 'head', rowIndex: 0, columnIndex: 0 }, 'center')
+  assert.ok(plan)
+  assert.equal(plan!.focusCellEditAnchor, table.header.cells[0].editAnchor)
+})
+
 test('resolveSetTableColumnAlignment is a noop when alignment already matches', () => {
   const { table } = loadTable(SAMPLE_TABLE)
-  assert.equal(resolveSetTableColumnAlignment(table, 1, 'center'), null)
+  assert.equal(resolveSetTableColumnAlignment(table, { section: 'head', rowIndex: 0, columnIndex: 1 }, 'center'), null)
 })

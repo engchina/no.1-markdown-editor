@@ -38,13 +38,27 @@ test('useSplitScrollSync uses a cooldown guard to break sync feedback loops', as
   assert.match(hook, /guard\.noteDrove\('preview'\)/)
 })
 
-test('useSplitScrollSync invalidates the line map on preview content/layout changes', async () => {
+test('useSplitScrollSync rebuilds the line map on every scroll (no stale-cache class of bugs)', async () => {
   const hook = await readSource('src/hooks/useSplitScrollSync.ts')
 
-  assert.match(hook, /new MutationObserver/)
-  assert.match(hook, /new ResizeObserver/)
-  // Image/media load events bubble — capture-phase listener catches them
-  assert.match(hook, /addEventListener\('load',\s*onLoad,\s*true\)/)
+  // Both scroll handlers must call buildSourceLineMap right before consulting
+  // it, rather than caching across events — caching across mutations was the
+  // root cause of preview-scroll snapping the editor to the top.
+  const buildCalls = (hook.match(/buildSourceLineMap\(readSourceLineEntries\(previewContainer\)\)/g) ?? []).length
+  assert.ok(buildCalls >= 2, `expected at least 2 JIT map rebuilds in scroll handlers, got ${buildCalls}`)
+})
+
+test('useSplitScrollSync resolves CM6 positions via screen coords (no documentTop assumption)', async () => {
+  const hook = await readSource('src/hooks/useSplitScrollSync.ts')
+
+  // posAtCoords + coordsAtPos let CodeMirror own the document-vs-scroll
+  // coordinate translation. Touching `view.documentTop` directly was unsafe.
+  assert.match(hook, /view\.posAtCoords\(/)
+  assert.match(hook, /view\.coordsAtPos\(/)
+  // Comments may still mention `documentTop` historically; what matters is that
+  // we never read `view.documentTop` at runtime.
+  assert.doesNotMatch(hook, /view\.documentTop/)
+  assert.doesNotMatch(hook, /\.documentTop\s*\?\?/)
 })
 
 test('CodeMirrorEditor publishes its EditorView to useScrollSyncStore', async () => {

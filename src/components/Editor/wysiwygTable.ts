@@ -445,6 +445,7 @@ export interface TableStructuralEditPlan {
   to: number
   insert: string
   focusLocation: MarkdownTableCellLocation
+  focusCellEditAnchor?: number
 }
 
 interface TableDraft {
@@ -586,20 +587,38 @@ export function resolveDeleteTableColumn(
 
 export function resolveSetTableColumnAlignment(
   table: MarkdownTableBlock,
-  columnIndex: number,
+  location: MarkdownTableCellLocation,
   alignment: TableAlignment
 ): TableStructuralEditPlan | null {
-  if (columnIndex < 0 || columnIndex >= table.alignments.length) return null
-  if (table.alignments[columnIndex] === alignment) return null
+  if (location.columnIndex < 0 || location.columnIndex >= table.alignments.length) return null
+  if (table.alignments[location.columnIndex] === alignment) return null
+
+  const targetCell = location.section === 'head'
+    ? table.header.cells[location.columnIndex]
+    : table.rows[location.rowIndex]?.cells[location.columnIndex]
+  if (!targetCell) return null
 
   const draft = toTableDraft(table)
-  draft.alignments[columnIndex] = alignment
+  draft.alignments[location.columnIndex] = alignment
 
-  return buildStructuralEditPlan(table, draft, {
-    section: 'head',
-    rowIndex: 0,
-    columnIndex,
+  const oldSeparatorLength = serializeTableSeparatorLine(table.alignments).length
+  const newSeparatorLength = serializeTableSeparatorLine(draft.alignments).length
+  const separatorDelta = newSeparatorLength - oldSeparatorLength
+  const focusCellEditAnchor = location.section === 'head'
+    ? targetCell.editAnchor
+    : targetCell.editAnchor + separatorDelta
+
+  const plan = buildStructuralEditPlan(table, draft, {
+    section: location.section,
+    rowIndex: location.rowIndex,
+    columnIndex: location.columnIndex,
   })
+  plan.focusCellEditAnchor = focusCellEditAnchor
+  return plan
+}
+
+function serializeTableSeparatorLine(alignments: readonly TableAlignment[]): string {
+  return `| ${alignments.map(serializeAlignmentMarker).join(' | ')} |`
 }
 
 function readMarkdownTableCellEscape(text: string, index: number): MarkdownTableCellEscapeToken | null {
