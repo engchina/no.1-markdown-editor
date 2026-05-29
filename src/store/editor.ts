@@ -6,17 +6,17 @@ import {
   clampFocusWidthPx,
   FOCUS_WIDTH_PRESET_VALUES,
   type FocusWidthMode,
-} from '../lib/focusWidth'
+} from '../lib/focusWidth.ts'
 import { clearEditorStateSnapshot } from '../lib/editorStateCache.ts'
 import {
   countRestorableDraftTabs,
   isRestorableDraftTab,
   restoreDraftTabs,
-} from '../lib/draftRecovery'
+} from '../lib/draftRecovery.ts'
 import { isSidebarSurfaceId, type SidebarSurfaceId } from '../lib/sidebarSurfaces.ts'
-import { clampSidebarWidth, SIDEBAR_DEFAULT_WIDTH } from '../lib/layout'
-import { pathMatchesPrefix, remapPathPrefix } from '../lib/fileTreePaths'
-import { pushInfoNotice } from '../lib/notices'
+import { clampSidebarWidth, SIDEBAR_DEFAULT_WIDTH } from '../lib/layout.ts'
+import { pathMatchesPrefix, remapPathPrefix } from '../lib/fileTreePaths.ts'
+import { pushInfoNotice } from '../lib/notices.ts'
 import type { AIDefaultWriteTarget } from '../lib/ai/opening.ts'
 import type { SpellcheckMode } from '../lib/documentLanguage.ts'
 

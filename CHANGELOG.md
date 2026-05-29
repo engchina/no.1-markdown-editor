@@ -20,6 +20,23 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.23.1 - 2026-05-30
+
+### Added
+
+### Changed
+
+- Browser tabs now separate webview creation from bounds and visibility syncing, preserving page state while the editor layout changes.
+
+### Fixed
+
+- Browser tabs now keep the address field, tab URL, and tab title in sync after in-page navigation.
+- Browser webviews now hide only when a dialog or large overlay actually overlaps the browser viewport.
+
+### Internal
+
+- Added store regression coverage for browser tab URL and title updates.
+
 ## 0.23.0 - 2026-05-29
 
 ### Added

@@ -32,23 +32,62 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
   const zoom = useEditorStore((state) => state.zoom)
   const [shouldHideWebview, setShouldHideWebview] = useState(false)
 
-  // Webview occlusion detector (checks for modal overlays and dropdown panels)
+  const currentUrlRef = useRef(initialUrl)
+  useEffect(() => {
+    currentUrlRef.current = currentUrl
+  }, [currentUrl])
+
+  // Webview occlusion detector (checks for modal overlays and dropdown panels overlapping the viewport)
   useEffect(() => {
     if (!isTauri) return
 
     const checkOverlays = () => {
+      const viewport = viewportRef.current
+      if (!viewport) return
+
+      const viewportRect = viewport.getBoundingClientRect()
+      if (viewportRect.width <= 0 || viewportRect.height <= 0) return
+
       const panels = document.querySelectorAll('.glass-panel')
-      let hasLargeOverlay = false
+      let hasOverlappingOverlay = false
+
       for (const panel of Array.from(panels)) {
         if (panel.getAttribute('role') === 'toolbar') continue
         if (panel.getAttribute('data-new-tab-menu') === 'true') continue
-        hasLargeOverlay = true
-        break
+
+        const panelRect = panel.getBoundingClientRect()
+        // Check if the panel overlaps with the browser viewport
+        if (
+          !(
+            panelRect.right < viewportRect.left ||
+            panelRect.left > viewportRect.right ||
+            panelRect.bottom < viewportRect.top ||
+            panelRect.top > viewportRect.bottom
+          )
+        ) {
+          hasOverlappingOverlay = true
+          break
+        }
       }
 
-      const hasDialog = document.querySelector('[role="dialog"]') !== null
-      const isOverlayActive = hasLargeOverlay || hasDialog
+      const dialogs = document.querySelectorAll('[role="dialog"]')
+      let hasOverlappingDialog = false
+      for (const dialog of Array.from(dialogs)) {
+        const dialogRect = dialog.getBoundingClientRect()
+        if (
+          !(
+            dialogRect.right < viewportRect.left ||
+            dialogRect.left > viewportRect.right ||
+            dialogRect.bottom < viewportRect.top ||
+            dialogRect.top > viewportRect.bottom
+          )
+        ) {
+          hasOverlappingDialog = true
+          break
+        }
+      }
 
+      const isOverlayActive = hasOverlappingOverlay || hasOverlappingDialog
       setShouldHideWebview(isOverlayActive)
     }
 
@@ -148,86 +187,47 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     }
   }, [label, tab.id])
 
-  // Manage Webview Lifecycle (Mount, Position, Resize, Unmount)
+  // Manage Webview Lifecycle (Mount / Unmount)
   useEffect(() => {
-    if (!isTauri || !viewportRef.current) return
+    if (!isTauri) return
 
-    let active = true
-    const viewport = viewportRef.current
-    void logDebug("BrowserContainer useEffect mounted for " + label)
+    void logDebug("BrowserContainer lifecycle mount for " + label)
 
-    const syncPosition = async () => {
-      if (!active) return
-
-      if (shouldHideWebview) {
-        try {
-          await invoke('show_browser_webview', { label, visible: false })
-        } catch (_) {}
-        return
-      }
+    const initWebview = async () => {
+      const viewport = viewportRef.current
+      if (!viewport) return
 
       const rect = viewport.getBoundingClientRect()
-      
-      // Skip if size is zero (unrendered or hidden tab)
-      if (rect.width <= 0 || rect.height <= 0) {
-        void logDebug("syncPosition skipped due to 0 size: w=" + rect.width + ", h=" + rect.height)
-        return
-      }
-
       let x = rect.left
       let y = rect.top
       let width = rect.width
       let height = rect.height
 
       if (newTabMenuOpen) {
-        const offset = 80
-        y += offset
-        height -= offset
+        y += 80
+        height -= 80
       }
 
-      void logDebug(`syncPosition calling create_browser_webview: x=${x}, y=${y}, w=${width}, h=${height}`)
-
       try {
-        // This command will create the webview if it doesn't exist,
-        // or show and reposition it if it already does.
         await invoke('create_browser_webview', {
           label,
-          url: currentUrl,
+          url: currentUrlRef.current,
           x,
           y,
           width,
           height,
         })
-        // Make sure it is visible when overlays disappear
-        await invoke('show_browser_webview', { label, visible: true })
-        // Set zoom level
-        const currentZoom = useEditorStore.getState().zoom
-        await invoke('browser_set_zoom', { label, zoom: currentZoom / 100 })
+        await invoke('show_browser_webview', { label, visible: !shouldHideWebview })
+        await invoke('browser_set_zoom', { label, zoom: zoom / 100 })
       } catch (e) {
-        void logDebug("syncPosition invoke ERROR: " + e)
+        void logDebug("initWebview invoke ERROR: " + e)
       }
     }
 
-    // Set up ResizeObserver to sync webview bounds on size changes
-    const resizeObserver = new ResizeObserver(() => {
-      void logDebug("ResizeObserver triggered")
-      void syncPosition()
-    })
-    resizeObserver.observe(viewport)
-
-    // Trigger initial positioning sync
-    void syncPosition()
-
-    // Handle scroll/layout shifts
-    window.addEventListener('resize', syncPosition)
+    void initWebview()
 
     return () => {
-      void logDebug("BrowserContainer useEffect cleanup for " + label)
-      active = false
-      resizeObserver.disconnect()
-      window.removeEventListener('resize', syncPosition)
-
-      // Hide or destroy based on tab existence (switch vs close)
+      void logDebug("BrowserContainer lifecycle unmount for " + label)
       void (async () => {
         try {
           const tabs = useEditorStore.getState().tabs
@@ -241,11 +241,82 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
             await invoke('destroy_browser_webview', { label })
           }
         } catch (e) {
-          void logDebug("cleanup invoke ERROR: " + e)
+          void logDebug("cleanup lifecycle invoke ERROR: " + e)
         }
       })()
     }
-  }, [label, tab.id, currentUrl, newTabMenuOpen, shouldHideWebview])
+  }, [label, tab.id])
+
+  // Sync Webview Bounds and Visibility dynamically (without recreating Webview)
+  useEffect(() => {
+    if (!isTauri || !viewportRef.current) return
+
+    let active = true
+    let rafId: number | null = null
+    const viewport = viewportRef.current
+
+    const syncPosition = () => {
+      if (!active) return
+
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
+
+      rafId = requestAnimationFrame(async () => {
+        if (!active) return
+
+        if (shouldHideWebview) {
+          try {
+            await invoke('show_browser_webview', { label, visible: false })
+          } catch (_) {}
+          return
+        }
+
+        const rect = viewport.getBoundingClientRect()
+        if (rect.width <= 0 || rect.height <= 0) return
+
+        let x = rect.left
+        let y = rect.top
+        let width = rect.width
+        let height = rect.height
+
+        if (newTabMenuOpen) {
+          y += 80
+          height -= 80
+        }
+
+        try {
+          await invoke('reposition_browser_webview', {
+            label,
+            x,
+            y,
+            width,
+            height,
+          })
+          await invoke('show_browser_webview', { label, visible: true })
+        } catch (_) {}
+      })
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      syncPosition()
+    })
+    resizeObserver.observe(viewport)
+
+    // Trigger initial positioning sync
+    syncPosition()
+
+    window.addEventListener('resize', syncPosition)
+
+    return () => {
+      active = false
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', syncPosition)
+    }
+  }, [label, newTabMenuOpen, shouldHideWebview])
 
   // Sync Webview zoom level when store zoom changes
   useEffect(() => {

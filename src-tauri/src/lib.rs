@@ -332,7 +332,16 @@ async fn create_browser_webview<R: tauri::Runtime>(
         append_log(&err_msg);
         err_msg
     })?);
-    let webview_builder = WebviewBuilder::new(&label, webview_url).zoom_hotkeys_enabled(true);
+    let label_clone = label.clone();
+    let app_handle = app.clone();
+    let webview_builder = WebviewBuilder::new(&label, webview_url)
+        .zoom_hotkeys_enabled(true)
+        .on_page_load(move |_webview, payload| {
+            if let tauri::webview::PageLoadEvent::Finished = payload.event() {
+                let url_str = payload.url().to_string();
+                let _ = app_handle.emit(&format!("browser-url-changed-{}", label_clone), url_str);
+            }
+        });
 
     let (tx, rx) = tokio::sync::oneshot::channel();
     let _ = app.run_on_main_thread(move || {
