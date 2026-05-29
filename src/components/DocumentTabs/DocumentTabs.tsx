@@ -1,12 +1,14 @@
 import { useTranslation } from 'react-i18next'
 import { useFileOps } from '../../hooks/useFileOps'
 import { useEditorStore } from '../../store/editor'
+import AppIcon from '../Icons/AppIcon'
 
 export default function DocumentTabs() {
   const { t } = useTranslation()
   const tabs = useEditorStore((state) => state.tabs)
   const activeTabId = useEditorStore((state) => state.activeTabId)
   const setActiveTab = useEditorStore((state) => state.setActiveTab)
+  const addTab = useEditorStore((state) => state.addTab)
   const { closeTabById } = useFileOps()
 
   if (tabs.length === 0) return null
@@ -43,13 +45,22 @@ export default function DocumentTabs() {
               className="flex h-full min-w-0 items-center gap-2 px-3 text-left"
               onClick={() => setActiveTab(tab.id)}
             >
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 flex-shrink-0 rounded-full"
-                style={{
-                  background: tab.isDirty ? 'var(--accent)' : 'color-mix(in srgb, var(--text-muted) 22%, transparent)',
-                }}
-              />
+              {tab.type === 'browser' ? (
+                <AppIcon
+                  name="globe"
+                  size={14}
+                  className="flex-shrink-0"
+                  style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 flex-shrink-0 rounded-full"
+                  style={{
+                    background: tab.isDirty ? 'var(--accent)' : 'color-mix(in srgb, var(--text-muted) 22%, transparent)',
+                  }}
+                />
+              )}
               <span className="truncate text-[13px]">{tab.name}</span>
             </button>
 
@@ -75,6 +86,16 @@ export default function DocumentTabs() {
           </div>
         )
       })}
+
+      <button
+        type="button"
+        title={t('toolbar.newBrowserTab') || "New Browser Tab"}
+        className="ml-2 mb-1.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
+        style={{ color: 'var(--text-muted)' }}
+        onClick={() => addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })}
+      >
+        <AppIcon name="globe" size={14} />
+      </button>
     </div>
   )
 }

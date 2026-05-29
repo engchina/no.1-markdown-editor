@@ -10,10 +10,16 @@
       "Bash(node --experimental-strip-types tests/editor-scroll-wiring.test.ts)",
       "Bash(node --experimental-strip-types --experimental-vm-modules tests/editor-scroll.test.ts)",
       "Bash(node --experimental-strip-types --experimental-vm-modules tests/editor-scroll-wiring.test.ts)",
+      "Bash(git merge *)",
       "Bash(git stash *)",
-      "Bash(git fsck *)",
-      "Bash(git apply *)",
-      "Bash(node --experimental-strip-types --test tests/editor-state-cache.test.ts)"
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('e:/workspace/no.1-markdown-editor-v2/src/i18n/locales/en.json','utf8'\\)\\); console.log\\('OK'\\)\")",
+      "Bash(node -e \"for \\(const f of ['en','ja','zh']\\) JSON.parse\\(require\\('fs'\\).readFileSync\\('e:/workspace/no.1-markdown-editor-v2/src/i18n/locales/'+f+'.json','utf8'\\)\\); console.log\\('OK'\\)\")",
+      "Bash(node --experimental-strip-types --test tests/imageHosting-urlBuilder.test.ts tests/imageHosting-replaceLocalImages.test.ts tests/imageHosting-i18n-completeness.test.ts)",
+      "Bash(node -e \"for \\(const f of ['en','ja','zh']\\) JSON.parse\\(require\\('fs'\\).readFileSync\\('src/i18n/locales/'+f+'.json','utf8'\\)\\); console.log\\('JSON OK'\\)\")",
+      "Bash(node --experimental-strip-types --test tests/imageHosting-i18n-completeness.test.ts)",
+      "Bash(node --experimental-strip-types --test tests/imageHosting-i18n-completeness.test.ts tests/imageHosting-replaceLocalImages.test.ts tests/imageHosting-urlBuilder.test.ts)"
     ]
   }
 }

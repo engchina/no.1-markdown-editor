@@ -33,6 +33,8 @@ export interface FileTab {
   content: string
   savedContent: string
   isDirty: boolean
+  type?: 'markdown' | 'browser'
+  url?: string
 }
 
 export interface CursorPos {
@@ -94,6 +96,7 @@ interface EditorState {
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
   updateTabContent: (id: string, content: string) => void
+  updateTabUrl: (id: string, url: string) => void
   saveTab: (id: string) => void
   setTabPath: (id: string, path: string, name: string) => void
   replaceTabFromDisk: (id: string, content: string) => void
@@ -177,16 +180,17 @@ function createNewTab(overrides: Partial<FileTab> = {}): FileTab {
   return {
     id,
     path: null,
-    name: i18n.t('app.untitled'),
+    name: overrides.type === 'browser' ? (overrides.name || 'New Tab') : i18n.t('app.untitled'),
     content: '',
     savedContent: '',
     isDirty: false,
+    type: 'markdown',
     ...overrides,
   }
 }
 
 function isReusableScratchTab(tab: FileTab): boolean {
-  return tab.path === null && !tab.isDirty && tab.content === '' && tab.savedContent === ''
+  return tab.path === null && !tab.isDirty && tab.content === '' && tab.savedContent === '' && tab.type !== 'browser'
 }
 
 const initialTab = createNewTab()
@@ -355,6 +359,23 @@ export const useEditorStore = create<EditorState>()(
           tabs: s.tabs.map((t) =>
             t.id === id ? { ...t, content, isDirty: content !== t.savedContent } : t
           ),
+        }))
+      },
+      updateTabUrl: (id, url) => {
+        set((s) => ({
+          tabs: s.tabs.map((t) => {
+            if (t.id === id) {
+              let name = t.name;
+              try {
+                const parsed = new URL(url);
+                name = parsed.hostname.replace('www.', '');
+              } catch (_) {
+                // If it fails to parse, fallback to current name
+              }
+              return { ...t, url, name };
+            }
+            return t;
+          }),
         }))
       },
       saveTab: (id) => {
