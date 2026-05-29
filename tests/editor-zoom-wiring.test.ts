@@ -44,3 +44,10 @@ test('command palette prioritizes and badges zoom commands ahead of font size co
   assert.match(palette, /case 'view\.fontSizeDecrease':\s+return <TextBadge label="A-" \/>/)
   assert.match(palette, /case 'view\.fontSizeReset':\s+return <TextBadge label="A" \/>/)
 })
+
+test('browser container subscribes to zoom and invokes browser_set_zoom', async () => {
+  const browserContainer = await readFile(new URL('../src/components/Browser/BrowserContainer.tsx', import.meta.url), 'utf8')
+
+  assert.match(browserContainer, /zoom = useEditorStore\(\(state\) => state\.zoom\)/)
+  assert.match(browserContainer, /await invoke\('browser_set_zoom', \{ label, zoom: (zoom|currentZoom) \/ 100 \}\)/)
+})

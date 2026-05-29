@@ -63,7 +63,9 @@
     "inline": "インライン装飾",
     "moreActions": "その他の書式と挿入",
     "imageHosting": "画像ホスティング",
-    "uploadImagesToHosting": "ローカル画像を GitHub 画像ホスティングへアップロード"
+    "uploadImagesToHosting": "ローカル画像を GitHub 画像ホスティングへアップロード",
+    "newMarkdown": "新規 Markdown 文書",
+    "newBrowser": "新規ブラウザタブ"
   },
   "viewMode": {
     "source": "ソース",

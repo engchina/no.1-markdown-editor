@@ -75,7 +75,9 @@ pub struct ImageHostingUploadResult {
 }
 
 #[tauri::command]
-pub fn image_hosting_load_state<R: Runtime>(app: AppHandle<R>) -> Result<ImageHostingState, String> {
+pub fn image_hosting_load_state<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<ImageHostingState, String> {
     let config = read_image_hosting_config(&app)?.unwrap_or_default();
     let has_pat = has_image_hosting_pat()?;
     Ok(ImageHostingState { config, has_pat })
@@ -123,10 +125,7 @@ pub async fn image_hosting_verify<R: Runtime>(app: AppHandle<R>) -> Result<Strin
 
     let pat = read_image_hosting_pat()?;
     let client = build_github_client()?;
-    let url = format!(
-        "{}/repos/{}/{}",
-        GITHUB_API_BASE, config.owner, config.repo
-    );
+    let url = format!("{}/repos/{}/{}", GITHUB_API_BASE, config.owner, config.repo);
     let response = client
         .get(&url)
         .header(ACCEPT, GITHUB_API_ACCEPT)
@@ -153,9 +152,7 @@ pub async fn image_hosting_verify<R: Runtime>(app: AppHandle<R>) -> Result<Strin
         ));
     }
     if !status.is_success() {
-        return Err(format!(
-            "GitHub API returned {status}: {response_text}"
-        ));
+        return Err(format!("GitHub API returned {status}: {response_text}"));
     }
 
     let body: serde_json::Value = serde_json::from_str(&response_text)
@@ -334,9 +331,7 @@ fn normalize_image_hosting_config(
     };
 
     if config.enabled && (owner.is_empty() || repo.is_empty()) {
-        return Err(
-            "Owner and repository are required when image hosting is enabled".to_string(),
-        );
+        return Err("Owner and repository are required when image hosting is enabled".to_string());
     }
 
     Ok(ImageHostingConfig {
@@ -374,8 +369,7 @@ fn write_image_hosting_config<R: Runtime>(
     }
     let body = serde_json::to_string_pretty(config)
         .map_err(|error| format!("Failed to serialize image hosting config: {error}"))?;
-    fs::write(path, body)
-        .map_err(|error| format!("Failed to write image hosting config: {error}"))
+    fs::write(path, body).map_err(|error| format!("Failed to write image hosting config: {error}"))
 }
 
 fn image_hosting_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {

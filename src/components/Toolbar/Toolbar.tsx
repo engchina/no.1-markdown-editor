@@ -348,6 +348,7 @@ export default function Toolbar({
     tabs,
     activeTabId,
     zoom,
+    addTab,
   } = useEditorStore()
 
   const { newFile, openFile, saveFile, saveFileAs } = useFileOps()
@@ -368,6 +369,7 @@ export default function Toolbar({
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
   const newShortcut = formatPrimaryShortcut('N')
+  const newBrowserShortcut = formatPrimaryShortcut('T')
   const openShortcut = formatPrimaryShortcut('O')
   const saveShortcut = formatPrimaryShortcut('S')
   const commandPaletteShortcut = formatPrimaryShortcut('P', { shift: true })
@@ -406,11 +408,42 @@ export default function Toolbar({
       setShowAISetup(true)
       setShowTheme(false)
       setShowAbout(false)
+      setShowImageHosting(false)
       window.requestAnimationFrame(() => aiSetupButtonRef.current?.focus())
+    }
+    const openThemePanel = () => {
+      setShowTheme(true)
+      setShowAISetup(false)
+      setShowAbout(false)
+      setShowImageHosting(false)
+      window.requestAnimationFrame(() => themeButtonRef.current?.focus())
+    }
+    const openImageHostingPanel = () => {
+      setShowImageHosting(true)
+      setShowTheme(false)
+      setShowAISetup(false)
+      setShowAbout(false)
+      window.requestAnimationFrame(() => imageHostingButtonRef.current?.focus())
+    }
+    const openAboutPanel = () => {
+      setShowAbout(true)
+      setShowTheme(false)
+      setShowAISetup(false)
+      setShowImageHosting(false)
+      window.requestAnimationFrame(() => aboutButtonRef.current?.focus())
     }
 
     document.addEventListener(EDITOR_AI_SETUP_OPEN_EVENT, openAISetupPanel)
-    return () => document.removeEventListener(EDITOR_AI_SETUP_OPEN_EVENT, openAISetupPanel)
+    document.addEventListener('app:theme-panel-open', openThemePanel)
+    document.addEventListener('app:image-hosting-open', openImageHostingPanel)
+    document.addEventListener('app:about-open', openAboutPanel)
+
+    return () => {
+      document.removeEventListener(EDITOR_AI_SETUP_OPEN_EVENT, openAISetupPanel)
+      document.removeEventListener('app:theme-panel-open', openThemePanel)
+      document.removeEventListener('app:image-hosting-open', openImageHostingPanel)
+      document.removeEventListener('app:about-open', openAboutPanel)
+    }
   }, [])
 
   const headingItems: ToolbarMenuItem[] = [
@@ -466,6 +499,9 @@ export default function Toolbar({
       <ToolbarGroup label={t('menu.file')}>
         <ToolbarBtn title={`${t('toolbar.new')} (${newShortcut})`} onClick={newFile}>
           <AppIcon name="filePlus" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn title={`${t('toolbar.newBrowser')} (${newBrowserShortcut})`} onClick={() => addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })}>
+          <AppIcon name="globe" size={16} />
         </ToolbarBtn>
         <ToolbarBtn title={`${t('toolbar.open')} (${openShortcut})`} onClick={() => void openFile()}>
           <AppIcon name="folderOpen" size={16} />

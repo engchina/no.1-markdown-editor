@@ -53,6 +53,7 @@ export type IconName =
   | 'wrap'
   | 'wysiwyg'
   | 'x'
+  | 'plus'
   | 'chevronRight'
   | 'chevronDown'
   | 'alertCircle'
@@ -114,6 +115,7 @@ const PATHS: Record<IconName, string> = {
   wrap: 'm3 11 3-3-3-3 M7 11h7a5 5 0 0 0 5-5v0a5 5 0 0 0-5-5H7',
   wysiwyg: 'M4 5h16v14H4z M12 5v14 M7 9h3 M7 13h2 M14 12c1.2-1.7 3.8-1.7 5 0-1.2 1.7-3.8 1.7-5 0z M16.5 12h.01',
   x: 'M18 6L6 18 M6 6l12 12',
+  plus: 'M12 5v14 M5 12h14',
   chevronRight: 'M9 6l6 6-6 6',
   chevronDown: 'M6 9l6 6 6-6',
   alertCircle: 'M12 8v5 M12 16h.01 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',

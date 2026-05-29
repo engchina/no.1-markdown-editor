@@ -8,7 +8,9 @@ use reqwest::header::{CONTENT_TYPE, USER_AGENT};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{Emitter, Manager, Position, Size, LogicalPosition, LogicalSize, WebviewBuilder, WebviewUrl};
+use tauri::{
+    Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, WebviewBuilder, WebviewUrl,
+};
 use tauri_plugin_fs::FsExt;
 
 const MAX_REMOTE_IMAGE_BYTES: usize = 12 * 1024 * 1024;
@@ -276,7 +278,12 @@ fn append_log(msg: &str) {
         .open("E:\\workspace\\no.1-markdown-editor-v2\\debug_webview.log")
     {
         use std::io::Write;
-        let _ = writeln!(file, "[{}] {}", chrono::Local::now().format("%H:%M:%S"), msg);
+        let _ = writeln!(
+            file,
+            "[{}] {}",
+            chrono::Local::now().format("%H:%M:%S"),
+            msg
+        );
     }
 }
 
@@ -295,7 +302,10 @@ async fn create_browser_webview<R: tauri::Runtime>(
     width: f64,
     height: f64,
 ) -> Result<(), String> {
-    append_log(&format!("create_browser_webview: label={}, url={}, x={}, y={}, w={}, h={}", label, url, x, y, width, height));
+    append_log(&format!(
+        "create_browser_webview: label={}, url={}, x={}, y={}, w={}, h={}",
+        label, url, x, y, width, height
+    ));
     let main_window = app
         .get_window("main")
         .ok_or_else(|| "Main window not found".to_string())?;
@@ -317,15 +327,12 @@ async fn create_browser_webview<R: tauri::Runtime>(
     }
 
     append_log("creating new child webview");
-    let webview_url = WebviewUrl::External(
-        url.parse()
-            .map_err(|error| {
-                let err_msg = format!("Invalid URL: {error}");
-                append_log(&err_msg);
-                err_msg
-            })?,
-    );
-    let webview_builder = WebviewBuilder::new(&label, webview_url);
+    let webview_url = WebviewUrl::External(url.parse().map_err(|error| {
+        let err_msg = format!("Invalid URL: {error}");
+        append_log(&err_msg);
+        err_msg
+    })?);
+    let webview_builder = WebviewBuilder::new(&label, webview_url).zoom_hotkeys_enabled(true);
 
     let (tx, rx) = tokio::sync::oneshot::channel();
     let _ = app.run_on_main_thread(move || {
@@ -426,7 +433,10 @@ async fn destroy_browser_webview<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-async fn browser_go_back<R: tauri::Runtime>(app: tauri::AppHandle<R>, label: String) -> Result<(), String> {
+async fn browser_go_back<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    label: String,
+) -> Result<(), String> {
     if let Some(webview) = app.get_webview(&label) {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let _ = app.run_on_main_thread(move || {
@@ -461,7 +471,10 @@ async fn browser_go_forward<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-async fn browser_reload<R: tauri::Runtime>(app: tauri::AppHandle<R>, label: String) -> Result<(), String> {
+async fn browser_reload<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    label: String,
+) -> Result<(), String> {
     if let Some(webview) = app.get_webview(&label) {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let _ = app.run_on_main_thread(move || {
@@ -491,6 +504,24 @@ async fn browser_navigate<R: tauri::Runtime>(
             let res = webview
                 .navigate(parsed_url)
                 .map_err(|error| error.to_string());
+            let _ = tx.send(res);
+        });
+        rx.await.map_err(|e| format!("Channel error: {e}"))?
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn browser_set_zoom<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    label: String,
+    zoom: f64,
+) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(&label) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = app.run_on_main_thread(move || {
+            let res = webview.set_zoom(zoom).map_err(|error| error.to_string());
             let _ = tx.send(res);
         });
         rx.await.map_err(|e| format!("Channel error: {e}"))?
@@ -628,14 +659,21 @@ pub fn run() {
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("editor-navigation-guard")
                 .on_navigation(|webview, url| {
-                    append_log(&format!("on_navigation: label={}, url={}", webview.label(), url));
+                    append_log(&format!(
+                        "on_navigation: label={}, url={}",
+                        webview.label(),
+                        url
+                    ));
                     if is_pdf_export_webview_label(webview.label()) {
                         // Hidden webviews created for silent PDF export are allowed to
                         // load the local `file://` source html we stage for them.
                         return true;
                     }
                     if is_browser_webview_label(webview.label()) {
-                        append_log(&format!("allowing navigation for browser label: {}", webview.label()));
+                        append_log(&format!(
+                            "allowing navigation for browser label: {}",
+                            webview.label()
+                        ));
                         return true;
                     }
                     let allowed = is_allowed_editor_navigation(url);
@@ -686,7 +724,8 @@ pub fn run() {
             browser_go_back,
             browser_go_forward,
             browser_reload,
-            browser_navigate
+            browser_navigate,
+            browser_set_zoom
         ])
         .setup(|_app| {
             #[cfg(debug_assertions)]
@@ -731,10 +770,9 @@ mod tests {
         let existing_path = make_temp_markdown_path("async-read");
         fs::write(&existing_path, "# async read").expect("write temp markdown file");
 
-        let content = tauri::async_runtime::block_on(read_file(
-            existing_path.to_string_lossy().into_owned(),
-        ))
-        .expect("read temp markdown file");
+        let content =
+            tauri::async_runtime::block_on(read_file(existing_path.to_string_lossy().into_owned()))
+                .expect("read temp markdown file");
 
         assert_eq!(content, "# async read");
 

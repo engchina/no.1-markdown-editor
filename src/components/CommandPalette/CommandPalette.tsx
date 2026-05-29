@@ -19,11 +19,12 @@ interface Props {
 const CATEGORY_ORDER = ['file', 'edit', 'ai', 'view', 'help', 'export', 'theme', 'language'] as const
 const COMMAND_PRIORITY = new Map<string, number>([
   ['file.new', 10],
-  ['file.open', 11],
-  ['file.save', 12],
-  ['file.saveAs', 13],
-  ['file.close', 14],
-  ['file.checkUpdates', 15],
+  ['browser.new', 11],
+  ['file.open', 12],
+  ['file.save', 13],
+  ['file.saveAs', 14],
+  ['file.close', 15],
+  ['file.checkUpdates', 16],
   ['file.recent.clear', 19],
   ['edit.undo', 100],
   ['edit.redo', 101],
@@ -185,6 +186,8 @@ function getCommandIndicator(command: Command, mode: Props['mode']): ReactNode {
   switch (command.id) {
     case 'file.new':
       return <SvgBadge name="filePlus" />
+    case 'browser.new':
+      return <SvgBadge name="globe" />
     case 'file.open':
       return <SvgBadge name="folderOpen" />
     case 'file.save':
@@ -276,6 +279,14 @@ function getCommandIndicator(command: Command, mode: Props['mode']): ReactNode {
       return <SvgBadge name="copy" />
     case 'export.copyHtmlSource':
       return <SvgBadge name="code" />
+    case 'view.appearance':
+      return <SvgBadge name="settings" />
+    case 'ai.setup':
+      return <SvgBadge name="sparkles" />
+    case 'edit.imageHosting':
+      return <SvgBadge name="cloudUpload" />
+    case 'help.about':
+      return <SvgBadge name="infoCircle" />
     default:
       return <SvgBadge name="outline" />
   }

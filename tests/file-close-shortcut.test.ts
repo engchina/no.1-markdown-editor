@@ -21,7 +21,7 @@ test('Ctrl/Cmd+W closes only the active file through the shared dirty-tab close 
   assert.match(fileOps, /const saved = await saveTabById\(tab\.id\)[\s\S]*closeTab\(tab\.id\)/)
   assert.match(fileOps, /closeTabById,\s*\n\s*closeActiveFile,/)
 
-  assert.match(tabs, /const \{ closeTabById \} = useFileOps\(\)/)
+  assert.match(tabs, /const \{[\s\S]*closeTabById[\s\S]*\} = useFileOps\(\)/)
   assert.match(tabs, /void closeTabById\(tab\.id\)/)
   assert.doesNotMatch(tabs, /window\.confirm\(/)
   assert.doesNotMatch(tabs, /@tauri-apps\/plugin-dialog/)

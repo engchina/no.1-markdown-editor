@@ -44,6 +44,10 @@ export function useCommands(): Command[] {
   const { exportHtml, exportPdf, exportMarkdown, copyAsHtml, copyHtmlSource } = useExport()
   const { recentFiles, openRecent, clearRecent } = useRecentFiles()
   const newShortcut = formatPrimaryShortcut('N')
+  const newBrowserShortcut = formatPrimaryShortcut('T')
+  const appearanceShortcut = formatPrimaryShortcut(',')
+  const aiSetupShortcut = formatPrimaryShortcut('J', { shift: true })
+  const imageHostingShortcut = formatPrimaryShortcut('H', { shift: true })
   const openShortcut = formatPrimaryShortcut('O')
   const saveShortcut = formatPrimaryShortcut('S')
   const saveAsShortcut = formatPrimaryShortcut('S', { shift: true })
@@ -89,6 +93,16 @@ export function useCommands(): Command[] {
         category: 'file',
         shortcut: newShortcut,
         action: newFile,
+      },
+      {
+        id: 'browser.new',
+        label: t('toolbar.newBrowser'),
+        icon: '🌐',
+        category: 'file',
+        shortcut: newBrowserShortcut,
+        action: () => {
+          store.addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })
+        },
       },
       {
         id: 'file.open',
@@ -256,6 +270,15 @@ export function useCommands(): Command[] {
         },
       },
       {
+        id: 'help.about',
+        label: t('toolbar.about'),
+        icon: 'ℹ️',
+        category: 'help',
+        action: () => {
+          document.dispatchEvent(new CustomEvent('app:about-open'))
+        },
+      },
+      {
         id: 'view.fontSizeIncrease',
         label: t('commands.increaseFontSize'),
         icon: 'A+',
@@ -275,6 +298,16 @@ export function useCommands(): Command[] {
         icon: 'A',
         category: 'view',
         action: () => store.setFontSize(14),
+      },
+      {
+        id: 'view.appearance',
+        label: t('toolbar.appearance'),
+        icon: '⚙️',
+        category: 'view',
+        shortcut: appearanceShortcut,
+        action: () => {
+          document.dispatchEvent(new CustomEvent('app:theme-panel-open'))
+        },
       },
       {
         id: 'edit.undo',
@@ -377,6 +410,16 @@ export function useCommands(): Command[] {
         category: 'ai',
         action: () => {
           dispatchEditorAIOpen({ ...createAIQuickActionOpenDetail('translate', t), source: 'command-palette' })
+        },
+      },
+      {
+        id: 'ai.setup',
+        label: t('toolbar.aiSetup'),
+        icon: '✨',
+        category: 'ai',
+        shortcut: aiSetupShortcut,
+        action: () => {
+          document.dispatchEvent(new CustomEvent('editor:ai-setup-open'))
         },
       },
       {
@@ -554,6 +597,16 @@ export function useCommands(): Command[] {
         action: () => emitFormat('normalizeSetextHeadings'),
       },
       {
+        id: 'edit.imageHosting',
+        label: t('toolbar.imageHosting'),
+        icon: '☁️',
+        category: 'edit',
+        shortcut: imageHostingShortcut,
+        action: () => {
+          document.dispatchEvent(new CustomEvent('app:image-hosting-open'))
+        },
+      },
+      {
         id: 'export.html',
         label: t('commands.exportHtml'),
         icon: '🌐',
@@ -639,6 +692,11 @@ export function useCommands(): Command[] {
   }, [
     clearRecent,
     closeActiveFile,
+    newBrowserShortcut,
+    appearanceShortcut,
+    aiSetupShortcut,
+    imageHostingShortcut,
+    store,
     closeFileShortcut,
     copyAsHtml,
     copyHtmlSource,

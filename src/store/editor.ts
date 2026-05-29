@@ -169,6 +169,8 @@ interface EditorState {
   setPreviewAutoRenderMermaid: (enabled: boolean) => void
   splitScrollSyncEnabled: boolean
   setSplitScrollSyncEnabled: (enabled: boolean) => void
+  newTabMenuOpen: boolean
+  setNewTabMenuOpen: (open: boolean) => void
 }
 
 function generateId() {
@@ -623,6 +625,8 @@ export const useEditorStore = create<EditorState>()(
       aiDefaultSelectedTextRole: 'transform-target',
       aiHistoryProviderRerankEnabled: true,
       aiHistoryProviderRerankBudget: 'balanced',
+      newTabMenuOpen: false,
+      setNewTabMenuOpen: (newTabMenuOpen) => set({ newTabMenuOpen }),
     }),
     {
       name: 'editor-settings',

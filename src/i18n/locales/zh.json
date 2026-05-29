@@ -63,7 +63,9 @@
     "inline": "行内样式",
     "moreActions": "更多格式与插入",
     "imageHosting": "图片图床",
-    "uploadImagesToHosting": "将本地图片上传到 GitHub 图床"
+    "uploadImagesToHosting": "将本地图片上传到 GitHub 图床",
+    "newMarkdown": "新建 Markdown 文件",
+    "newBrowser": "新建浏览器页签"
   },
   "viewMode": {
     "source": "源码",

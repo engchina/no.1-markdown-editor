@@ -63,7 +63,9 @@
     "inline": "Inline Styles",
     "moreActions": "More Formatting Tools",
     "imageHosting": "Image Hosting",
-    "uploadImagesToHosting": "Upload local images to GitHub image hosting"
+    "uploadImagesToHosting": "Upload local images to GitHub image hosting",
+    "newMarkdown": "New Markdown File",
+    "newBrowser": "New Browser Tab"
   },
   "viewMode": {
     "source": "Source",

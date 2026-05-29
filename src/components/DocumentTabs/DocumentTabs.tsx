@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useFileOps } from '../../hooks/useFileOps'
 import { useEditorStore } from '../../store/editor'
+import { formatPrimaryShortcut } from '../../lib/platform'
 import AppIcon from '../Icons/AppIcon'
 
 export default function DocumentTabs() {
@@ -9,7 +10,10 @@ export default function DocumentTabs() {
   const activeTabId = useEditorStore((state) => state.activeTabId)
   const setActiveTab = useEditorStore((state) => state.setActiveTab)
   const addTab = useEditorStore((state) => state.addTab)
-  const { closeTabById } = useFileOps()
+  const { closeTabById, newFile } = useFileOps()
+
+  const newShortcut = formatPrimaryShortcut('N')
+  const newBrowserShortcut = formatPrimaryShortcut('T')
 
   if (tabs.length === 0) return null
 
@@ -22,6 +26,11 @@ export default function DocumentTabs() {
         minHeight: '40px',
         background: 'color-mix(in srgb, var(--bg-secondary) 92%, transparent)',
         borderBottom: '1px solid var(--border)',
+      }}
+      onDoubleClick={(e) => {
+        if (e.target === e.currentTarget) {
+          newFile()
+        }
       }}
     >
       {tabs.map((tab) => {
@@ -87,15 +96,35 @@ export default function DocumentTabs() {
         )
       })}
 
-      <button
-        type="button"
-        title={t('toolbar.newBrowserTab') || "New Browser Tab"}
-        className="ml-2 mb-1.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
-        style={{ color: 'var(--text-muted)' }}
-        onClick={() => addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })}
+      <div
+        className="ml-2 mb-1.5 flex flex-shrink-0 items-center rounded-lg border shadow-sm transition-all"
+        style={{
+          borderColor: 'var(--border)',
+          background: 'color-mix(in srgb, var(--bg-secondary) 50%, transparent)',
+        }}
       >
-        <AppIcon name="globe" size={14} />
-      </button>
+        <button
+          type="button"
+          title={`${t('toolbar.newMarkdown')} (${newShortcut})`}
+          className="flex h-[26px] w-[28px] items-center justify-center rounded-l-[7px] transition-colors hover:bg-[var(--bg-tertiary)]"
+          style={{ color: 'var(--text-muted)' }}
+          onClick={() => newFile()}
+        >
+          <AppIcon name="filePlus" size={14} />
+        </button>
+
+        <div className="h-3 w-[1px]" style={{ background: 'var(--border)' }} />
+
+        <button
+          type="button"
+          title={`${t('toolbar.newBrowser')} (${newBrowserShortcut})`}
+          className="flex h-[26px] w-[28px] items-center justify-center rounded-r-[7px] transition-colors hover:bg-[var(--bg-tertiary)]"
+          style={{ color: 'var(--text-muted)' }}
+          onClick={() => addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })}
+        >
+          <AppIcon name="globe" size={14} />
+        </button>
+      </div>
     </div>
   )
 }

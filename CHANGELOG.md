@@ -20,6 +20,26 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.23.0 - 2026-05-29
+
+### Added
+
+- Added embedded browser tabs so writers can open web references beside Markdown documents without leaving the editor.
+- Added toolbar, tab-strip, command-palette, and keyboard access for creating browser tabs and opening appearance, AI setup, image hosting, and About panels.
+
+### Changed
+
+- The document tab strip now offers adjacent new Markdown and new Browser buttons, and double-clicking empty tab-strip space creates a new Markdown document.
+- Browser tabs now follow the editor zoom setting for more consistent reading size across Markdown and web content.
+
+### Fixed
+
+- Browser webviews are hidden while app dialogs and large overlay panels are open, preventing native web content from covering editor controls.
+
+### Internal
+
+- Added regression coverage for document-tab layout, browser zoom wiring, command palette shortcuts, and dirty-tab close behavior.
+
 ## 0.21.0 - 2026-05-28
 
 ### Added

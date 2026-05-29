@@ -28,6 +28,45 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
   const [urlInput, setUrlInput] = useState(initialUrl)
   const [currentUrl, setCurrentUrl] = useState(initialUrl)
   const viewportRef = useRef<HTMLDivElement>(null)
+  const newTabMenuOpen = useEditorStore((state) => state.newTabMenuOpen)
+  const zoom = useEditorStore((state) => state.zoom)
+  const [shouldHideWebview, setShouldHideWebview] = useState(false)
+
+  // Webview occlusion detector (checks for modal overlays and dropdown panels)
+  useEffect(() => {
+    if (!isTauri) return
+
+    const checkOverlays = () => {
+      const panels = document.querySelectorAll('.glass-panel')
+      let hasLargeOverlay = false
+      for (const panel of Array.from(panels)) {
+        if (panel.getAttribute('role') === 'toolbar') continue
+        if (panel.getAttribute('data-new-tab-menu') === 'true') continue
+        hasLargeOverlay = true
+        break
+      }
+
+      const hasDialog = document.querySelector('[role="dialog"]') !== null
+      const isOverlayActive = hasLargeOverlay || hasDialog
+
+      setShouldHideWebview(isOverlayActive)
+    }
+
+    // Initial run
+    checkOverlays()
+
+    // Observe child insertions and removals in body
+    const observer = new MutationObserver(() => {
+      checkOverlays()
+    })
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    })
+
+    return () => observer.disconnect()
+  }, [])
 
   // Navigate to url helper
   const navigateTo = async (targetUrl: string) => {
@@ -119,6 +158,14 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
 
     const syncPosition = async () => {
       if (!active) return
+
+      if (shouldHideWebview) {
+        try {
+          await invoke('show_browser_webview', { label, visible: false })
+        } catch (_) {}
+        return
+      }
+
       const rect = viewport.getBoundingClientRect()
       
       // Skip if size is zero (unrendered or hidden tab)
@@ -127,10 +174,16 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         return
       }
 
-      const x = rect.left
-      const y = rect.top
-      const width = rect.width
-      const height = rect.height
+      let x = rect.left
+      let y = rect.top
+      let width = rect.width
+      let height = rect.height
+
+      if (newTabMenuOpen) {
+        const offset = 80
+        y += offset
+        height -= offset
+      }
 
       void logDebug(`syncPosition calling create_browser_webview: x=${x}, y=${y}, w=${width}, h=${height}`)
 
@@ -145,6 +198,11 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
           width,
           height,
         })
+        // Make sure it is visible when overlays disappear
+        await invoke('show_browser_webview', { label, visible: true })
+        // Set zoom level
+        const currentZoom = useEditorStore.getState().zoom
+        await invoke('browser_set_zoom', { label, zoom: currentZoom / 100 })
       } catch (e) {
         void logDebug("syncPosition invoke ERROR: " + e)
       }
@@ -187,7 +245,26 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         }
       })()
     }
-  }, [label, tab.id, currentUrl])
+  }, [label, tab.id, currentUrl, newTabMenuOpen, shouldHideWebview])
+
+  // Sync Webview zoom level when store zoom changes
+  useEffect(() => {
+    if (!isTauri) return
+    let active = true
+    const updateZoom = async () => {
+      try {
+        if (active) {
+          await invoke('browser_set_zoom', { label, zoom: zoom / 100 })
+        }
+      } catch (e) {
+        void logDebug('Failed to set zoom: ' + e)
+      }
+    }
+    void updateZoom()
+    return () => {
+      active = false
+    }
+  }, [label, zoom])
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden" style={{ background: 'var(--editor-bg)' }}>

@@ -187,6 +187,9 @@ export default function App() {
       } else if (matchesPrimaryShortcut(event, { key: 'p' })) {
         event.preventDefault()
         setPaletteMode('file')
+      } else if (matchesPrimaryShortcut(event, { key: 'j', shift: true })) {
+        event.preventDefault()
+        document.dispatchEvent(new CustomEvent('editor:ai-setup-open'))
       } else if (matchesPrimaryShortcut(event, { key: 'j' })) {
         event.preventDefault()
         dispatchEditorAIOpen({ source: 'shortcut' })
@@ -196,6 +199,16 @@ export default function App() {
       } else if (matchesPrimaryShortcut(event, { key: 'w' })) {
         event.preventDefault()
         if (!event.repeat) void closeActiveFile()
+      } else if (matchesPrimaryShortcut(event, { key: 't' })) {
+        event.preventDefault()
+        const store = useEditorStore.getState()
+        store.addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })
+      } else if (matchesPrimaryShortcut(event, { key: ',' })) {
+        event.preventDefault()
+        document.dispatchEvent(new CustomEvent('app:theme-panel-open'))
+      } else if (matchesPrimaryShortcut(event, { key: 'h', shift: true })) {
+        event.preventDefault()
+        document.dispatchEvent(new CustomEvent('app:image-hosting-open'))
       }
 
       if (event.key === 'F11') {

@@ -51,6 +51,11 @@ test('keyboard shortcuts dialog is reachable from toolbar, command palette, and 
   assert.match(commands, /const closeFileShortcut = formatPrimaryShortcut\('W'\)/)
   assert.match(commands, /id: 'file\.close'[\s\S]*shortcut: closeFileShortcut[\s\S]*void closeActiveFile\(\)/)
   assert.match(commands, /id: 'help\.keyboardShortcuts'[\s\S]*shortcut: keyboardShortcutsShortcut[\s\S]*dispatchKeyboardShortcutsOpen\(\)/)
+  assert.match(commands, /id: 'browser\.new'[\s\S]*shortcut: newBrowserShortcut[\s\S]*store\.addTab/)
+  assert.match(commands, /id: 'view\.appearance'[\s\S]*shortcut: appearanceShortcut/)
+  assert.match(commands, /id: 'ai\.setup'[\s\S]*shortcut: aiSetupShortcut/)
+  assert.match(commands, /id: 'edit\.imageHosting'[\s\S]*shortcut: imageHostingShortcut/)
+  assert.match(commands, /id: 'help\.about'[\s\S]*app:about-open/)
 
   assert.match(palette, /const CATEGORY_ORDER = \['file', 'edit', 'ai', 'view', 'help', 'export', 'theme', 'language'\] as const/)
   assert.match(palette, /\['help\.keyboardShortcuts', 240]/)
