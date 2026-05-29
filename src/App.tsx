@@ -32,6 +32,7 @@ import { applyTheme, getThemeById } from './themes'
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const EditorPane = lazy(() => import('./components/Editor/EditorPane'))
 const MarkdownPreview = lazy(() => import('./components/Preview/MarkdownPreview'))
+const BrowserContainer = lazy(() => import('./components/Browser/BrowserContainer'))
 const CommandPalette = lazy(() => import('./components/CommandPalette/CommandPalette'))
 const KeyboardShortcutsDialog = lazy(() => import('./components/KeyboardShortcuts/KeyboardShortcutsDialog'))
 const AIComposer = lazy(() => import('./components/AI/AIComposer'))
@@ -602,40 +603,48 @@ export default function App() {
                 </div>
               ) : (
                 <div className="flex flex-1 min-h-0 min-w-0">
-                  {showEditor && (
-                    <div
-                      className="min-h-0 flex-shrink-0 overflow-hidden"
-                      style={{ width: showPreview ? `${editorRatio * 100}%` : '100%' }}
-                    >
-                      {renderEditorPane()}
-                    </div>
-                  )}
-
-                  {showEditor && showPreview && (
-                    <ResizableDivider
-                      variant="pane"
-                      ariaLabel={t('layout.splitResizeHandle')}
-                      hint={t('layout.resizeHint')}
-                      ariaValueMin={20}
-                      ariaValueMax={80}
-                      ariaValueNow={splitEditorPercent}
-                      ariaValueText={t('layout.splitResizeValue', {
-                        editor: splitEditorPercent,
-                        preview: splitPreviewPercent,
-                      })}
-                      onResize={handleSplitResize}
-                      onReset={resetSplitResize}
-                    />
-                  )}
-
-                  {showPreview && (
-                    <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
-                      {previewActivated ? (
-                        renderPreviewPane()
-                      ) : (
-                        <PreviewPlaceholder onActivate={() => activatePreview('manual')} />
+                  {activeTab?.type === 'browser' ? (
+                    <Suspense fallback={<EditorPlaceholder />}>
+                      <BrowserContainer tab={activeTab} />
+                    </Suspense>
+                  ) : (
+                    <>
+                      {showEditor && (
+                        <div
+                          className="min-h-0 flex-shrink-0 overflow-hidden"
+                          style={{ width: showPreview ? `${editorRatio * 100}%` : '100%' }}
+                        >
+                          {renderEditorPane()}
+                        </div>
                       )}
-                    </div>
+
+                      {showEditor && showPreview && (
+                        <ResizableDivider
+                          variant="pane"
+                          ariaLabel={t('layout.splitResizeHandle')}
+                          hint={t('layout.resizeHint')}
+                          ariaValueMin={20}
+                          ariaValueMax={80}
+                          ariaValueNow={splitEditorPercent}
+                          ariaValueText={t('layout.splitResizeValue', {
+                            editor: splitEditorPercent,
+                            preview: splitPreviewPercent,
+                          })}
+                          onResize={handleSplitResize}
+                          onReset={resetSplitResize}
+                        />
+                      )}
+
+                      {showPreview && (
+                        <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+                          {previewActivated ? (
+                            renderPreviewPane()
+                          ) : (
+                            <PreviewPlaceholder onActivate={() => activatePreview('manual')} />
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

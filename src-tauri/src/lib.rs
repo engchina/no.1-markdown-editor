@@ -8,7 +8,7 @@ use reqwest::header::{CONTENT_TYPE, USER_AGENT};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, Position, Size, LogicalPosition, LogicalSize, WebviewBuilder, WebviewUrl};
 use tauri_plugin_fs::FsExt;
 
 const MAX_REMOTE_IMAGE_BYTES: usize = 12 * 1024 * 1024;
@@ -265,6 +265,240 @@ fn is_pdf_export_webview_label(label: &str) -> bool {
     label.starts_with(pdf_export::PDF_WEBVIEW_LABEL_PREFIX)
 }
 
+fn is_browser_webview_label(label: &str) -> bool {
+    label.starts_with("browser-")
+}
+
+fn append_log(msg: &str) {
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("E:\\workspace\\no.1-markdown-editor-v2\\debug_webview.log")
+    {
+        use std::io::Write;
+        let _ = writeln!(file, "[{}] {}", chrono::Local::now().format("%H:%M:%S"), msg);
+    }
+}
+
+#[tauri::command]
+fn log_debug(msg: String) {
+    append_log(&format!("[JS] {}", msg));
+}
+
+#[tauri::command]
+async fn create_browser_webview<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    label: String,
+    url: String,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    append_log(&format!("create_browser_webview: label={}, url={}, x={}, y={}, w={}, h={}", label, url, x, y, width, height));
+    let main_window = app
+        .get_window("main")
+        .ok_or_else(|| "Main window not found".to_string())?;
+
+    if let Some(webview) = app.get_webview(&label) {
+        append_log("webview already exists, repositioning and showing");
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = app.run_on_main_thread(move || {
+            let res = (|| -> Result<(), String> {
+                let _ = webview.set_position(Position::Logical(LogicalPosition::new(x, y)));
+                let _ = webview.set_size(Size::Logical(LogicalSize::new(width, height)));
+                let _ = webview.show();
+                let _ = webview.set_focus();
+                Ok(())
+            })();
+            let _ = tx.send(res);
+        });
+        return rx.await.map_err(|e| format!("Channel error: {e}"))?;
+    }
+
+    append_log("creating new child webview");
+    let webview_url = WebviewUrl::External(
+        url.parse()
+            .map_err(|error| {
+                let err_msg = format!("Invalid URL: {error}");
+                append_log(&err_msg);
+                err_msg
+            })?,
+    );
+    let webview_builder = WebviewBuilder::new(&label, webview_url);
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let _ = app.run_on_main_thread(move || {
+        let res = (|| -> Result<(), String> {
+            let child = main_window
+                .add_child(
+                    webview_builder,
+                    LogicalPosition::new(x, y),
+                    LogicalSize::new(width, height),
+                )
+                .map_err(|error| {
+                    let err_msg = format!("Failed to create child webview: {error}");
+                    append_log(&err_msg);
+                    err_msg
+                })?;
+
+            let _ = child.show();
+            let _ = child.set_focus();
+            append_log("new child webview created and shown successfully");
+            Ok(())
+        })();
+        let _ = tx.send(res);
+    });
+
+    rx.await.map_err(|e| format!("Channel error: {e}"))?
+}
+
+#[tauri::command]
+async fn reposition_browser_webview<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    label: String,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(&label) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = app.run_on_main_thread(move || {
+            let res = (|| -> Result<(), String> {
+                webview
+                    .set_position(Position::Logical(LogicalPosition::new(x, y)))
+                    .map_err(|error| error.to_string())?;
+                webview
+                    .set_size(Size::Logical(LogicalSize::new(width, height)))
+                    .map_err(|error| error.to_string())?;
+                Ok(())
+            })();
+            let _ = tx.send(res);
+        });
+        rx.await.map_err(|e| format!("Channel error: {e}"))?
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn show_browser_webview<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    label: String,
+    visible: bool,
+) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(&label) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = app.run_on_main_thread(move || {
+            let res = (|| -> Result<(), String> {
+                if visible {
+                    webview.show().map_err(|error| error.to_string())?;
+                    webview.set_focus().map_err(|error| error.to_string())?;
+                } else {
+                    webview.hide().map_err(|error| error.to_string())?;
+                }
+                Ok(())
+            })();
+            let _ = tx.send(res);
+        });
+        rx.await.map_err(|e| format!("Channel error: {e}"))?
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn destroy_browser_webview<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    label: String,
+) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(&label) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = app.run_on_main_thread(move || {
+            let res = webview.close().map_err(|error| error.to_string());
+            let _ = tx.send(res);
+        });
+        rx.await.map_err(|e| format!("Channel error: {e}"))?
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn browser_go_back<R: tauri::Runtime>(app: tauri::AppHandle<R>, label: String) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(&label) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = app.run_on_main_thread(move || {
+            let res = webview
+                .eval("window.history.back()")
+                .map_err(|error| error.to_string());
+            let _ = tx.send(res);
+        });
+        rx.await.map_err(|e| format!("Channel error: {e}"))?
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn browser_go_forward<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    label: String,
+) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(&label) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = app.run_on_main_thread(move || {
+            let res = webview
+                .eval("window.history.forward()")
+                .map_err(|error| error.to_string());
+            let _ = tx.send(res);
+        });
+        rx.await.map_err(|e| format!("Channel error: {e}"))?
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn browser_reload<R: tauri::Runtime>(app: tauri::AppHandle<R>, label: String) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(&label) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = app.run_on_main_thread(move || {
+            let res = webview
+                .eval("window.location.reload()")
+                .map_err(|error| error.to_string());
+            let _ = tx.send(res);
+        });
+        rx.await.map_err(|e| format!("Channel error: {e}"))?
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn browser_navigate<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    label: String,
+    url: String,
+) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(&label) {
+        let parsed_url = url
+            .parse()
+            .map_err(|error| format!("Invalid URL: {error}"))?;
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = app.run_on_main_thread(move || {
+            let res = webview
+                .navigate(parsed_url)
+                .map_err(|error| error.to_string());
+            let _ = tx.send(res);
+        });
+        rx.await.map_err(|e| format!("Channel error: {e}"))?
+    } else {
+        Ok(())
+    }
+}
+
 fn is_editor_loopback_host(host: Option<&str>) -> bool {
     host.is_some_and(|host| {
         matches!(host, "localhost" | "127.0.0.1" | "::1") || host.ends_with(".localhost")
@@ -394,12 +628,19 @@ pub fn run() {
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("editor-navigation-guard")
                 .on_navigation(|webview, url| {
+                    append_log(&format!("on_navigation: label={}, url={}", webview.label(), url));
                     if is_pdf_export_webview_label(webview.label()) {
                         // Hidden webviews created for silent PDF export are allowed to
                         // load the local `file://` source html we stage for them.
                         return true;
                     }
-                    is_allowed_editor_navigation(url)
+                    if is_browser_webview_label(webview.label()) {
+                        append_log(&format!("allowing navigation for browser label: {}", webview.label()));
+                        return true;
+                    }
+                    let allowed = is_allowed_editor_navigation(url);
+                    append_log(&format!("is_allowed_editor_navigation: {}", allowed));
+                    allowed
                 })
                 .build(),
         )
@@ -436,7 +677,16 @@ pub fn run() {
             fetch_remote_image_data_url,
             fetch_local_image_data_url,
             pdf_export::export_pdf_to_file,
-            update::check_for_app_update
+            update::check_for_app_update,
+            log_debug,
+            create_browser_webview,
+            reposition_browser_webview,
+            show_browser_webview,
+            destroy_browser_webview,
+            browser_go_back,
+            browser_go_forward,
+            browser_reload,
+            browser_navigate
         ])
         .setup(|_app| {
             #[cfg(debug_assertions)]
