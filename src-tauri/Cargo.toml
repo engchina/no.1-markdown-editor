@@ -1,6 +1,6 @@
 [package]
 name = "no1-markdown-editor"
-version = "0.23.1"
+version = "0.24.0"
 description = "No.1 Markdown Editor — Free Forever"
 authors = []
 edition = "2021"
@@ -34,8 +34,8 @@ tokio = { version = "1", features = ["rt", "sync"] }
 tauri-plugin-single-instance = "2"
 
 [target."cfg(windows)".dependencies]
-webview2-com = "0.37"
-windows = { version = "0.61", features = ["Win32_Foundation"] }
+webview2-com = "0.38"
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell"] }
 
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2 = "0.6"
@@ -54,3 +54,4 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+

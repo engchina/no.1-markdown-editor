@@ -408,6 +408,7 @@
       "heading": "Heading",
       "note": "Note",
       "search": "Search",
+      "webpage": "Webpage",
       "language": "Document Language",
       "frontMatter": "Front Matter",
       "promptOnly": "No context attached. AI will only receive your instruction.",

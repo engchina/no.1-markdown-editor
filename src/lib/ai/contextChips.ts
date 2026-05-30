@@ -1,7 +1,7 @@
 import type { AIContextPacket } from './types.ts'
 
 export interface AIContextChipModel {
-  kind: 'selection' | 'block' | 'heading' | 'frontMatter' | 'note' | 'search'
+  kind: 'selection' | 'block' | 'heading' | 'frontMatter' | 'note' | 'search' | 'webpage'
   value?: string
 }
 
@@ -29,6 +29,13 @@ export function buildAIContextChipModels(context: AIContextPacket | null): AICon
     if (attachment.kind === 'search') {
       chips.push({
         kind: 'search',
+        value: attachment.label,
+      })
+    }
+
+    if (attachment.kind === 'webpage') {
+      chips.push({
+        kind: 'webpage',
         value: attachment.label,
       })
     }

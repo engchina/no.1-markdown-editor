@@ -297,12 +297,19 @@ export default function App() {
           detail.source === 'slash-command'
             ? buildAISlashCommandContext(detail.slashCommandContext ?? '')
             : undefined
-        const effectiveContext = slashCommandContext
-          ? {
-              ...context,
-              slashCommandContext,
-            }
-          : context
+        const extraAttachments = detail.explicitContextAttachments ?? []
+        const effectiveContext = {
+          ...context,
+          ...(slashCommandContext ? { slashCommandContext } : {}),
+          ...(extraAttachments.length
+            ? {
+                explicitContextAttachments: [
+                  ...(context.explicitContextAttachments ?? []),
+                  ...extraAttachments,
+                ],
+              }
+            : {}),
+        }
         const blockRange = resolveCurrentBlockRange(fallbackTab.content, offset) ?? {
           from: offset,
           to: offset,

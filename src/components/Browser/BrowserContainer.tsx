@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { useTranslation } from 'react-i18next'
 import { useEditorStore } from '../../store/editor'
+import { collectPageContent } from '../../lib/browser/agentBridge'
+import {
+  appendWebClipToDocument,
+  buildWebClipMarkdown,
+  buildWebpageAttachment,
+} from '../../lib/browser/webClip'
+import { dispatchEditorAIOpen } from '../../lib/ai/events'
+import { pushErrorNotice, pushSuccessNotice } from '../../lib/notices'
 
 interface BrowserContainerProps {
   tab: {
@@ -23,6 +32,7 @@ const logDebug = async (msg: string) => {
 }
 
 export default function BrowserContainer({ tab }: BrowserContainerProps) {
+  const { t } = useTranslation()
   const label = `browser-${tab.id}`
   const initialUrl = tab.url || 'https://google.com'
   const [urlInput, setUrlInput] = useState(initialUrl)
@@ -30,14 +40,64 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const newTabMenuOpen = useEditorStore((state) => state.newTabMenuOpen)
   const zoom = useEditorStore((state) => state.zoom)
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
   const [shouldHideWebview, setShouldHideWebview] = useState(false)
+  const [agentBusy, setAgentBusy] = useState<null | 'clip' | 'ask'>(null)
+  const isCapturingRef = useRef(false)
 
-  const currentUrlRef = useRef(initialUrl)
-  useEffect(() => {
-    currentUrlRef.current = currentUrl
-  }, [currentUrl])
+  // Clip the current page into a Markdown note (scenario 1). Captures the page
+  // via the agent bridge, then appends source-attributed Markdown to a target
+  // markdown tab (reusing the most recent one, or creating a new one when only
+  // browser tabs are open).
+  const clipPageToMarkdown = async () => {
+    if (!isTauri || agentBusy) return
+    setAgentBusy('clip')
+    try {
+      const snapshot = await collectPageContent(label)
+      const clip = buildWebClipMarkdown(snapshot)
+      const store = useEditorStore.getState()
+      let targetId = [...store.tabs].reverse().find((other) => other.type !== 'browser')?.id ?? null
+      if (!targetId) {
+        targetId = store.addTab({ type: 'markdown' })
+      }
+      const current = useEditorStore.getState().tabs.find((other) => other.id === targetId)?.content ?? ''
+      useEditorStore.getState().updateTabContent(targetId, appendWebClipToDocument(current, clip))
+      useEditorStore.getState().setActiveTab(targetId)
+      pushSuccessNotice('browser.agent.clipSuccess')
+    } catch (e) {
+      void logDebug('clip failed: ' + e)
+      pushErrorNotice('browser.agent.clipError', 'browser.agent.clipError')
+    } finally {
+      setAgentBusy(null)
+    }
+  }
 
-  // Webview occlusion detector (checks for modal overlays and dropdown panels overlapping the viewport)
+  // Ask AI about the current page (scenario 2). Captures the page and opens the
+  // shared AI composer with the page content injected as a `webpage` context
+  // attachment; the composer's occlusion detector hides the native webview so
+  // the overlay is visible.
+  const askAboutPage = async () => {
+    if (!isTauri || agentBusy) return
+    setAgentBusy('ask')
+    try {
+      const snapshot = await collectPageContent(label)
+      dispatchEditorAIOpen({
+        source: 'command-palette',
+        intent: 'ask',
+        outputTarget: 'chat-only',
+        explicitContextAttachments: [buildWebpageAttachment(snapshot)],
+      })
+    } catch (e) {
+      void logDebug('ask failed: ' + e)
+      pushErrorNotice('browser.agent.askError', 'browser.agent.askError')
+    } finally {
+      setAgentBusy(null)
+    }
+  }
+
+  // Webview occlusion detector (checks for modal overlays and dropdown panels overlapping the viewport).
+  // Native child webviews always paint above DOM, so before hiding we capture a
+  // screenshot of the page to show as a placeholder, preventing a white flash.
   useEffect(() => {
     if (!isTauri) return
 
@@ -48,47 +108,57 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
       const viewportRect = viewport.getBoundingClientRect()
       if (viewportRect.width <= 0 || viewportRect.height <= 0) return
 
-      const panels = document.querySelectorAll('.glass-panel')
-      let hasOverlappingOverlay = false
+      let shouldHide = false
 
-      for (const panel of Array.from(panels)) {
-        if (panel.getAttribute('role') === 'toolbar') continue
-        if (panel.getAttribute('data-new-tab-menu') === 'true') continue
+      // Query for settings panels, dialogs, and the command palette backdrop overlay
+      const overlays = document.querySelectorAll('.glass-panel, [role="dialog"], .command-palette__backdrop')
 
-        const panelRect = panel.getBoundingClientRect()
-        // Check if the panel overlaps with the browser viewport
-        if (
-          !(
-            panelRect.right < viewportRect.left ||
-            panelRect.left > viewportRect.right ||
-            panelRect.bottom < viewportRect.top ||
-            panelRect.top > viewportRect.bottom
-          )
-        ) {
-          hasOverlappingOverlay = true
+      for (const overlay of Array.from(overlays)) {
+        if (overlay.getAttribute('role') === 'toolbar') continue
+        if (overlay.getAttribute('data-new-tab-menu') === 'true') continue
+
+        const rect = overlay.getBoundingClientRect()
+        // Check if there is actual intersection with the viewport
+        const intersects = !(
+          rect.right <= viewportRect.left ||
+          rect.left >= viewportRect.right ||
+          rect.bottom <= viewportRect.top ||
+          rect.top >= viewportRect.bottom
+        )
+
+        if (intersects) {
+          shouldHide = true
           break
         }
       }
 
-      const dialogs = document.querySelectorAll('[role="dialog"]')
-      let hasOverlappingDialog = false
-      for (const dialog of Array.from(dialogs)) {
-        const dialogRect = dialog.getBoundingClientRect()
-        if (
-          !(
-            dialogRect.right < viewportRect.left ||
-            dialogRect.left > viewportRect.right ||
-            dialogRect.bottom < viewportRect.top ||
-            dialogRect.top > viewportRect.bottom
-          )
-        ) {
-          hasOverlappingDialog = true
-          break
+      if (shouldHide) {
+        if (!screenshotUrl && !isCapturingRef.current) {
+          isCapturingRef.current = true
+          void logDebug('Initiating webview screenshot capture...')
+          invoke<string>('capture_browser_webview', { label })
+            .then((b64) => {
+              void logDebug('Screenshot capture successful!')
+              setScreenshotUrl(b64)
+              setShouldHideWebview(true)
+            })
+            .catch((err) => {
+              void logDebug('Screenshot capture failed: ' + err)
+              setShouldHideWebview(true)
+            })
+            .finally(() => {
+              isCapturingRef.current = false
+            })
+          return
         }
-      }
 
-      const isOverlayActive = hasOverlappingOverlay || hasOverlappingDialog
-      setShouldHideWebview(isOverlayActive)
+        if (screenshotUrl) {
+          setShouldHideWebview(true)
+        }
+      } else {
+        setScreenshotUrl(null)
+        setShouldHideWebview(false)
+      }
     }
 
     // Initial run
@@ -105,7 +175,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     })
 
     return () => observer.disconnect()
-  }, [])
+  }, [screenshotUrl, label])
 
   // Navigate to url helper
   const navigateTo = async (targetUrl: string) => {
@@ -187,47 +257,86 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     }
   }, [label, tab.id])
 
-  // Manage Webview Lifecycle (Mount / Unmount)
+  // Manage Webview Lifecycle (Mount, Position, Resize, Unmount)
   useEffect(() => {
-    if (!isTauri) return
+    if (!isTauri || !viewportRef.current) return
 
-    void logDebug("BrowserContainer lifecycle mount for " + label)
+    let active = true
+    const viewport = viewportRef.current
+    void logDebug("BrowserContainer useEffect mounted for " + label)
 
-    const initWebview = async () => {
-      const viewport = viewportRef.current
-      if (!viewport) return
+    const syncPosition = async () => {
+      if (!active) return
+
+      if (shouldHideWebview) {
+        try {
+          await invoke('show_browser_webview', { label, visible: false })
+        } catch (_) {}
+        return
+      }
 
       const rect = viewport.getBoundingClientRect()
+
+      // Skip if size is zero (unrendered or hidden tab)
+      if (rect.width <= 0 || rect.height <= 0) {
+        void logDebug("syncPosition skipped due to 0 size: w=" + rect.width + ", h=" + rect.height)
+        return
+      }
+
       let x = rect.left
       let y = rect.top
       let width = rect.width
       let height = rect.height
 
       if (newTabMenuOpen) {
-        y += 80
-        height -= 80
+        const offset = 80
+        y += offset
+        height -= offset
       }
 
+      void logDebug(`syncPosition calling create_browser_webview: x=${x}, y=${y}, w=${width}, h=${height}`)
+
       try {
+        // This command will create the webview if it doesn't exist,
+        // or show and reposition it if it already does.
         await invoke('create_browser_webview', {
           label,
-          url: currentUrlRef.current,
+          url: currentUrl,
           x,
           y,
           width,
           height,
         })
-        await invoke('show_browser_webview', { label, visible: !shouldHideWebview })
-        await invoke('browser_set_zoom', { label, zoom: zoom / 100 })
+        // Make sure it is visible when overlays disappear
+        await invoke('show_browser_webview', { label, visible: true })
+        // Set zoom level
+        const currentZoom = useEditorStore.getState().zoom
+        await invoke('browser_set_zoom', { label, zoom: currentZoom / 100 })
       } catch (e) {
-        void logDebug("initWebview invoke ERROR: " + e)
+        void logDebug("syncPosition invoke ERROR: " + e)
       }
     }
 
-    void initWebview()
+    // Set up ResizeObserver to sync webview bounds on size changes
+    const resizeObserver = new ResizeObserver(() => {
+      void logDebug("ResizeObserver triggered")
+      void syncPosition()
+    })
+    resizeObserver.observe(viewport)
+
+    // Trigger initial positioning sync
+    void syncPosition()
+
+    // Handle scroll/layout shifts
+    window.addEventListener('resize', syncPosition)
 
     return () => {
-      void logDebug("BrowserContainer lifecycle unmount for " + label)
+      void logDebug("BrowserContainer useEffect cleanup for " + label)
+      active = false
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', syncPosition)
+
+      // Hide or destroy based on tab existence (switch vs close)
       void (async () => {
         try {
           const tabs = useEditorStore.getState().tabs
@@ -241,82 +350,11 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
             await invoke('destroy_browser_webview', { label })
           }
         } catch (e) {
-          void logDebug("cleanup lifecycle invoke ERROR: " + e)
+          void logDebug("cleanup invoke ERROR: " + e)
         }
       })()
     }
-  }, [label, tab.id])
-
-  // Sync Webview Bounds and Visibility dynamically (without recreating Webview)
-  useEffect(() => {
-    if (!isTauri || !viewportRef.current) return
-
-    let active = true
-    let rafId: number | null = null
-    const viewport = viewportRef.current
-
-    const syncPosition = () => {
-      if (!active) return
-
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId)
-      }
-
-      rafId = requestAnimationFrame(async () => {
-        if (!active) return
-
-        if (shouldHideWebview) {
-          try {
-            await invoke('show_browser_webview', { label, visible: false })
-          } catch (_) {}
-          return
-        }
-
-        const rect = viewport.getBoundingClientRect()
-        if (rect.width <= 0 || rect.height <= 0) return
-
-        let x = rect.left
-        let y = rect.top
-        let width = rect.width
-        let height = rect.height
-
-        if (newTabMenuOpen) {
-          y += 80
-          height -= 80
-        }
-
-        try {
-          await invoke('reposition_browser_webview', {
-            label,
-            x,
-            y,
-            width,
-            height,
-          })
-          await invoke('show_browser_webview', { label, visible: true })
-        } catch (_) {}
-      })
-    }
-
-    const resizeObserver = new ResizeObserver(() => {
-      syncPosition()
-    })
-    resizeObserver.observe(viewport)
-
-    // Trigger initial positioning sync
-    syncPosition()
-
-    window.addEventListener('resize', syncPosition)
-
-    return () => {
-      active = false
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId)
-      }
-      resizeObserver.disconnect()
-      window.removeEventListener('resize', syncPosition)
-    }
-  }, [label, newTabMenuOpen, shouldHideWebview])
+  }, [label, tab.id, currentUrl, newTabMenuOpen, shouldHideWebview])
 
   // Sync Webview zoom level when store zoom changes
   useEffect(() => {
@@ -422,10 +460,53 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
             }}
           />
         </form>
+
+        {/* Clip page to Markdown (scenario 1) */}
+        <button
+          type="button"
+          onClick={clipPageToMarkdown}
+          disabled={agentBusy !== null}
+          title={t('browser.agent.clip')}
+          aria-label={t('browser.agent.clip')}
+          className="h-7 px-2 flex items-center gap-1 rounded-md text-xs hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <polyline points="17 21 17 13 7 13 7 21" />
+            <polyline points="7 3 7 8 15 8" />
+          </svg>
+          <span className="hidden sm:inline">{agentBusy === 'clip' ? t('browser.agent.working') : t('browser.agent.clip')}</span>
+        </button>
+
+        {/* Ask AI about this page (scenario 2) */}
+        <button
+          type="button"
+          onClick={askAboutPage}
+          disabled={agentBusy !== null}
+          title={t('browser.agent.ask')}
+          aria-label={t('browser.agent.ask')}
+          className="h-7 px-2 flex items-center gap-1 rounded-md text-xs hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span className="hidden sm:inline">{agentBusy === 'ask' ? t('browser.agent.working') : t('browser.agent.ask')}</span>
+        </button>
       </div>
 
       {/* Webview Position Viewport Placeholder */}
       <div ref={viewportRef} className="flex-1 w-full h-full relative" style={{ background: '#ffffff' }}>
+        {/* Screenshot stand-in shown while the native webview is hidden behind an overlay */}
+        {isTauri && shouldHideWebview && screenshotUrl && (
+          <img
+            src={screenshotUrl}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover object-top pointer-events-none select-none"
+          />
+        )}
         {!isTauri && (
           <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center" style={{ color: 'var(--text-muted)' }}>
             <svg className="mb-4 opacity-40 animate-bounce" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>

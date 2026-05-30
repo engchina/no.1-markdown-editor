@@ -33,6 +33,13 @@ const baseContext: AIContextPacket = {
       detail: '2 hits across 1 note',
       content: 'Workspace search for "roadmap":\n- demo.md:8',
     },
+    {
+      id: 'webpage:https://example.com',
+      kind: 'webpage',
+      label: 'Example Domain',
+      detail: 'https://example.com',
+      content: 'Webpage: Example Domain\nURL: https://example.com\n\nExample body',
+    },
   ],
 }
 
@@ -44,6 +51,7 @@ test('buildAIContextChipModels mirrors the visible context that should be shown 
     { kind: 'frontMatter' },
     { kind: 'note', value: 'project-plan.md' },
     { kind: 'search', value: 'roadmap' },
+    { kind: 'webpage', value: 'Example Domain' },
   ])
 })
 

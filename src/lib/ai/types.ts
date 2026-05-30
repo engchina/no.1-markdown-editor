@@ -50,9 +50,11 @@ export type AIHostedAgentTransport = 'http-json' | 'sse'
 export type AIMCPExecutionTransport = 'stdio' | 'streamable-http'
 export type AIOracleEnrichmentMode = 'full' | 'partial' | 'delta'
 export type AIStorageKind = 'keyring' | 'unsupported'
-export type AIExplicitContextKind = 'note' | 'search'
-export type AIPromptMentionKind = AIExplicitContextKind
-export type AIProvenanceKind = 'apply' | 'ghost-text' | 'new-note'
+export type AIExplicitContextKind = 'note' | 'search' | 'webpage'
+// Webpage attachments are produced programmatically from a browser tab, never
+// from `@`-mentions, so the mention kind intentionally excludes 'webpage'.
+export type AIPromptMentionKind = 'note' | 'search'
+export type AIProvenanceKind = 'apply' | 'ghost-text' | 'new-note' | 'web-clip'
 export type AIDraftFormat = 'markdown' | 'sql' | 'text'
 export type AIPromptMentionErrorCode =
   | 'note-not-found'

@@ -1,6 +1,7 @@
 import type {
   AIApplySnapshot,
   AIComposerSource,
+  AIExplicitContextAttachment,
   AIIntent,
   AIOutputTarget,
   AIProvenanceKind,
@@ -22,6 +23,12 @@ export interface EditorAIOpenDetail {
   outputTarget?: AIOutputTarget
   selectedTextRole?: AISelectedTextRole
   slashCommandContext?: string
+  /**
+   * Extra context attachments to merge into the built context packet. Used by
+   * the browser tab to inject the current page's readable content as a
+   * `webpage` attachment when there is no editor host to assemble it.
+   */
+  explicitContextAttachments?: AIExplicitContextAttachment[]
 }
 
 export interface EditorAIApplyDetail {

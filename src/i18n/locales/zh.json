@@ -403,6 +403,7 @@
       "heading": "标题",
       "note": "笔记",
       "search": "搜索",
+      "webpage": "网页",
       "language": "文档语言",
       "frontMatter": "Front Matter",
       "promptOnly": "未附加上下文。AI 只会收到你输入的指令。",

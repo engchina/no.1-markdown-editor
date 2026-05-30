@@ -403,6 +403,7 @@
       "heading": "見出し",
       "note": "ノート",
       "search": "検索",
+      "webpage": "ウェブページ",
       "language": "文書言語",
       "frontMatter": "フロントマター",
       "promptOnly": "コンテキストは添付されていません。AI には入力した指示だけが送信されます。",

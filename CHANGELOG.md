@@ -20,6 +20,23 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.24.0 - 2026-05-30
+
+### Added
+
+- Browser tabs can now clip the current web page into a Markdown note with source attribution.
+- Browser tabs can now open the AI composer with the current web page captured as explicit context.
+
+### Changed
+
+- Browser tabs now show a captured page snapshot while native webviews are hidden behind overlapping editor dialogs.
+
+### Fixed
+
+### Internal
+
+- Added browser agent bridge and web clip regression coverage.
+
 ## 0.23.1 - 2026-05-30
 
 ### Added
