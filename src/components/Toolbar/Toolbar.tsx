@@ -10,6 +10,7 @@ import { formatPrimaryShortcut, matchesPrimaryShortcut } from '../../lib/platfor
 import { EDITOR_AI_SETUP_OPEN_EVENT } from '../../lib/ai/events'
 import { triggerImageHostingUploadForActiveDocument } from '../../lib/imageHosting/triggerUpload'
 import { getKeyboardShortcutsShortcutLabel } from '../../lib/keyboardShortcuts'
+import { DEFAULT_BROWSER_URL } from '../../lib/browser/defaults'
 import type { FormatAction } from '../Editor/formatCommands'
 import { getFormatShortcutLabel } from '../Editor/formatShortcuts'
 import AppIcon, { type IconName } from '../Icons/AppIcon'
@@ -500,7 +501,7 @@ export default function Toolbar({
         <ToolbarBtn title={`${t('toolbar.new')} (${newShortcut})`} onClick={newFile}>
           <AppIcon name="filePlus" size={16} />
         </ToolbarBtn>
-        <ToolbarBtn title={`${t('toolbar.newBrowser')} (${newBrowserShortcut})`} onClick={() => addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })}>
+        <ToolbarBtn title={`${t('toolbar.newBrowser')} (${newBrowserShortcut})`} onClick={() => addTab({ type: 'browser', url: DEFAULT_BROWSER_URL, name: 'Browser' })}>
           <AppIcon name="globe" size={16} />
         </ToolbarBtn>
         <ToolbarBtn title={`${t('toolbar.open')} (${openShortcut})`} onClick={() => void openFile()}>

@@ -20,6 +20,21 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.24.1 - 2026-05-30
+
+### Added
+
+### Changed
+
+- Browser tabs now open new browser pages at `https://www.google.com/`.
+- Browser page clips now open as a separate unsaved Markdown note instead of appending to an existing note.
+
+### Fixed
+
+- Browser agent toolbar actions now display localized labels instead of raw translation keys.
+
+### Internal
+
 ## 0.24.0 - 2026-05-30
 
 ### Added

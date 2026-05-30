@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.23.0`.
+This document is a draft for the next public release after `v0.24.0`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,53 +8,52 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.23.1`
+`No.1 Markdown Editor v0.24.1`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.23.1 tightens embedded browser tab behavior. Browser tabs now preserve page state while the editor layout changes, keep the address field and tab title synchronized after navigation, and avoid hiding native web content unless an overlay actually covers the browser viewport.
+No.1 Markdown Editor v0.24.1 improves the embedded browser writing workflow. Browser agent actions now show localized labels, browser clips open in their own unsaved Markdown note, and new browser tabs start from `https://www.google.com/`.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Keep browser tab URLs and titles synchronized after in-page navigation.
-- Preserve browser page state while resizing or opening editor panels.
-- Hide native browser webviews only when an overlay overlaps the browser viewport.
+- Show localized browser agent toolbar labels instead of raw action keys.
+- Save browser clips into a new unsaved Markdown note by default.
+- Open new browser tabs at `https://www.google.com/`.
 
 ### Why This Release Matters
 
-Browser tabs are most useful when they behave like stable writing context instead of disposable previews. This patch focuses on keeping web references steady while users resize the editor, switch panels, or navigate inside a page.
+Browser research should not unexpectedly rewrite an active note. This patch keeps captured web content separate by default and makes the browser toolbar easier to understand across English, Japanese, and Chinese.
 
 ### User-Facing Improvements
 
-#### Browser Tab Reliability
+#### Browser Agent Actions
 
-- The browser address field updates when the native webview navigates.
-- Browser tab URLs and titles are persisted back into editor tab state.
-- Browser webviews are repositioned without being recreated during layout changes.
+- Browser agent toolbar actions display translated labels.
+- The clip action creates a separate Markdown draft note with the captured page content.
+- Existing open notes are left unchanged when clipping from a browser tab.
 
-#### Overlay Handling
+#### Browser Defaults
 
-- Dialogs and large panels hide browser webviews only when they overlap the browser viewport.
-- Non-overlapping editor surfaces no longer unnecessarily hide browser tabs.
+- New browser tabs and browser creation commands now start at `https://www.google.com/`.
 
 #### Reliability
 
-- Regression tests cover browser tab URL and title updates in the editor store.
+- Regression tests cover browser agent localization, clip routing, and default browser URL wiring.
 
 ### Suggested Upgrade Notes Section
 
-- Browser tabs keep their current URL and derived title as users navigate.
+- Browser clips now create a new unsaved Markdown note instead of appending to an existing note.
 - Existing Markdown documents and image-hosting settings are unchanged.
 
 ### Suggested Who Should Update Section
 
 This release is especially relevant for users who:
 
-- keep browser references open while writing
-- use editor panels alongside browser tabs
-- rely on tab titles to identify current browser pages
+- use browser tabs to collect Markdown references
+- work in English, Japanese, or Chinese
+- expect new browser pages to start from Google
 
 ## Packaging Checklist Before Release
 
@@ -62,7 +61,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.23.1 --date 2026-05-30` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.23.1` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.23.1` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.23.1` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.24.1 --date 2026-05-30` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.24.1` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.24.1` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.24.1` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

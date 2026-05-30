@@ -1122,6 +1122,16 @@
       "uploadFailedMessage": "{{reason}}"
     }
   },
+  "browser": {
+    "agent": {
+      "clip": "クリップ",
+      "ask": "質問",
+      "working": "処理中...",
+      "clipSuccess": "新しいノートにクリップしました",
+      "clipError": "このページをクリップできませんでした",
+      "askError": "このページを AI に添付できませんでした"
+    }
+  },
   "runtimeError": {
     "appEyebrow": "ランタイムエラー",
     "appTitle": "エディターで予期しないエラーが発生しました",

@@ -1128,6 +1128,16 @@
       "uploadFailedMessage": "{{reason}}"
     }
   },
+  "browser": {
+    "agent": {
+      "clip": "Clip",
+      "ask": "Ask",
+      "working": "Working...",
+      "clipSuccess": "Clipped to new note",
+      "clipError": "Could not clip this page",
+      "askError": "Could not attach this page to AI"
+    }
+  },
   "runtimeError": {
     "appEyebrow": "Runtime Error",
     "appTitle": "The editor hit an unexpected error",

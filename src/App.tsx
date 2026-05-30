@@ -24,6 +24,7 @@ import { clampSidebarWidth, SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MI
 import { hasPrimaryModifier, matchesPrimaryShortcut } from './lib/platform'
 import { maybeRunAutomaticUpdateCheck } from './lib/updateActions'
 import { KEYBOARD_SHORTCUTS_OPEN_EVENT } from './lib/keyboardShortcuts'
+import { DEFAULT_BROWSER_URL } from './lib/browser/defaults'
 import { useAIStore } from './store/ai'
 import { useUpdateStore } from './store/update'
 import { useActiveTab, useEditorStore } from './store/editor'
@@ -202,7 +203,7 @@ export default function App() {
       } else if (matchesPrimaryShortcut(event, { key: 't' })) {
         event.preventDefault()
         const store = useEditorStore.getState()
-        store.addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })
+        store.addTab({ type: 'browser', url: DEFAULT_BROWSER_URL, name: 'Browser' })
       } else if (matchesPrimaryShortcut(event, { key: ',' })) {
         event.preventDefault()
         document.dispatchEvent(new CustomEvent('app:theme-panel-open'))

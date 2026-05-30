@@ -5,10 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { useEditorStore } from '../../store/editor'
 import { collectPageContent } from '../../lib/browser/agentBridge'
 import {
-  appendWebClipToDocument,
   buildWebClipMarkdown,
   buildWebpageAttachment,
 } from '../../lib/browser/webClip'
+import { DEFAULT_BROWSER_URL } from '../../lib/browser/defaults'
 import { dispatchEditorAIOpen } from '../../lib/ai/events'
 import { pushErrorNotice, pushSuccessNotice } from '../../lib/notices'
 
@@ -34,7 +34,7 @@ const logDebug = async (msg: string) => {
 export default function BrowserContainer({ tab }: BrowserContainerProps) {
   const { t } = useTranslation()
   const label = `browser-${tab.id}`
-  const initialUrl = tab.url || 'https://google.com'
+  const initialUrl = tab.url || DEFAULT_BROWSER_URL
   const [urlInput, setUrlInput] = useState(initialUrl)
   const [currentUrl, setCurrentUrl] = useState(initialUrl)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -45,24 +45,20 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
   const [agentBusy, setAgentBusy] = useState<null | 'clip' | 'ask'>(null)
   const isCapturingRef = useRef(false)
 
-  // Clip the current page into a Markdown note (scenario 1). Captures the page
-  // via the agent bridge, then appends source-attributed Markdown to a target
-  // markdown tab (reusing the most recent one, or creating a new one when only
-  // browser tabs are open).
+  // Clip the current page into its own Markdown draft so web research never
+  // mutates the note the writer already has open.
   const clipPageToMarkdown = async () => {
     if (!isTauri || agentBusy) return
     setAgentBusy('clip')
     try {
       const snapshot = await collectPageContent(label)
       const clip = buildWebClipMarkdown(snapshot)
-      const store = useEditorStore.getState()
-      let targetId = [...store.tabs].reverse().find((other) => other.type !== 'browser')?.id ?? null
-      if (!targetId) {
-        targetId = store.addTab({ type: 'markdown' })
-      }
-      const current = useEditorStore.getState().tabs.find((other) => other.id === targetId)?.content ?? ''
-      useEditorStore.getState().updateTabContent(targetId, appendWebClipToDocument(current, clip))
-      useEditorStore.getState().setActiveTab(targetId)
+      useEditorStore.getState().addTab({
+        type: 'markdown',
+        content: clip,
+        savedContent: '',
+        isDirty: true,
+      })
       pushSuccessNotice('browser.agent.clipSuccess')
     } catch (e) {
       void logDebug('clip failed: ' + e)
@@ -428,7 +424,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         {/* Home Button */}
         <button
           type="button"
-          onClick={() => navigateTo('https://google.com')}
+          onClick={() => navigateTo(DEFAULT_BROWSER_URL)}
           title="Home"
           className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
           style={{ color: 'var(--text-primary)' }}

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useFileOps } from '../../hooks/useFileOps'
 import { useEditorStore } from '../../store/editor'
 import { formatPrimaryShortcut } from '../../lib/platform'
+import { DEFAULT_BROWSER_URL } from '../../lib/browser/defaults'
 import AppIcon from '../Icons/AppIcon'
 
 export default function DocumentTabs() {
@@ -120,7 +121,7 @@ export default function DocumentTabs() {
           title={`${t('toolbar.newBrowser')} (${newBrowserShortcut})`}
           className="flex h-[26px] w-[28px] items-center justify-center rounded-r-[7px] transition-colors hover:bg-[var(--bg-tertiary)]"
           style={{ color: 'var(--text-muted)' }}
-          onClick={() => addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })}
+          onClick={() => addTab({ type: 'browser', url: DEFAULT_BROWSER_URL, name: 'Browser' })}
         >
           <AppIcon name="globe" size={14} />
         </button>

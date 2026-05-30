@@ -1122,6 +1122,16 @@
       "uploadFailedMessage": "{{reason}}"
     }
   },
+  "browser": {
+    "agent": {
+      "clip": "剪藏",
+      "ask": "提问",
+      "working": "处理中...",
+      "clipSuccess": "已剪藏到新笔记",
+      "clipError": "无法剪藏此页面",
+      "askError": "无法将此页面附加到 AI"
+    }
+  },
   "runtimeError": {
     "appEyebrow": "运行时错误",
     "appTitle": "编辑器遇到了意外错误",

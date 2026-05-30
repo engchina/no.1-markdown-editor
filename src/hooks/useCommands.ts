@@ -13,6 +13,7 @@ import { formatPrimaryShortcut } from '../lib/platform'
 import { runManualUpdateCheck } from '../lib/updateActions'
 import { triggerImageHostingUploadForActiveDocument } from '../lib/imageHosting/triggerUpload'
 import { dispatchKeyboardShortcutsOpen, getKeyboardShortcutsShortcutLabel } from '../lib/keyboardShortcuts'
+import { DEFAULT_BROWSER_URL } from '../lib/browser/defaults'
 import {
   SIDEBAR_SURFACE_META,
   getSidebarSurfaceCommandId,
@@ -101,7 +102,7 @@ export function useCommands(): Command[] {
         category: 'file',
         shortcut: newBrowserShortcut,
         action: () => {
-          store.addTab({ type: 'browser', url: 'https://google.com', name: 'Browser' })
+          store.addTab({ type: 'browser', url: DEFAULT_BROWSER_URL, name: 'Browser' })
         },
       },
       {
