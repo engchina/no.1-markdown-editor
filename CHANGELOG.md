@@ -20,6 +20,22 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.25.1 - 2026-05-31
+
+### Added
+
+### Changed
+
+- Browser tabs now route app-level shortcuts such as new file, open file, save, close tab, command palette, AI, sidebar, focus mode, and zoom through the editor instead of letting the embedded web page consume them.
+
+### Fixed
+
+- Windows browser tabs now keep editor shortcuts working while the embedded WebView has focus.
+
+### Internal
+
+- Added regression coverage for the browser shortcut bridge and shared app shortcut runner.
+
 ## 0.25.0 - 2026-05-31
 
 ### Added

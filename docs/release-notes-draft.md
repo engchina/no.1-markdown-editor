@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.24.1`.
+This document is a draft for the next public release after `v0.25.0`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,76 +8,54 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.25.0`
+`No.1 Markdown Editor v0.25.1`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.25.0 strengthens browser-assisted AI writing. Browser page context is now passed to AI as explicit untrusted source material, clipped pages preserve readable Markdown with normalized source links, and browser controls are localized across English, Japanese, and Chinese.
+No.1 Markdown Editor v0.25.1 fixes browser-tab keyboard shortcuts. App-level shortcuts now keep working when an embedded browser page has focus, so writers can create, open, save, close, search, use AI, toggle layout, and adjust zoom without leaving the browser tab.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Pass attached notes, searches, and browser pages into AI requests as explicit untrusted source context.
-- Open `http` and `https` Markdown links in a new in-editor Browser tab.
-- Preserve readable Markdown and normalized page-relative links when clipping or asking about a browser page.
-- Improve browser page capture with article, selection, visible-content, and list extraction modes.
-- Localize browser navigation controls, the address field, and the desktop-only browser placeholder.
-- Keep OCI Responses routing active even when the optional Project field is blank.
+- Keep app-level keyboard shortcuts working while a Windows browser WebView has focus.
+- Route browser WebView shortcuts through the same app command runner used by regular editor shortcuts.
+- Disable native WebView zoom hotkeys so editor zoom remains consistent across editor, preview, and browser surfaces.
+- Preserve repeat handling for close-tab shortcuts so holding the shortcut does not close multiple files unexpectedly.
 
 ### Why This Release Matters
 
-Browser research only works if the model sees the right page content and the editor keeps that content safe. This release makes attached context visible to AI as source material, hardens page capture, and keeps browser UI text understandable across English, Japanese, and Chinese.
+Browser tabs should feel like part of the editor, not a separate app embedded inside it. This patch keeps core editor commands available even when focus is inside the web page, which makes browser-based research and writing flow more predictably.
 
 ### User-Facing Improvements
 
-#### Browser AI Context
+#### Browser Shortcut Handling
 
-- Attached notes, workspace search results, and browser pages are included in AI prompts as clearly bounded source context.
-- Attached context is marked untrusted so instructions embedded inside pages or search results are not treated as commands.
-- Browser webpage attachments identify Markdown as the content format and retain source URL provenance.
+- Windows browser tabs now forward recognized app shortcuts from WebView2 to the editor shell.
+- The editor handles forwarded browser shortcuts with the same command runner used by global keyboard shortcuts.
+- Supported commands include file actions, browser tab creation, file switcher, command palette, AI, AI setup, keyboard shortcuts, appearance, image hosting, focus mode, sidebar, and zoom controls.
 
-#### Markdown Link Opening
+#### Shortcut Reliability
 
-- `http` and `https` links opened from the editor or preview now create a Browser tab inside the app.
-- Non-web protocols such as `mailto:` and `tel:` continue to use the external opener path.
-
-#### Browser Capture
-
-- Browser clips and AI webpage attachments prefer readable Markdown over raw page text.
-- Relative links and images captured from pages are normalized against the current page URL.
-- Browser page capture can now use article, selection, visible-content, and list extraction modes.
-- Capture diagnostics report the selected extraction source, root, content length, Markdown length, and filtered elements.
-- The browser title-channel fallback now validates request ids, chunk sizes, and pending requests before accepting page content.
-
-#### Browser Localization
-
-- Browser navigation buttons now use localized accessible labels.
-- The address field placeholder and desktop-only browser placeholder now render in English, Japanese, and Chinese.
-
-#### AI Provider Routing
-
-- OCI Responses configuration no longer falls back to OpenAI-compatible chat routing only because the Project field is blank.
+- Browser WebView native zoom hotkeys are disabled so `Ctrl/Cmd +`, `Ctrl/Cmd -`, and `Ctrl/Cmd 0` stay aligned with the editor zoom state.
+- Repeated close-file shortcut events are ignored for browser-forwarded shortcuts, matching the existing document shortcut behavior.
 
 #### Reliability
 
-- Regression tests cover attached AI context, browser clip Markdown fidelity, browser bridge URL normalization, browser localization wiring, OCI routing, and browser title-channel validation.
-- Regression tests cover routing Markdown web links into internal Browser tabs while keeping non-web protocols on the external-opener path.
+- Regression tests cover the shared app shortcut runner, the Windows browser accelerator bridge, disabled WebView native zoom hotkeys, and close-file repeat handling.
 
 ### Suggested Upgrade Notes Section
 
-- Existing Markdown documents and image-hosting settings are unchanged.
-- OCI users can leave the Project field blank without changing away from the Responses route.
+- Existing Markdown documents, browser tabs, AI settings, and image-hosting settings are unchanged.
+- This patch changes shortcut routing only; page content and browser navigation behavior are unchanged.
 
 ### Suggested Who Should Update Section
 
 This release is especially relevant for users who:
 
-- use browser tabs to collect Markdown references
-- ask AI questions about the current browser page
-- prefer web research to stay inside the editor instead of switching to an external browser
-- use OCI Responses-compatible AI configuration
-- work in English, Japanese, or Chinese
+- use browser tabs while writing
+- rely on keyboard shortcuts for file, AI, layout, or zoom actions
+- work on Windows with embedded browser pages focused
 
 ## Packaging Checklist Before Release
 
@@ -85,7 +63,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.25.0 --date 2026-05-31` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.25.0` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.25.0` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.25.0` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.25.1 --date 2026-05-31` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.25.1` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.25.1` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.25.1` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

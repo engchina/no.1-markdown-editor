@@ -46,8 +46,12 @@ test('command palette prioritizes and badges zoom commands ahead of font size co
 })
 
 test('browser container subscribes to zoom and invokes browser_set_zoom', async () => {
-  const browserContainer = await readFile(new URL('../src/components/Browser/BrowserContainer.tsx', import.meta.url), 'utf8')
+  const [browserContainer, rust] = await Promise.all([
+    readFile(new URL('../src/components/Browser/BrowserContainer.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8'),
+  ])
 
   assert.match(browserContainer, /zoom = useEditorStore\(\(state\) => state\.zoom\)/)
   assert.match(browserContainer, /await invoke\('browser_set_zoom', \{ label, zoom: (zoom|currentZoom) \/ 100 \}\)/)
+  assert.match(rust, /\.zoom_hotkeys_enabled\(false\)/)
 })

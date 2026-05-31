@@ -25,6 +25,11 @@ import { hasPrimaryModifier, matchesPrimaryShortcut } from './lib/platform'
 import { maybeRunAutomaticUpdateCheck } from './lib/updateActions'
 import { KEYBOARD_SHORTCUTS_OPEN_EVENT } from './lib/keyboardShortcuts'
 import { DEFAULT_BROWSER_URL } from './lib/browser/defaults'
+import {
+  APP_BROWSER_SHORTCUT_EVENT,
+  type AppBrowserShortcutCommand,
+  type AppBrowserShortcutPayload,
+} from './lib/browser/shortcuts'
 import { useAIStore } from './store/ai'
 import { useUpdateStore } from './store/update'
 import { useActiveTab, useEditorStore } from './store/editor'
@@ -119,7 +124,7 @@ export default function App() {
   const externalConflictDialogOpen = useEditorStore(
     (state) => state.externalMissingFiles.length === 0 && state.externalFileConflicts.length > 0
   )
-  const { saveAllDirtyTabs, closeActiveFile } = useFileOps()
+  const { newFile, openFile, saveFile, saveFileAs, saveAllDirtyTabs, closeActiveFile } = useFileOps()
   const [paletteMode, setPaletteMode] = useState<'command' | 'file' | null>(null)
   const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false)
   const [previewActivationByTabId, setPreviewActivationByTabId] = useState<Map<string, PreviewActivation>>(() => new Map())
@@ -138,6 +143,70 @@ export default function App() {
   } as CSSProperties
   useDocumentDrop()
   useExternalFileChanges()
+
+  const runAppShortcutCommand = useCallback(
+    (command: AppBrowserShortcutCommand, options: { repeat?: boolean } = {}) => {
+      const store = useEditorStore.getState()
+
+      switch (command) {
+        case 'file.new':
+          newFile()
+          break
+        case 'file.open':
+          void openFile()
+          break
+        case 'file.save':
+          void saveFile()
+          break
+        case 'file.saveAs':
+          void saveFileAs()
+          break
+        case 'file.close':
+          if (!options.repeat) void closeActiveFile()
+          break
+        case 'browser.new':
+          store.addTab({ type: 'browser', url: DEFAULT_BROWSER_URL, name: 'Browser' })
+          break
+        case 'file.switchOpen':
+          setPaletteMode('file')
+          break
+        case 'view.commandPalette':
+          setPaletteMode('command')
+          break
+        case 'ai.open':
+          dispatchEditorAIOpen({ source: 'shortcut' })
+          break
+        case 'ai.setup':
+          document.dispatchEvent(new CustomEvent('editor:ai-setup-open'))
+          break
+        case 'help.keyboardShortcuts':
+          setKeyboardShortcutsOpen(true)
+          break
+        case 'view.appearance':
+          document.dispatchEvent(new CustomEvent('app:theme-panel-open'))
+          break
+        case 'edit.imageHosting':
+          document.dispatchEvent(new CustomEvent('app:image-hosting-open'))
+          break
+        case 'view.toggleFocus':
+          store.setFocusMode(!store.focusMode)
+          break
+        case 'view.toggleSidebar':
+          store.setSidebarOpen(!store.sidebarOpen)
+          break
+        case 'view.zoomIn':
+          store.setZoom(Math.min(300, store.zoom + 10))
+          break
+        case 'view.zoomOut':
+          store.setZoom(Math.max(50, store.zoom - 10))
+          break
+        case 'view.zoomReset':
+          store.setZoom(100)
+          break
+      }
+    },
+    [closeActiveFile, newFile, openFile, saveFile, saveFileAs]
+  )
 
   useEffect(() => {
     applyTheme(getThemeById(activeThemeId))
@@ -184,65 +253,90 @@ export default function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (matchesPrimaryShortcut(event, { key: 'p', shift: true })) {
         event.preventDefault()
-        setPaletteMode('command')
+        runAppShortcutCommand('view.commandPalette')
       } else if (matchesPrimaryShortcut(event, { key: 'p' })) {
         event.preventDefault()
-        setPaletteMode('file')
+        runAppShortcutCommand('file.switchOpen')
       } else if (matchesPrimaryShortcut(event, { key: 'j', shift: true })) {
         event.preventDefault()
-        document.dispatchEvent(new CustomEvent('editor:ai-setup-open'))
+        runAppShortcutCommand('ai.setup')
       } else if (matchesPrimaryShortcut(event, { key: 'j' })) {
         event.preventDefault()
-        dispatchEditorAIOpen({ source: 'shortcut' })
+        runAppShortcutCommand('ai.open')
       } else if (matchesPrimaryShortcut(event, { key: '/' })) {
         event.preventDefault()
-        setKeyboardShortcutsOpen(true)
+        runAppShortcutCommand('help.keyboardShortcuts')
       } else if (matchesPrimaryShortcut(event, { key: 'w' })) {
         event.preventDefault()
-        if (!event.repeat) void closeActiveFile()
+        runAppShortcutCommand('file.close', { repeat: event.repeat })
       } else if (matchesPrimaryShortcut(event, { key: 't' })) {
         event.preventDefault()
-        const store = useEditorStore.getState()
-        store.addTab({ type: 'browser', url: DEFAULT_BROWSER_URL, name: 'Browser' })
+        runAppShortcutCommand('browser.new')
       } else if (matchesPrimaryShortcut(event, { key: ',' })) {
         event.preventDefault()
-        document.dispatchEvent(new CustomEvent('app:theme-panel-open'))
+        runAppShortcutCommand('view.appearance')
       } else if (matchesPrimaryShortcut(event, { key: 'h', shift: true })) {
         event.preventDefault()
-        document.dispatchEvent(new CustomEvent('app:image-hosting-open'))
+        runAppShortcutCommand('edit.imageHosting')
       }
 
       if (event.key === 'F11') {
         event.preventDefault()
-        const store = useEditorStore.getState()
-        store.setFocusMode(!store.focusMode)
+        runAppShortcutCommand('view.toggleFocus')
       }
 
       if (matchesPrimaryShortcut(event, { code: 'Backslash' })) {
         event.preventDefault()
-        const store = useEditorStore.getState()
-        store.setSidebarOpen(!store.sidebarOpen)
+        runAppShortcutCommand('view.toggleSidebar')
         return
       }
 
       if (event.altKey || !hasPrimaryModifier(event)) return
 
-      const store = useEditorStore.getState()
       if (event.code === 'Equal' || event.key === '=' || event.key === '+') {
         event.preventDefault()
-        store.setZoom(Math.min(300, store.zoom + 10))
+        runAppShortcutCommand('view.zoomIn')
       } else if (event.code === 'Minus' || event.key === '-') {
         event.preventDefault()
-        store.setZoom(Math.max(50, store.zoom - 10))
+        runAppShortcutCommand('view.zoomOut')
       } else if (event.key === '0') {
         event.preventDefault()
-        store.setZoom(100)
+        runAppShortcutCommand('view.zoomReset')
       }
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [closeActiveFile])
+  }, [runAppShortcutCommand])
+
+  useEffect(() => {
+    if (!isTauri) return
+
+    let disposed = false
+    let unlisten: (() => void) | undefined
+
+    void (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event')
+        const teardown = await listen<AppBrowserShortcutPayload>(APP_BROWSER_SHORTCUT_EVENT, (event) => {
+          runAppShortcutCommand(event.payload.command, { repeat: event.payload.repeat })
+        })
+
+        if (disposed) {
+          teardown()
+        } else {
+          unlisten = teardown
+        }
+      } catch (error) {
+        console.error('Browser shortcut listener error:', error)
+      }
+    })()
+
+    return () => {
+      disposed = true
+      if (unlisten) unlisten()
+    }
+  }, [runAppShortcutCommand])
 
   useEffect(() => {
     const openKeyboardShortcuts = () => setKeyboardShortcutsOpen(true)

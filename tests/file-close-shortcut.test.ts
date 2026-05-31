@@ -10,9 +10,12 @@ test('Ctrl/Cmd+W closes only the active file through the shared dirty-tab close 
     readFile(new URL('../src/hooks/useCommands.ts', import.meta.url), 'utf8'),
   ])
 
-  assert.match(app, /const \{ saveAllDirtyTabs, closeActiveFile \} = useFileOps\(\)/)
+  assert.match(app, /const \{ newFile, openFile, saveFile, saveFileAs, saveAllDirtyTabs, closeActiveFile \} = useFileOps\(\)/)
   assert.match(app, /matchesPrimaryShortcut\(event, \{ key: 'w' \}\)/)
-  assert.match(app, /event\.preventDefault\(\)\s*\n\s*if \(!event\.repeat\) void closeActiveFile\(\)/)
+  assert.match(app, /runAppShortcutCommand\('file\.close', \{ repeat: event\.repeat \}\)/)
+  assert.match(app, /case 'file\.close':\s*\n\s*if \(!options\.repeat\) void closeActiveFile\(\)/)
+  assert.match(app, /listen<AppBrowserShortcutPayload>\(APP_BROWSER_SHORTCUT_EVENT/)
+  assert.match(app, /runAppShortcutCommand\(event\.payload\.command, \{ repeat: event\.payload\.repeat \}\)/)
 
   assert.match(fileOps, /const closeTabById = useCallback\(/)
   assert.match(fileOps, /const closeActiveFile = useCallback\(async \(\): Promise<boolean> => \{/)

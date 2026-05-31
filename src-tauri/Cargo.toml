@@ -1,6 +1,6 @@
 [package]
 name = "no1-markdown-editor"
-version = "0.25.0"
+version = "0.25.1"
 description = "No.1 Markdown Editor — Free Forever"
 authors = []
 edition = "2021"
@@ -35,7 +35,7 @@ tauri-plugin-single-instance = "2"
 
 [target."cfg(windows)".dependencies]
 webview2-com = "0.38"
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
 
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2 = "0.6"
