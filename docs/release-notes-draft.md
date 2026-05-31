@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.24.0`.
+This document is a draft for the next public release after `v0.24.1`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,52 +8,76 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.24.1`
+`No.1 Markdown Editor v0.25.0`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.24.1 improves the embedded browser writing workflow. Browser agent actions now show localized labels, browser clips open in their own unsaved Markdown note, and new browser tabs start from `https://www.google.com/`.
+No.1 Markdown Editor v0.25.0 strengthens browser-assisted AI writing. Browser page context is now passed to AI as explicit untrusted source material, clipped pages preserve readable Markdown with normalized source links, and browser controls are localized across English, Japanese, and Chinese.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Show localized browser agent toolbar labels instead of raw action keys.
-- Save browser clips into a new unsaved Markdown note by default.
-- Open new browser tabs at `https://www.google.com/`.
+- Pass attached notes, searches, and browser pages into AI requests as explicit untrusted source context.
+- Open `http` and `https` Markdown links in a new in-editor Browser tab.
+- Preserve readable Markdown and normalized page-relative links when clipping or asking about a browser page.
+- Improve browser page capture with article, selection, visible-content, and list extraction modes.
+- Localize browser navigation controls, the address field, and the desktop-only browser placeholder.
+- Keep OCI Responses routing active even when the optional Project field is blank.
 
 ### Why This Release Matters
 
-Browser research should not unexpectedly rewrite an active note. This patch keeps captured web content separate by default and makes the browser toolbar easier to understand across English, Japanese, and Chinese.
+Browser research only works if the model sees the right page content and the editor keeps that content safe. This release makes attached context visible to AI as source material, hardens page capture, and keeps browser UI text understandable across English, Japanese, and Chinese.
 
 ### User-Facing Improvements
 
-#### Browser Agent Actions
+#### Browser AI Context
 
-- Browser agent toolbar actions display translated labels.
-- The clip action creates a separate Markdown draft note with the captured page content.
-- Existing open notes are left unchanged when clipping from a browser tab.
+- Attached notes, workspace search results, and browser pages are included in AI prompts as clearly bounded source context.
+- Attached context is marked untrusted so instructions embedded inside pages or search results are not treated as commands.
+- Browser webpage attachments identify Markdown as the content format and retain source URL provenance.
 
-#### Browser Defaults
+#### Markdown Link Opening
 
-- New browser tabs and browser creation commands now start at `https://www.google.com/`.
+- `http` and `https` links opened from the editor or preview now create a Browser tab inside the app.
+- Non-web protocols such as `mailto:` and `tel:` continue to use the external opener path.
+
+#### Browser Capture
+
+- Browser clips and AI webpage attachments prefer readable Markdown over raw page text.
+- Relative links and images captured from pages are normalized against the current page URL.
+- Browser page capture can now use article, selection, visible-content, and list extraction modes.
+- Capture diagnostics report the selected extraction source, root, content length, Markdown length, and filtered elements.
+- The browser title-channel fallback now validates request ids, chunk sizes, and pending requests before accepting page content.
+
+#### Browser Localization
+
+- Browser navigation buttons now use localized accessible labels.
+- The address field placeholder and desktop-only browser placeholder now render in English, Japanese, and Chinese.
+
+#### AI Provider Routing
+
+- OCI Responses configuration no longer falls back to OpenAI-compatible chat routing only because the Project field is blank.
 
 #### Reliability
 
-- Regression tests cover browser agent localization, clip routing, and default browser URL wiring.
+- Regression tests cover attached AI context, browser clip Markdown fidelity, browser bridge URL normalization, browser localization wiring, OCI routing, and browser title-channel validation.
+- Regression tests cover routing Markdown web links into internal Browser tabs while keeping non-web protocols on the external-opener path.
 
 ### Suggested Upgrade Notes Section
 
-- Browser clips now create a new unsaved Markdown note instead of appending to an existing note.
 - Existing Markdown documents and image-hosting settings are unchanged.
+- OCI users can leave the Project field blank without changing away from the Responses route.
 
 ### Suggested Who Should Update Section
 
 This release is especially relevant for users who:
 
 - use browser tabs to collect Markdown references
+- ask AI questions about the current browser page
+- prefer web research to stay inside the editor instead of switching to an external browser
+- use OCI Responses-compatible AI configuration
 - work in English, Japanese, or Chinese
-- expect new browser pages to start from Google
 
 ## Packaging Checklist Before Release
 
@@ -61,7 +85,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.24.1 --date 2026-05-30` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.24.1` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.24.1` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.24.1` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.25.0 --date 2026-05-31` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.25.0` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.25.0` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.25.0` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

@@ -1123,13 +1123,32 @@
     }
   },
   "browser": {
+    "navigation": {
+      "back": "戻る",
+      "forward": "進む",
+      "reload": "再読み込み",
+      "home": "ホーム",
+      "addressPlaceholder": "検索または Web サイトの URL を入力..."
+    },
     "agent": {
       "clip": "クリップ",
       "ask": "質問",
+      "modeLabel": "クリップする内容",
+      "modes": {
+        "auto": "自動",
+        "article": "記事",
+        "selection": "選択範囲",
+        "visible": "表示範囲",
+        "list": "リスト"
+      },
       "working": "処理中...",
       "clipSuccess": "新しいノートにクリップしました",
       "clipError": "このページをクリップできませんでした",
       "askError": "このページを AI に添付できませんでした"
+    },
+    "desktopOnly": {
+      "title": "デスクトップブラウザープレビュー",
+      "message": "ネイティブ Webview はデスクトップアプリでのみ描画されます。外部サイトを閲覧するには Tauri 版で実行してください。"
     }
   },
   "runtimeError": {

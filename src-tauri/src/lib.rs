@@ -5,7 +5,7 @@ mod update;
 
 use base64::Engine as _;
 use reqwest::header::{CONTENT_TYPE, USER_AGENT};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -28,8 +28,17 @@ const BROWSER_BRIDGE_SCRIPT: &str = include_str!("browser_bridge.js");
 /// cross-platform fallback when the external webview cannot reach the Tauri IPC
 /// (`browser_report_content`) directly — the bridge then streams the base64
 /// payload through `document.title` in chunks.
+const MAX_BROWSER_TITLE_CHANNEL_CHUNKS: usize = 512;
+const MAX_BROWSER_TITLE_CHANNEL_CHUNK_CHARS: usize = 4096;
+
 #[derive(Default)]
-struct BrowserTitleChannels(Mutex<HashMap<String, TitleChannelBuffer>>);
+struct BrowserTitleChannels(Mutex<BrowserTitleChannelState>);
+
+#[derive(Default)]
+struct BrowserTitleChannelState {
+    pending: HashSet<String>,
+    buffers: HashMap<String, TitleChannelBuffer>,
+}
 
 struct TitleChannelBuffer {
     total: usize,
@@ -55,6 +64,58 @@ fn is_safe_request_id(request_id: &str) -> bool {
         && request_id.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 
+fn is_safe_browser_title_chunk(request_id: &str, seq: usize, total: usize, chunk: &str) -> bool {
+    total > 0
+        && seq < total
+        && total <= MAX_BROWSER_TITLE_CHANNEL_CHUNKS
+        && chunk.len() <= MAX_BROWSER_TITLE_CHANNEL_CHUNK_CHARS
+        && is_safe_request_id(request_id)
+}
+
+fn register_browser_title_request<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    request_id: &str,
+) -> Result<(), String> {
+    let state = app.state::<BrowserTitleChannels>();
+    let mut channels = state
+        .0
+        .lock()
+        .map_err(|_| "Failed to access browser title channels".to_string())?;
+    channels.pending.insert(request_id.to_string());
+    channels.buffers.remove(request_id);
+    Ok(())
+}
+
+fn clear_browser_title_request<R: tauri::Runtime>(app: &tauri::AppHandle<R>, request_id: &str) {
+    let state = app.state::<BrowserTitleChannels>();
+    let Ok(mut channels) = state.0.lock() else {
+        return;
+    };
+    channels.pending.remove(request_id);
+    channels.buffers.remove(request_id);
+}
+
+fn normalize_browser_extraction_mode(mode: Option<&str>) -> Result<&'static str, String> {
+    match mode.unwrap_or("auto") {
+        "auto" => Ok("auto"),
+        "article" => Ok("article"),
+        "selection" => Ok("selection"),
+        "visible" => Ok("visible"),
+        "list" => Ok("list"),
+        _ => Err("Invalid browser extraction mode".to_string()),
+    }
+}
+
+fn schedule_browser_title_request_cleanup<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    request_id: String,
+) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        clear_browser_title_request(&app, &request_id);
+    });
+}
+
 /// Reassemble base64 chunks streamed through `document.title` and, once
 /// complete, decode and emit them to the frontend. No-op for titles that don't
 /// carry the agent marker (i.e. ordinary page title changes).
@@ -77,15 +138,19 @@ fn handle_browser_title_report<R: tauri::Runtime>(
     let (Ok(seq), Ok(total)) = (seq.parse::<usize>(), total.parse::<usize>()) else {
         return;
     };
-    if total == 0 || seq >= total || !is_safe_request_id(request_id) {
+    if !is_safe_browser_title_chunk(request_id, seq, total, chunk) {
         return;
     }
 
     let state = app.state::<BrowserTitleChannels>();
-    let Ok(mut map) = state.0.lock() else {
+    let Ok(mut channels) = state.0.lock() else {
         return;
     };
-    let buffer = map
+    if !channels.pending.contains(request_id) {
+        return;
+    };
+    let buffer = channels
+        .buffers
         .entry(request_id.to_string())
         .or_insert_with(|| TitleChannelBuffer {
             total,
@@ -98,8 +163,9 @@ fn handle_browser_title_report<R: tauri::Runtime>(
     }
 
     let assembled: String = buffer.chunks.values().cloned().collect();
-    map.remove(request_id);
-    drop(map);
+    channels.buffers.remove(request_id);
+    channels.pending.remove(request_id);
+    drop(channels);
 
     let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(assembled.as_bytes()) else {
         return;
@@ -137,10 +203,14 @@ fn browser_report_content<R: tauri::Runtime>(
     if !is_safe_request_id(&request_id) {
         return Err("Invalid request id".to_string());
     }
+    clear_browser_title_request(&app, &request_id);
     let label = webview.label().to_string();
     app.emit(
         &format!("browser-agent-data-{}", label),
-        BrowserAgentData { request_id, payload },
+        BrowserAgentData {
+            request_id,
+            payload,
+        },
     )
     .map_err(|error| error.to_string())
 }
@@ -153,21 +223,32 @@ async fn browser_collect_content<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     label: String,
     request_id: String,
+    extraction_mode: Option<String>,
 ) -> Result<(), String> {
     if !is_safe_request_id(&request_id) {
         return Err("Invalid request id".to_string());
     }
+    let extraction_mode = normalize_browser_extraction_mode(extraction_mode.as_deref())?;
+    let extraction_mode_json =
+        serde_json::to_string(extraction_mode).map_err(|error| error.to_string())?;
     if let Some(webview) = app.get_webview(&label) {
+        register_browser_title_request(&app, &request_id)?;
+        schedule_browser_title_request_cleanup(app.clone(), request_id.clone());
         let (tx, rx) = tokio::sync::oneshot::channel();
+        let request_id_for_script = request_id.clone();
         let _ = app.run_on_main_thread(move || {
             let script = format!(
-                "window.__agentCollect && window.__agentCollect('{}')",
-                request_id
+                "window.__agentCollect && window.__agentCollect('{}', {{ mode: {} }})",
+                request_id_for_script, extraction_mode_json
             );
             let res = webview.eval(&script).map_err(|error| error.to_string());
             let _ = tx.send(res);
         });
-        rx.await.map_err(|e| format!("Channel error: {e}"))?
+        let result = rx.await.map_err(|e| format!("Channel error: {e}"))?;
+        if result.is_err() {
+            clear_browser_title_request(&app, &request_id);
+        }
+        result
     } else {
         Err(format!("Browser webview not found: {label}"))
     }
@@ -704,75 +785,86 @@ async fn capture_browser_webview<R: tauri::Runtime>(
     label: String,
 ) -> Result<String, String> {
     use std::sync::mpsc;
+    use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG;
     use windows::Win32::System::Com::IStream;
     use windows::Win32::UI::Shell::SHCreateMemStream;
-    use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG;
 
-    let webview = app.get_webview(&label).ok_or_else(|| "Webview not found".to_string())?;
+    let webview = app
+        .get_webview(&label)
+        .ok_or_else(|| "Webview not found".to_string())?;
 
     let (tx, rx) = mpsc::channel::<Result<String, String>>();
 
-    webview.with_webview(move |platform_webview| {
-        let setup_tx = tx.clone();
-        let outcome = (|| -> Result<(), String> {
-            let controller = platform_webview.controller();
-            unsafe {
-                let core = controller
-                    .CoreWebView2()
-                    .map_err(|error| format!("Failed to get CoreWebView2: {error}"))?;
+    webview
+        .with_webview(move |platform_webview| {
+            let setup_tx = tx.clone();
+            let outcome = (|| -> Result<(), String> {
+                let controller = platform_webview.controller();
+                unsafe {
+                    let core = controller
+                        .CoreWebView2()
+                        .map_err(|error| format!("Failed to get CoreWebView2: {error}"))?;
 
-                let stream: IStream = SHCreateMemStream(None)
-                    .ok_or_else(|| "SHCreateMemStream failed".to_string())?;
+                    let stream: IStream = SHCreateMemStream(None)
+                        .ok_or_else(|| "SHCreateMemStream failed".to_string())?;
 
-                let handler_stream = stream.clone();
-                let completion_tx = tx.clone();
-                let handler = webview2_com::CapturePreviewCompletedHandler::create(Box::new(
-                    move |error_code| {
-                        let outcome = (|| -> Result<String, String> {
-                            if !error_code.is_ok() {
-                                return Err(format!("CapturePreview completed with error: {:?}", error_code));
-                            }
-
-                            handler_stream.Seek(0, windows::Win32::System::Com::STREAM_SEEK_SET, None)
-                                .map_err(|e| format!("Seek failed: {e:?}"))?;
-
-                            let mut buffer = Vec::new();
-                            let mut chunk = [0u8; 4096];
-                            loop {
-                                let mut bytes_read: u32 = 0;
-                                let hr = handler_stream.Read(chunk.as_mut_ptr() as *mut _, chunk.len() as u32, Some(&mut bytes_read as *mut u32));
-                                if !hr.is_ok() {
-                                    return Err(format!("Read failed with HRESULT {:?}", hr));
+                    let handler_stream = stream.clone();
+                    let completion_tx = tx.clone();
+                    let handler = webview2_com::CapturePreviewCompletedHandler::create(Box::new(
+                        move |error_code| {
+                            let outcome = (|| -> Result<String, String> {
+                                if !error_code.is_ok() {
+                                    return Err(format!(
+                                        "CapturePreview completed with error: {:?}",
+                                        error_code
+                                    ));
                                 }
-                                if bytes_read == 0 {
-                                    break;
+
+                                handler_stream
+                                    .Seek(0, windows::Win32::System::Com::STREAM_SEEK_SET, None)
+                                    .map_err(|e| format!("Seek failed: {e:?}"))?;
+
+                                let mut buffer = Vec::new();
+                                let mut chunk = [0u8; 4096];
+                                loop {
+                                    let mut bytes_read: u32 = 0;
+                                    let hr = handler_stream.Read(
+                                        chunk.as_mut_ptr() as *mut _,
+                                        chunk.len() as u32,
+                                        Some(&mut bytes_read as *mut u32),
+                                    );
+                                    if !hr.is_ok() {
+                                        return Err(format!("Read failed with HRESULT {:?}", hr));
+                                    }
+                                    if bytes_read == 0 {
+                                        break;
+                                    }
+                                    buffer.extend_from_slice(&chunk[..bytes_read as usize]);
                                 }
-                                buffer.extend_from_slice(&chunk[..bytes_read as usize]);
-                            }
 
-                            let b64 = base64::engine::general_purpose::STANDARD.encode(&buffer);
-                            Ok(format!("data:image/png;base64,{b64}"))
-                        })();
-                        let _ = completion_tx.send(outcome);
-                        Ok(())
-                    },
-                ));
+                                let b64 = base64::engine::general_purpose::STANDARD.encode(&buffer);
+                                Ok(format!("data:image/png;base64,{b64}"))
+                            })();
+                            let _ = completion_tx.send(outcome);
+                            Ok(())
+                        },
+                    ));
 
-                core.CapturePreview(
-                    COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,
-                    &stream,
-                    &handler,
-                )
-                .map_err(|error| format!("CapturePreview invocation failed: {error}"))?;
+                    core.CapturePreview(
+                        COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,
+                        &stream,
+                        &handler,
+                    )
+                    .map_err(|error| format!("CapturePreview invocation failed: {error}"))?;
+                }
+                Ok(())
+            })();
+
+            if let Err(error) = outcome {
+                let _ = setup_tx.send(Err(error));
             }
-            Ok(())
-        })();
-
-        if let Err(error) = outcome {
-            let _ = setup_tx.send(Err(error));
-        }
-    })
-    .map_err(|error| format!("with_webview dispatch failed: {error}"))?;
+        })
+        .map_err(|error| format!("with_webview dispatch failed: {error}"))?;
 
     let out = tokio::task::spawn_blocking(move || {
         rx.recv_timeout(std::time::Duration::from_secs(5))
@@ -792,7 +884,6 @@ async fn capture_browser_webview<R: tauri::Runtime>(
 ) -> Result<String, String> {
     Err("capture_not_supported".to_string())
 }
-
 
 fn is_editor_loopback_host(host: Option<&str>) -> bool {
     host.is_some_and(|host| {
@@ -1011,6 +1102,8 @@ pub fn run() {
 mod tests {
     use super::collect_launch_paths_from_args;
     use super::is_allowed_editor_navigation;
+    use super::is_safe_browser_title_chunk;
+    use super::normalize_browser_extraction_mode;
     use super::read_file;
     use std::ffi::OsString;
     use std::fs;
@@ -1172,5 +1265,30 @@ mod tests {
                 "expected to block {url}"
             );
         }
+    }
+
+    #[test]
+    fn browser_title_chunk_validation_rejects_unbounded_or_unsafe_reports() {
+        assert!(is_safe_browser_title_chunk("req123", 0, 1, "payload"));
+        assert!(!is_safe_browser_title_chunk("req-123", 0, 1, "payload"));
+        assert!(!is_safe_browser_title_chunk("req123", 1, 1, "payload"));
+        assert!(!is_safe_browser_title_chunk("req123", 0, 0, "payload"));
+        assert!(!is_safe_browser_title_chunk("req123", 0, 513, "payload"));
+        assert!(!is_safe_browser_title_chunk(
+            "req123",
+            0,
+            1,
+            &"x".repeat(4097)
+        ));
+    }
+
+    #[test]
+    fn browser_extraction_mode_validation_accepts_only_known_modes() {
+        assert_eq!(normalize_browser_extraction_mode(None).unwrap(), "auto");
+        for mode in ["auto", "article", "selection", "visible", "list"] {
+            assert_eq!(normalize_browser_extraction_mode(Some(mode)).unwrap(), mode);
+        }
+        assert!(normalize_browser_extraction_mode(Some("raw-html")).is_err());
+        assert!(normalize_browser_extraction_mode(Some("article');alert(1)//")).is_err());
     }
 }

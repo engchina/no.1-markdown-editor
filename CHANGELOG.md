@@ -20,6 +20,30 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.25.0 - 2026-05-31
+
+### Added
+
+- AI requests now include attached notes, searches, and browser pages as explicit untrusted source context so "Ask" actions can use the material without treating page instructions as commands.
+- Browser page capture now supports normalized extraction modes for automatic article detection, selected text, visible content, and article lists.
+
+### Changed
+
+- Opening `http` and `https` Markdown links now creates a new in-editor Browser tab instead of handing the page to the system default browser.
+- Browser page clips and AI webpage attachments now prefer readable Markdown over raw page text.
+- Browser-captured links and images are normalized against the current page URL so clipped Markdown keeps usable source references.
+- Browser navigation controls, the address field, and the desktop-only placeholder now use localized accessible labels in English, Japanese, and Chinese.
+
+### Fixed
+
+- OCI Responses AI configuration now stays on the Responses route even when the optional Project field is blank.
+- Browser page content collection now bounds and validates the title-channel fallback before accepting captured page chunks.
+
+### Internal
+
+- Added regression coverage for attached AI context, browser clip Markdown fidelity, browser bridge URL normalization, browser localization wiring, OCI routing, and browser title-channel validation.
+- Added regression coverage for routing Markdown web links into internal Browser tabs while keeping non-web protocols on the external-opener path.
+
 ## 0.24.1 - 2026-05-30
 
 ### Added

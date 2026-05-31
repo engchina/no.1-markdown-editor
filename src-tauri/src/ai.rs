@@ -655,11 +655,15 @@ async fn route_ai_completion_request<R: Runtime>(
 
     let api_key = read_ai_provider_api_key()?;
 
-    if config.provider == "openai-compatible" || config.project.trim().is_empty() {
+    if should_use_openai_chat_completions(&config) {
         return run_openai_chat_completion(app, &config, &api_key, &request, &request_id).await;
     }
 
     run_oci_responses_completion(app, &config, &api_key, &request, &request_id).await
+}
+
+fn should_use_openai_chat_completions(config: &AiProviderConfig) -> bool {
+    config.provider == "openai-compatible"
 }
 
 async fn run_openai_chat_completion<R: Runtime>(
@@ -4275,6 +4279,7 @@ mod tests {
     use super::normalize_hosted_agent_token_status_error;
     use super::parse_oci_config_profile;
     use super::resolve_mcp_tool_name;
+    use super::should_use_openai_chat_completions;
     use super::take_next_ai_sse_event;
     use super::AiEnrichmentJobRequest;
     use super::AiFileSearchCallObservation;
@@ -4383,6 +4388,35 @@ mod tests {
             structured_execution_status: None,
             structured_execution_tool_name: None,
         }
+    }
+
+    #[test]
+    fn provider_route_uses_responses_for_oci_even_without_project() {
+        let oci_config = AiProviderConfig {
+            provider: "oci-responses".to_string(),
+            base_url: "https://example.com/openai/v1".to_string(),
+            model: "model-x".to_string(),
+            project: "".to_string(),
+            oci_auth_profiles: vec![],
+            unstructured_stores: vec![],
+            structured_stores: vec![],
+            mcp_execution_profiles: vec![],
+            hosted_agent_profiles: vec![],
+        };
+        let openai_config = AiProviderConfig {
+            provider: "openai-compatible".to_string(),
+            base_url: "https://example.com/v1".to_string(),
+            model: "gpt-test".to_string(),
+            project: "".to_string(),
+            oci_auth_profiles: vec![],
+            unstructured_stores: vec![],
+            structured_stores: vec![],
+            mcp_execution_profiles: vec![],
+            hosted_agent_profiles: vec![],
+        };
+
+        assert!(!should_use_openai_chat_completions(&oci_config));
+        assert!(should_use_openai_chat_completions(&openai_config));
     }
 
     #[test]

@@ -1123,13 +1123,32 @@
     }
   },
   "browser": {
+    "navigation": {
+      "back": "后退",
+      "forward": "前进",
+      "reload": "重新加载",
+      "home": "主页",
+      "addressPlaceholder": "搜索或输入网站 URL..."
+    },
     "agent": {
       "clip": "剪藏",
       "ask": "提问",
+      "modeLabel": "剪藏内容模式",
+      "modes": {
+        "auto": "自动",
+        "article": "正文",
+        "selection": "选区",
+        "visible": "可见区域",
+        "list": "列表"
+      },
       "working": "处理中...",
       "clipSuccess": "已剪藏到新笔记",
       "clipError": "无法剪藏此页面",
       "askError": "无法将此页面附加到 AI"
+    },
+    "desktopOnly": {
+      "title": "桌面浏览器预览",
+      "message": "原生 Webview 只会在桌面应用中渲染。请运行 Tauri 版本来浏览外部网站。"
     }
   },
   "runtimeError": {

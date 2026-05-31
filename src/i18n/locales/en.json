@@ -1129,13 +1129,32 @@
     }
   },
   "browser": {
+    "navigation": {
+      "back": "Back",
+      "forward": "Forward",
+      "reload": "Reload",
+      "home": "Home",
+      "addressPlaceholder": "Search or enter website URL..."
+    },
     "agent": {
       "clip": "Clip",
       "ask": "Ask",
+      "modeLabel": "Clip content mode",
+      "modes": {
+        "auto": "Auto",
+        "article": "Article",
+        "selection": "Selection",
+        "visible": "Visible",
+        "list": "List"
+      },
       "working": "Working...",
       "clipSuccess": "Clipped to new note",
       "clipError": "Could not clip this page",
       "askError": "Could not attach this page to AI"
+    },
+    "desktopOnly": {
+      "title": "Desktop browser preview",
+      "message": "Native webviews only render in the desktop app. Run the Tauri build to browse external sites."
     }
   },
   "runtimeError": {

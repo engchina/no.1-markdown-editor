@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { makeRequestId, parseSnapshot } from '../src/lib/browser/agentBridge.ts'
+import {
+  makeRequestId,
+  normalizeBrowserExtractionMode,
+  parseSnapshot,
+} from '../src/lib/browser/agentBridge.ts'
 
 test('makeRequestId produces an alphanumeric id within the Rust length cap', () => {
   for (let i = 0; i < 200; i++) {
@@ -26,6 +30,17 @@ test('parseSnapshot normalizes a complete payload', () => {
     title: 'Example Post',
     text: 'Hello world',
     markdown: '# Hello\n\nworld',
+    extraction: {
+      requestedMode: 'auto',
+      mode: 'article',
+      root: 'article.post',
+      source: 'readability-article',
+      contentLength: 11,
+      markdownLength: 14,
+      articleCandidates: 4,
+      articleCards: 0,
+      filteredElements: 3,
+    },
     elements: [
       { idx: 0, role: 'link', name: 'Home' },
       { idx: 1, role: 'button', name: 'Subscribe' },
@@ -35,6 +50,9 @@ test('parseSnapshot normalizes a complete payload', () => {
   assert.equal(snapshot.url, 'https://example.com/post')
   assert.equal(snapshot.title, 'Example Post')
   assert.equal(snapshot.markdown, '# Hello\n\nworld')
+  assert.equal(snapshot.extraction?.mode, 'article')
+  assert.equal(snapshot.extraction?.source, 'readability-article')
+  assert.equal(snapshot.extraction?.filteredElements, 3)
   assert.equal(snapshot.elements.length, 2)
   assert.equal(snapshot.elements[1].role, 'button')
   assert.equal(snapshot.error, undefined)
@@ -46,6 +64,7 @@ test('parseSnapshot fills defaults for missing/invalid fields', () => {
   assert.equal(snapshot.title, '')
   assert.equal(snapshot.text, '')
   assert.equal(snapshot.markdown, '')
+  assert.equal(snapshot.extraction, undefined)
   assert.deepEqual(snapshot.elements, [])
 })
 
@@ -59,4 +78,14 @@ test('parseSnapshot surfaces a bridge-side error field', () => {
 test('parseSnapshot ignores a non-array elements field', () => {
   const snapshot = parseSnapshot(JSON.stringify({ elements: 'nope' }))
   assert.deepEqual(snapshot.elements, [])
+})
+
+test('normalizeBrowserExtractionMode accepts only supported capture modes', () => {
+  assert.equal(normalizeBrowserExtractionMode('auto'), 'auto')
+  assert.equal(normalizeBrowserExtractionMode('article'), 'article')
+  assert.equal(normalizeBrowserExtractionMode('selection'), 'selection')
+  assert.equal(normalizeBrowserExtractionMode('visible'), 'visible')
+  assert.equal(normalizeBrowserExtractionMode('list'), 'list')
+  assert.equal(normalizeBrowserExtractionMode('raw-html'), 'auto')
+  assert.equal(normalizeBrowserExtractionMode(undefined), 'auto')
 })

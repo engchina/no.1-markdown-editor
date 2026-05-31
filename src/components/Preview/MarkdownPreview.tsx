@@ -30,6 +30,7 @@ import { flashPreviewTarget, getPreviewInternalAnchorId, resolvePreviewAnchorTar
 import { loadExternalPreviewImage } from '../../lib/previewRemoteImage'
 import { wasDynamicImportRecoveryTriggered } from '../../lib/vitePreloadRecovery'
 import { resolveActiveHeadingId, updateVisibleHeadingIds } from '../../lib/previewScrollSpy'
+import { openWebUrlInNewBrowserTab } from '../../lib/browser/openLinkInBrowserTab'
 import { useMarkdown } from '../../hooks/useMarkdown'
 import { useActiveTab, useEditorStore } from '../../store/editor'
 import { useScrollSyncStore } from '../../store/scrollSync'
@@ -156,6 +157,10 @@ export default function MarkdownPreview() {
 
   const openExternalPreviewLink = useCallback(
     async (href: string, label: string) => {
+      if (openWebUrlInNewBrowserTab(href) !== null) {
+        return
+      }
+
       const messageText = t('dialog.openExternalMessage', { target: label })
 
       try {

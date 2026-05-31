@@ -1,5 +1,6 @@
-// Ctrl/Cmd+Click on a link inside the editor opens the URL with the system
-// default app (via the Tauri opener plugin), matching Typora and VS Code.
+// Ctrl/Cmd+Click on a web link inside the editor opens it in an internal
+// browser tab. Non-web external protocols still fall back to the platform
+// opener.
 //
 // Works in both Source and WYSIWYG modes: detection is done against the
 // underlying Markdown source text (same in both modes), so a WYSIWYG-decorated
@@ -16,6 +17,7 @@ import {
   findEditorLinkAtLinePosition,
   type DetectedEditorLink,
 } from '../../lib/editorLinkAtPosition.ts'
+import { openWebUrlInNewBrowserTab } from '../../lib/browser/openLinkInBrowserTab.ts'
 
 const isTauriEnv = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -38,7 +40,7 @@ const editorLinkOpenerDomHandlers = EditorView.domEventHandlers({
 
     event.preventDefault()
     event.stopPropagation()
-    void openExternalEditorLink(link)
+    void openEditorLink(link)
     return true
   },
 
@@ -98,7 +100,11 @@ function resolveLinkFromEvent(event: MouseEvent, view: EditorView): DetectedEdit
   }
 }
 
-async function openExternalEditorLink(link: DetectedEditorLink): Promise<void> {
+async function openEditorLink(link: DetectedEditorLink): Promise<void> {
+  if (openWebUrlInNewBrowserTab(link.url) !== null) {
+    return
+  }
+
   try {
     if (isTauriEnv) {
       const { openUrl } = await import('@tauri-apps/plugin-opener')

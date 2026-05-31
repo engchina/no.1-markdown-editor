@@ -3,7 +3,11 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useTranslation } from 'react-i18next'
 import { useEditorStore } from '../../store/editor'
-import { collectPageContent } from '../../lib/browser/agentBridge'
+import {
+  BROWSER_EXTRACTION_MODES,
+  collectPageContent,
+  type BrowserExtractionMode,
+} from '../../lib/browser/agentBridge'
 import {
   buildWebClipMarkdown,
   buildWebpageAttachment,
@@ -43,6 +47,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
   const [shouldHideWebview, setShouldHideWebview] = useState(false)
   const [agentBusy, setAgentBusy] = useState<null | 'clip' | 'ask'>(null)
+  const [extractionMode, setExtractionMode] = useState<BrowserExtractionMode>('auto')
   const isCapturingRef = useRef(false)
 
   // Clip the current page into its own Markdown draft so web research never
@@ -51,7 +56,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     if (!isTauri || agentBusy) return
     setAgentBusy('clip')
     try {
-      const snapshot = await collectPageContent(label)
+      const snapshot = await collectPageContent(label, { extractionMode })
       const clip = buildWebClipMarkdown(snapshot)
       useEditorStore.getState().addTab({
         type: 'markdown',
@@ -59,6 +64,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         savedContent: '',
         isDirty: true,
       })
+      void logDebug(`clip extraction: ${snapshot.extraction?.mode || 'unknown'} via ${snapshot.extraction?.source || 'unknown'}`)
       pushSuccessNotice('browser.agent.clipSuccess')
     } catch (e) {
       void logDebug('clip failed: ' + e)
@@ -76,7 +82,8 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     if (!isTauri || agentBusy) return
     setAgentBusy('ask')
     try {
-      const snapshot = await collectPageContent(label)
+      const snapshot = await collectPageContent(label, { extractionMode })
+      void logDebug(`ask extraction: ${snapshot.extraction?.mode || 'unknown'} via ${snapshot.extraction?.source || 'unknown'}`)
       dispatchEditorAIOpen({
         source: 'command-palette',
         intent: 'ask',
@@ -386,7 +393,8 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         <button
           type="button"
           onClick={goBack}
-          title="Back"
+          title={t('browser.navigation.back')}
+          aria-label={t('browser.navigation.back')}
           className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
           style={{ color: 'var(--text-primary)' }}
         >
@@ -399,7 +407,8 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         <button
           type="button"
           onClick={goForward}
-          title="Forward"
+          title={t('browser.navigation.forward')}
+          aria-label={t('browser.navigation.forward')}
           className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
           style={{ color: 'var(--text-primary)' }}
         >
@@ -412,7 +421,8 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         <button
           type="button"
           onClick={reload}
-          title="Reload"
+          title={t('browser.navigation.reload')}
+          aria-label={t('browser.navigation.reload')}
           className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
           style={{ color: 'var(--text-primary)' }}
         >
@@ -425,7 +435,8 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         <button
           type="button"
           onClick={() => navigateTo(DEFAULT_BROWSER_URL)}
-          title="Home"
+          title={t('browser.navigation.home')}
+          aria-label={t('browser.navigation.home')}
           className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
           style={{ color: 'var(--text-primary)' }}
         >
@@ -447,7 +458,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
             type="text"
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="Search or enter website URL..."
+            placeholder={t('browser.navigation.addressPlaceholder')}
             className="w-full h-7 px-3 rounded-md text-xs transition-all focus:outline-none focus:ring-1 focus:ring-[var(--accent)] border"
             style={{
               background: 'var(--bg-primary)',
@@ -456,6 +467,26 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
             }}
           />
         </form>
+
+        <select
+          value={extractionMode}
+          onChange={(event) => setExtractionMode(event.target.value as BrowserExtractionMode)}
+          disabled={agentBusy !== null}
+          title={t('browser.agent.modeLabel')}
+          aria-label={t('browser.agent.modeLabel')}
+          className="h-7 max-w-[7.5rem] rounded-md border px-2 text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50"
+          style={{
+            background: 'var(--bg-primary)',
+            borderColor: 'var(--border)',
+            color: 'var(--text-primary)',
+          }}
+        >
+          {BROWSER_EXTRACTION_MODES.map((mode) => (
+            <option key={mode} value={mode}>
+              {t(`browser.agent.modes.${mode}`)}
+            </option>
+          ))}
+        </select>
 
         {/* Clip page to Markdown (scenario 1) */}
         <button
@@ -510,9 +541,9 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
               <line x1="2" y1="12" x2="22" y2="12" />
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
             </svg>
-            <p className="text-sm font-semibold">Tauri Native Webview Placeholder</p>
+            <p className="text-sm font-semibold">{t('browser.desktopOnly.title')}</p>
             <p className="text-xs opacity-75 mt-1 max-w-sm">
-              Native webviews only render in the desktop app environment. Run the app inside Tauri to browse external sites.
+              {t('browser.desktopOnly.message')}
             </p>
           </div>
         )}

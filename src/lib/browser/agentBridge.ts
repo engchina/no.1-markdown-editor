@@ -20,6 +20,29 @@ export interface PageElement {
   name: string
 }
 
+export type BrowserExtractionMode = 'auto' | 'article' | 'selection' | 'visible' | 'list'
+
+export interface PageExtractionDiagnostics {
+  /** Mode requested by the host UI. */
+  requestedMode: BrowserExtractionMode
+  /** Mode that actually produced the Markdown payload. */
+  mode: BrowserExtractionMode | 'fallback'
+  /** Human-readable root element summary from the content script. */
+  root: string
+  /** Extraction strategy, useful for debug logs and AI provenance. */
+  source: string
+  /** Plain-text characters in the selected source region. */
+  contentLength: number
+  /** Markdown characters returned by the bridge. */
+  markdownLength: number
+  /** Number of article candidates considered by the readability-style scorer. */
+  articleCandidates: number
+  /** Number of article cards returned when list mode wins. */
+  articleCards: number
+  /** Approximate number of chrome/decorative elements filtered during conversion. */
+  filteredElements: number
+}
+
 export interface PageSnapshot {
   url: string
   title: string
@@ -27,10 +50,26 @@ export interface PageSnapshot {
   text: string
   /** Lightweight Markdown rendering of the main content region. */
   markdown: string
+  /** Extraction diagnostics from the bridge, not page-authored content. */
+  extraction?: PageExtractionDiagnostics
   /** Indexed interactive elements (for future agent act loop). */
   elements: PageElement[]
   /** Set when the bridge failed to build a snapshot. */
   error?: string
+}
+
+export const BROWSER_EXTRACTION_MODES: BrowserExtractionMode[] = [
+  'auto',
+  'article',
+  'selection',
+  'visible',
+  'list',
+]
+
+export function normalizeBrowserExtractionMode(value: unknown): BrowserExtractionMode {
+  return typeof value === 'string' && BROWSER_EXTRACTION_MODES.includes(value as BrowserExtractionMode)
+    ? (value as BrowserExtractionMode)
+    : 'auto'
 }
 
 interface BrowserAgentDataEvent {
@@ -52,18 +91,41 @@ export function makeRequestId(): string {
 
 /** Parse the bridge's JSON payload into a normalized PageSnapshot. */
 export function parseSnapshot(raw: string): PageSnapshot {
-  const data = JSON.parse(raw) as Partial<PageSnapshot>
+  const data = JSON.parse(raw) as Record<string, unknown>
+  const finiteNumber = (value: unknown): number =>
+    typeof value === 'number' && Number.isFinite(value) ? value : 0
+
+  let extraction: PageExtractionDiagnostics | undefined
+  if (data.extraction && typeof data.extraction === 'object' && !Array.isArray(data.extraction)) {
+    const rawExtraction = data.extraction as Record<string, unknown>
+    const mode: PageExtractionDiagnostics['mode'] =
+      rawExtraction.mode === 'fallback' ? 'fallback' : normalizeBrowserExtractionMode(rawExtraction.mode)
+    extraction = {
+      requestedMode: normalizeBrowserExtractionMode(rawExtraction.requestedMode),
+      mode,
+      root: typeof rawExtraction.root === 'string' ? rawExtraction.root : '',
+      source: typeof rawExtraction.source === 'string' ? rawExtraction.source : '',
+      contentLength: finiteNumber(rawExtraction.contentLength),
+      markdownLength: finiteNumber(rawExtraction.markdownLength),
+      articleCandidates: finiteNumber(rawExtraction.articleCandidates),
+      articleCards: finiteNumber(rawExtraction.articleCards),
+      filteredElements: finiteNumber(rawExtraction.filteredElements),
+    }
+  }
+
   return {
     url: typeof data.url === 'string' ? data.url : '',
     title: typeof data.title === 'string' ? data.title : '',
     text: typeof data.text === 'string' ? data.text : '',
     markdown: typeof data.markdown === 'string' ? data.markdown : '',
+    extraction,
     elements: Array.isArray(data.elements) ? (data.elements as PageElement[]) : [],
     error: typeof data.error === 'string' ? data.error : undefined,
   }
 }
 
 export interface CollectPageContentOptions {
+  extractionMode?: BrowserExtractionMode
   timeoutMs?: number
 }
 
@@ -81,6 +143,7 @@ export async function collectPageContent(
   }
 
   const timeoutMs = options.timeoutMs ?? 15000
+  const extractionMode = normalizeBrowserExtractionMode(options.extractionMode)
   const requestId = makeRequestId()
   const eventName = `browser-agent-data-${label}`
 
@@ -124,7 +187,7 @@ export async function collectPageContent(
       }, timeoutMs)
 
       try {
-        await invoke('browser_collect_content', { label, requestId })
+        await invoke('browser_collect_content', { label, requestId, extractionMode })
       } catch (error) {
         finish(() => reject(error instanceof Error ? error : new Error(String(error))))
       }

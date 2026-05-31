@@ -22,6 +22,43 @@ function cleanTitle(snapshot: Pick<PageSnapshot, 'title' | 'url'>): string {
   }
 }
 
+function looksLikeImplementationDump(source: string): boolean {
+  const value = source.replace(/\s+/g, ' ').trim()
+  if (value.length < 240) return false
+  const signals = [
+    /\(?function\s*\(|=>\s*\{/u,
+    /\bdocument\.(addEventListener|getElementById|querySelector|prerendering|hidden)\b/u,
+    /\bObject\.defineProperty\b|\bArray\.prototype\.values\b/u,
+    /\bwindow\b|\bglobalThis\b|\bSymbol\.iterator\b/u,
+    /\bgoogle\.[a-z0-9_.]+\b/iu,
+  ].filter((pattern) => pattern.test(value)).length
+  const punctuation = value.match(/[{};=]/gu)?.length ?? 0
+  return signals >= 2 || (signals >= 1 && punctuation / value.length > 0.08)
+}
+
+function readablePageMarkdown(snapshot: PageSnapshot, maxChars?: number): string {
+  const markdown = snapshot.markdown.trim()
+  const text = snapshot.text.trim()
+  const source = markdown || (looksLikeImplementationDump(text) ? '' : text)
+  return typeof maxChars === 'number' ? source.slice(0, maxChars) : source
+}
+
+function extractionSummary(snapshot: PageSnapshot): string {
+  const extraction = snapshot.extraction
+  if (!extraction) return ''
+  const mode = extraction.mode === 'fallback' ? 'fallback' : extraction.mode
+  const requested = extraction.requestedMode === mode ? mode : `${mode} from ${extraction.requestedMode}`
+  const details = [
+    `Extraction mode: ${requested}`,
+    extraction.source ? `Source: ${extraction.source}` : '',
+    extraction.root ? `Root: ${extraction.root}` : '',
+    `Markdown chars: ${extraction.markdownLength}`,
+    extraction.articleCards ? `Article cards: ${extraction.articleCards}` : '',
+    extraction.filteredElements ? `Filtered elements: ${extraction.filteredElements}` : '',
+  ].filter(Boolean)
+  return details.join('\n')
+}
+
 /**
  * Build the Markdown inserted into a note when clipping a page. Always leads
  * with a heading and a blockquote source attribution so the provenance is
@@ -30,7 +67,7 @@ function cleanTitle(snapshot: Pick<PageSnapshot, 'title' | 'url'>): string {
 export function buildWebClipMarkdown(snapshot: PageSnapshot): string {
   const title = cleanTitle(snapshot)
   const url = snapshot.url.trim()
-  const body = (snapshot.markdown || snapshot.text || '').trim().slice(0, MAX_CLIP_BODY_CHARS)
+  const body = readablePageMarkdown(snapshot, MAX_CLIP_BODY_CHARS)
 
   const lines: string[] = []
   lines.push(`## ${title}`)
@@ -60,19 +97,20 @@ export function appendWebClipToDocument(documentText: string, clipMarkdown: stri
 /**
  * Build an AI context attachment from a captured page, used by "ask about this
  * page". `detail` carries the source URL so it surfaces in the context chip and
- * provenance; `content` is the trimmed readable text handed to the model.
+ * provenance; `content` is the same readable Markdown body used by Clip.
  */
 export function buildWebpageAttachment(snapshot: PageSnapshot): AIExplicitContextAttachment {
   const title = cleanTitle(snapshot)
-  const source = (snapshot.text || snapshot.markdown || '').trim()
+  const source = readablePageMarkdown(snapshot)
   const truncated = source.length > MAX_WEBPAGE_CONTEXT_CHARS
   const content = truncated ? source.slice(0, MAX_WEBPAGE_CONTEXT_CHARS) : source
+  const extraction = extractionSummary(snapshot)
   return {
     id: `webpage:${snapshot.url}`,
     kind: 'webpage',
     label: title,
     detail: snapshot.url,
-    content: `Webpage: ${title}\nURL: ${snapshot.url}\n\n${content}`,
+    content: `Webpage: ${title}\nURL: ${snapshot.url}\nContent format: Markdown${extraction ? `\n${extraction}` : ''}\n\n${content}`,
     truncated,
   }
 }
