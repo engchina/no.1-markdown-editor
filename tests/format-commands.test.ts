@@ -88,3 +88,48 @@ test('applyFormat scrolls the updated selection into view after inserting block 
   assert.ok(Array.isArray(view.lastDispatch?.effects))
   assert.ok((view.lastDispatch?.effects as unknown[] | undefined)?.length)
 })
+
+test('applyFormat inserts a table of contents through H2 at the cursor', () => {
+  const view = createTestView('# Title\n\n## Setup\n\n### Detail\n\n## Usage', 8)
+
+  applyFormat(view, 'tocH2')
+
+  assert.equal(
+    view.state.doc.toString(),
+    [
+      '# Title',
+      '',
+      '- [Setup](#setup)',
+      '- [Usage](#usage)',
+      '',
+      '## Setup',
+      '',
+      '### Detail',
+      '',
+      '## Usage',
+    ].join('\n')
+  )
+})
+
+test('applyFormat inserts a table of contents through H3 with nested items', () => {
+  const view = createTestView('# Title\n\n## Setup\n\n### Detail\n\n## Usage', 8)
+
+  applyFormat(view, 'tocH3')
+
+  assert.equal(
+    view.state.doc.toString(),
+    [
+      '# Title',
+      '',
+      '- [Setup](#setup)',
+      '  - [Detail](#detail)',
+      '- [Usage](#usage)',
+      '',
+      '## Setup',
+      '',
+      '### Detail',
+      '',
+      '## Usage',
+    ].join('\n')
+  )
+})

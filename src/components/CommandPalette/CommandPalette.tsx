@@ -44,6 +44,8 @@ const COMMAND_PRIORITY = new Map<string, number>([
   ['edit.hr', 123],
   ['edit.image', 124],
   ['edit.heading', 125],
+  ['edit.tocH2', 126],
+  ['edit.tocH3', 127],
   ['edit.h1', 130],
   ['edit.h2', 131],
   ['edit.h3', 132],
@@ -265,6 +267,9 @@ function getCommandIndicator(command: Command, mode: Props['mode']): ReactNode {
       return <SvgBadge name="hr" />
     case 'edit.table':
       return <SvgBadge name="table" />
+    case 'edit.tocH2':
+    case 'edit.tocH3':
+      return <TextBadge label="TOC" />
     case 'edit.link':
       return <SvgBadge name="link" />
     case 'edit.image':

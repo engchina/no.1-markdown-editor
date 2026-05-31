@@ -8,6 +8,7 @@ import { EditorSelection, type TransactionSpec } from '@codemirror/state'
 import { appendEditorSelectionScrollEffect } from '../../lib/editorScroll.ts'
 import { rewriteDecorativeSetextHeadingsToATX } from '../../lib/decorativeSetextHeading.ts'
 import { pushInfoNotice, pushSuccessNotice } from '../../lib/notices.ts'
+import { buildMarkdownTableOfContents } from '../../lib/outline.ts'
 
 export type FormatAction =
   | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'highlight'
@@ -16,6 +17,7 @@ export type FormatAction =
   | 'link' | 'image'
   | 'quote' | 'ul' | 'ol' | 'task'
   | 'hr' | 'table'
+  | 'tocH2' | 'tocH3'
   | 'normalizeSetextHeadings'
 
 export function applyFormat(view: EditorView, action: FormatAction): void {
@@ -42,6 +44,8 @@ export function applyFormat(view: EditorView, action: FormatAction): void {
     case 'hr':        return insertBlock(view, '\n---\n')
     case 'codeblock': return insertCodeBlock(view)
     case 'table':     return insertTable(view)
+    case 'tocH2':     return insertTableOfContents(view, 2)
+    case 'tocH3':     return insertTableOfContents(view, 3)
     case 'normalizeSetextHeadings': return normalizeDecorativeSetextHeadings(view)
   }
 }
@@ -244,5 +248,30 @@ function insertTable(view: EditorView): void {
   dispatchFormatChange(view, {
     changes: { from: pos, insert: prefix + table + '\n' },
     selection: { anchor: pos + prefix.length + 2, head: pos + prefix.length + 10 },
+  })
+}
+
+function insertTableOfContents(view: EditorView, maxLevel: 2 | 3): void {
+  const { state } = view
+  const tableOfContents = buildMarkdownTableOfContents(state.doc.toString(), { maxLevel })
+
+  if (!tableOfContents) {
+    pushInfoNotice(
+      'notices.insertTableOfContentsNoneTitle',
+      'notices.insertTableOfContentsNoneMessage'
+    )
+    return
+  }
+
+  const range = state.selection.main
+  const before = state.sliceDoc(0, range.from)
+  const after = state.sliceDoc(range.to)
+  const prefix = before.length === 0 || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n'
+  const suffix = after.length === 0 || after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n'
+  const insert = `${prefix}${tableOfContents}${suffix}`
+
+  dispatchFormatChange(view, {
+    changes: { from: range.from, to: range.to, insert },
+    selection: { anchor: range.from + prefix.length + tableOfContents.length },
   })
 }

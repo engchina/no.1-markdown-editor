@@ -866,6 +866,10 @@
     "languageChinese": "语言: 中文",
     "normalizeSetextHeadings": "将装饰性 === / --- 标题转换为 # ATX",
     "normalizeSetextHeadingsDescription": "去掉包裹标题的等号/短横线，替换为普通的 # 标题",
+    "insertTableOfContentsH2": "插入到 H2 的目录",
+    "insertTableOfContentsH2Description": "根据二级标题生成 Markdown 链接目录",
+    "insertTableOfContentsH3": "插入到 H3 的目录",
+    "insertTableOfContentsH3Description": "根据二级和三级标题生成分层 Markdown 链接目录",
     "uploadLocalImagesToHosting": "将本地图片上传到 GitHub 图床"
   },
   "palette": {
@@ -958,6 +962,8 @@
     "normalizeSetextHeadingsDoneMessage": "已将 {{count}} 个装饰性 === / --- 标题改写为 # ATX。",
     "normalizeSetextHeadingsNoneTitle": "没有需要转换的标题",
     "normalizeSetextHeadingsNoneMessage": "在当前文档中没有发现 === / --- 包裹的装饰性标题。",
+    "insertTableOfContentsNoneTitle": "没有可用于目录的标题",
+    "insertTableOfContentsNoneMessage": "请先添加二级或三级标题，然后再插入目录。",
     "openMultipleFilesErrorTitle": "部分文件无法打开",
     "openMultipleFilesErrorMessage": "{{total}} 个文件中有 {{count}} 个打开失败，请检查路径后重试。",
     "aiProviderMissingTitle": "需要先完成 AI 设置",

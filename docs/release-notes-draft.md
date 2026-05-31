@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.25.0`.
+This document is a draft for the next public release after `v0.25.1`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,54 +8,55 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.25.1`
+`No.1 Markdown Editor v0.25.2`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.25.1 fixes browser-tab keyboard shortcuts. App-level shortcuts now keep working when an embedded browser page has focus, so writers can create, open, save, close, search, use AI, toggle layout, and adjust zoom without leaving the browser tab.
+No.1 Markdown Editor v0.25.2 adds Markdown table of contents insertion from the Command Palette. Writers can generate H2-only navigation or nested H2/H3 navigation from the current document headings without hand-copying anchor links.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Keep app-level keyboard shortcuts working while a Windows browser WebView has focus.
-- Route browser WebView shortcuts through the same app command runner used by regular editor shortcuts.
-- Disable native WebView zoom hotkeys so editor zoom remains consistent across editor, preview, and browser surfaces.
-- Preserve repeat handling for close-tab shortcuts so holding the shortcut does not close multiple files unexpectedly.
+- Insert a Markdown table of contents through H2 headings from the Command Palette.
+- Insert a nested Markdown table of contents through H3 headings from the Command Palette.
+- Reuse the editor's stable heading anchor generation so links match preview anchors.
+- Show localized guidance when a document has no eligible headings for a table of contents.
 
 ### Why This Release Matters
 
-Browser tabs should feel like part of the editor, not a separate app embedded inside it. This patch keeps core editor commands available even when focus is inside the web page, which makes browser-based research and writing flow more predictably.
+Long Markdown documents need reliable in-document navigation. This release makes table of contents generation a first-class editor command while preserving the same anchor rules used by outline and preview.
 
 ### User-Facing Improvements
 
-#### Browser Shortcut Handling
+#### Table of Contents
 
-- Windows browser tabs now forward recognized app shortcuts from WebView2 to the editor shell.
-- The editor handles forwarded browser shortcuts with the same command runner used by global keyboard shortcuts.
-- Supported commands include file actions, browser tab creation, file switcher, command palette, AI, AI setup, keyboard shortcuts, appearance, image hosting, focus mode, sidebar, and zoom controls.
+- The Command Palette now includes TOC actions for H2-only and H2/H3 table of contents generation.
+- Generated entries are regular Markdown links, so the result stays editable and portable.
+- Nested H3 entries are indented beneath their parent H2 headings.
+- Link text escapes Markdown bracket characters while anchors stay aligned with the editor's heading slug rules.
 
-#### Shortcut Reliability
+#### Empty-State Guidance
 
-- Browser WebView native zoom hotkeys are disabled so `Ctrl/Cmd +`, `Ctrl/Cmd -`, and `Ctrl/Cmd 0` stay aligned with the editor zoom state.
-- Repeated close-file shortcut events are ignored for browser-forwarded shortcuts, matching the existing document shortcut behavior.
+- When no eligible headings exist, the editor shows localized guidance instead of inserting an empty block.
+- Command labels, descriptions, and notices are available in English, Japanese, and Chinese.
 
 #### Reliability
 
-- Regression tests cover the shared app shortcut runner, the Windows browser accelerator bridge, disabled WebView native zoom hotkeys, and close-file repeat handling.
+- Regression tests cover heading extraction, TOC Markdown generation, editor insertion behavior, command registration, palette ordering, and locale coverage.
 
 ### Suggested Upgrade Notes Section
 
 - Existing Markdown documents, browser tabs, AI settings, and image-hosting settings are unchanged.
-- This patch changes shortcut routing only; page content and browser navigation behavior are unchanged.
+- Generated tables of contents are plain Markdown and can be edited after insertion.
 
 ### Suggested Who Should Update Section
 
 This release is especially relevant for users who:
 
-- use browser tabs while writing
-- rely on keyboard shortcuts for file, AI, layout, or zoom actions
-- work on Windows with embedded browser pages focused
+- maintain long Markdown documents
+- publish notes that need in-document navigation
+- prefer generated anchor links to manual heading link maintenance
 
 ## Packaging Checklist Before Release
 
@@ -63,7 +64,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.25.1 --date 2026-05-31` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.25.1` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.25.1` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.25.1` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.25.2 --date 2026-05-31` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.25.2` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.25.2` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.25.2` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

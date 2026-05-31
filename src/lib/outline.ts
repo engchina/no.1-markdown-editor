@@ -7,6 +7,11 @@ export interface OutlineHeading {
   line: number
 }
 
+export interface MarkdownTableOfContentsOptions {
+  minLevel?: number
+  maxLevel?: number
+}
+
 export { slugifyHeading }
 
 export function extractHeadings(markdown: string): OutlineHeading[] {
@@ -83,4 +88,38 @@ function pushHeading(
     id: claimHeadingId(text, headingIds),
     line,
   })
+}
+
+export function buildMarkdownTableOfContents(
+  markdown: string,
+  options: MarkdownTableOfContentsOptions = {}
+): string {
+  const minLevel = clampHeadingLevel(options.minLevel ?? 2)
+  const maxLevel = clampHeadingLevel(options.maxLevel ?? 3)
+  const headings = extractHeadings(markdown).filter((heading) =>
+    heading.level >= minLevel && heading.level <= maxLevel
+  )
+
+  if (headings.length === 0) return ''
+
+  const baseLevel = Math.min(...headings.map((heading) => heading.level))
+
+  return headings
+    .map((heading) => {
+      const indent = '  '.repeat(Math.max(0, heading.level - baseLevel))
+      return `${indent}- [${escapeTableOfContentsLinkText(heading.text)}](#${heading.id})`
+    })
+    .join('\n')
+}
+
+function clampHeadingLevel(level: number): number {
+  if (!Number.isFinite(level)) return 1
+  return Math.min(6, Math.max(1, Math.trunc(level)))
+}
+
+function escapeTableOfContentsLinkText(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
 }

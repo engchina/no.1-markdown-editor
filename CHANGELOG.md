@@ -20,6 +20,22 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.25.2 - 2026-05-31
+
+### Added
+
+- Added Command Palette actions to insert a Markdown table of contents from H2 headings or nested H2/H3 headings.
+
+### Changed
+
+### Fixed
+
+- The table of contents insert action now shows a localized notice when the current document has no eligible headings.
+
+### Internal
+
+- Added outline, format-command, command-palette, and locale regression coverage for table of contents insertion.
+
 ## 0.25.1 - 2026-05-31
 
 ### Added

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { extractHeadings, slugifyHeading } from '../src/lib/outline.ts'
+import { buildMarkdownTableOfContents, extractHeadings, slugifyHeading } from '../src/lib/outline.ts'
 
 test('slugifyHeading normalizes mixed punctuation and accents', () => {
   assert.equal(slugifyHeading('  Café: Hello, World!  '), 'cafe-hello-world')
@@ -71,4 +71,46 @@ test('extractHeadings keeps heading ids stable for voiced kana and symbol-only t
     { level: 1, text: '*', id: 'section-1', line: 3 },
     { level: 1, text: 'プ', id: 'プ', line: 4 },
   ])
+})
+
+test('buildMarkdownTableOfContents creates H2-only article navigation by default depth choice', () => {
+  const markdown = [
+    '# Article title',
+    '## Setup',
+    '### Install',
+    '## Usage [Beta]',
+    '#### Internal detail',
+  ].join('\n')
+
+  assert.equal(
+    buildMarkdownTableOfContents(markdown, { maxLevel: 2 }),
+    [
+      '- [Setup](#setup)',
+      '- [Usage \\[Beta\\]](#usage-beta)',
+    ].join('\n')
+  )
+})
+
+test('buildMarkdownTableOfContents can include H3 children while preserving stable anchors', () => {
+  const markdown = [
+    '# Title',
+    '## Setup',
+    '### Install',
+    '### Install',
+    '## API',
+  ].join('\n')
+
+  assert.equal(
+    buildMarkdownTableOfContents(markdown, { maxLevel: 3 }),
+    [
+      '- [Setup](#setup)',
+      '  - [Install](#install)',
+      '  - [Install](#install-1)',
+      '- [API](#api)',
+    ].join('\n')
+  )
+})
+
+test('buildMarkdownTableOfContents returns empty text when no selectable headings exist', () => {
+  assert.equal(buildMarkdownTableOfContents('# Only title', { maxLevel: 3 }), '')
 })

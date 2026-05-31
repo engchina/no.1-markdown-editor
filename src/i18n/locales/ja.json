@@ -866,6 +866,10 @@
     "languageChinese": "言語: 中文",
     "normalizeSetextHeadings": "装飾的な === / --- 見出しを # ATX に変換",
     "normalizeSetextHeadingsDescription": "タイトルを囲む =/− の線を取り除き、通常の # 見出しに置き換えます",
+    "insertTableOfContentsH2": "H2 までの目次を挿入",
+    "insertTableOfContentsH2Description": "レベル 2 の見出しから Markdown リンクを作成します",
+    "insertTableOfContentsH3": "H3 までの目次を挿入",
+    "insertTableOfContentsH3Description": "レベル 2 と 3 の見出しから階層付き Markdown リンクを作成します",
     "uploadLocalImagesToHosting": "ローカル画像を GitHub 画像ホスティングへアップロード"
   },
   "palette": {
@@ -958,6 +962,8 @@
     "normalizeSetextHeadingsDoneMessage": "装飾的な === / --- 見出し {{count}} 件を # ATX に書き換えました。",
     "normalizeSetextHeadingsNoneTitle": "変換対象がありません",
     "normalizeSetextHeadingsNoneMessage": "このドキュメントには === / --- で囲まれた装飾的な見出しは見つかりませんでした。",
+    "insertTableOfContentsNoneTitle": "目次に使える見出しがありません",
+    "insertTableOfContentsNoneMessage": "レベル 2 または 3 の見出しを追加してから、もう一度目次を挿入してください。",
     "openMultipleFilesErrorTitle": "一部のファイルを開けませんでした",
     "openMultipleFilesErrorMessage": "{{total}} 件中 {{count}} 件のファイルを開けませんでした。パスを確認して再試行してください。",
     "aiProviderMissingTitle": "AI 設定が必要です",

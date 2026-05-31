@@ -871,6 +871,10 @@
     "languageChinese": "Language: 中文",
     "normalizeSetextHeadings": "Convert decorative === / --- headings to # ATX",
     "normalizeSetextHeadingsDescription": "Replaces title-wrapping equals/dash lines with a plain # heading",
+    "insertTableOfContentsH2": "Insert Table of Contents through H2",
+    "insertTableOfContentsH2Description": "Creates Markdown links from level 2 headings",
+    "insertTableOfContentsH3": "Insert Table of Contents through H3",
+    "insertTableOfContentsH3Description": "Creates nested Markdown links from level 2 and 3 headings",
     "uploadLocalImagesToHosting": "Upload local images to GitHub image hosting"
   },
   "palette": {
@@ -964,6 +968,8 @@
     "normalizeSetextHeadingsDoneMessage": "Rewrote {{count}} decorative === / --- heading(s) as # ATX.",
     "normalizeSetextHeadingsNoneTitle": "Nothing to convert",
     "normalizeSetextHeadingsNoneMessage": "No decorative === / --- wrapped headings were found in this document.",
+    "insertTableOfContentsNoneTitle": "No headings for a table of contents",
+    "insertTableOfContentsNoneMessage": "Add level 2 or level 3 headings, then insert a table of contents again.",
     "openMultipleFilesErrorTitle": "Some files couldn't be opened",
     "openMultipleFilesErrorMessage": "{{count}} of {{total}} files failed to open. Check the file paths and try again.",
     "aiProviderMissingTitle": "AI setup required",

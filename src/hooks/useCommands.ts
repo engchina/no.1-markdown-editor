@@ -532,6 +532,22 @@ export function useCommands(): Command[] {
         action: () => emitFormat('table'),
       },
       {
+        id: 'edit.tocH2',
+        label: t('commands.insertTableOfContentsH2'),
+        description: t('commands.insertTableOfContentsH2Description'),
+        icon: 'TOC',
+        category: 'edit',
+        action: () => emitFormat('tocH2'),
+      },
+      {
+        id: 'edit.tocH3',
+        label: t('commands.insertTableOfContentsH3'),
+        description: t('commands.insertTableOfContentsH3Description'),
+        icon: 'TOC',
+        category: 'edit',
+        action: () => emitFormat('tocH3'),
+      },
+      {
         id: 'edit.link',
         label: t('toolbar.link'),
         icon: '🔗',
