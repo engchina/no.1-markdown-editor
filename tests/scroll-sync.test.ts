@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   buildSourceLineMap,
+  createScrollIntentTracker,
   createScrollSyncGuard,
   lineFromScrollTop,
   scrollTopForLine,
@@ -128,6 +129,37 @@ test('createScrollSyncGuard releases after cooldown expires', () => {
   guard.noteDrove('editor')
   now = 1200 // 200ms later, past 150ms cooldown
   assert.equal(guard.canDrive('preview'), true)
+})
+
+test('createScrollIntentTracker reports no interaction before any input', () => {
+  const tracker = createScrollIntentTracker(1500, () => 1000)
+  assert.equal(tracker.hasRecentInteraction(), false)
+})
+
+test('createScrollIntentTracker attributes scrolls inside the window to the user', () => {
+  let now = 1000
+  const tracker = createScrollIntentTracker(1500, () => now)
+
+  tracker.noteInteraction()
+  now = 2400 // wheel momentum / smooth scroll still coasting
+  assert.equal(tracker.hasRecentInteraction(), true)
+  now = 2500 // exactly at the window boundary stays attributable
+  assert.equal(tracker.hasRecentInteraction(), true)
+})
+
+test('createScrollIntentTracker expires so reflow scrolls are not user-attributed', () => {
+  let now = 1000
+  const tracker = createScrollIntentTracker(1500, () => now)
+
+  tracker.noteInteraction()
+  // A pasted image finishes loading much later and shifts preview scrollTop —
+  // that event must not count as a user scroll.
+  now = 3000
+  assert.equal(tracker.hasRecentInteraction(), false)
+
+  // Fresh interaction re-arms the tracker.
+  tracker.noteInteraction()
+  assert.equal(tracker.hasRecentInteraction(), true)
 })
 
 test('createScrollSyncGuard handles alternating sides without deadlock', () => {

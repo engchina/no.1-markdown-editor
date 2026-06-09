@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { EditorView } from '@codemirror/view'
 import {
   buildSourceLineMap,
+  createScrollIntentTracker,
   createScrollSyncGuard,
   lineFromScrollTop,
   scrollTopForLine,
@@ -12,6 +13,10 @@ import { useEditorStore } from '../store/editor'
 import { useScrollSyncStore } from '../store/scrollSync'
 
 const COOLDOWN_MS = 150
+// Long enough to bridge smooth-scroll animations and momentum coasting that
+// follow the last wheel/pointer event, short enough that async reflows (image
+// loads after pasting an image markdown) fall outside it.
+const PREVIEW_INTENT_WINDOW_MS = 1500
 
 function readSourceLineEntries(container: HTMLElement): SourceLineEntry[] {
   const elements = container.querySelectorAll<HTMLElement>('[data-source-line]')
@@ -94,6 +99,20 @@ export function useSplitScrollSync(): void {
 
     const editorScroller = editorView.scrollDOM
 
+    // The editor is the source of truth, so editor scrolls (user or
+    // programmatic — navigation, AI apply) always mirror into the preview.
+    // The reverse direction only runs for scrolls the user performed on the
+    // preview itself: preview scrollTop also moves on its own when async
+    // content (pasted images, mermaid, embeds) finishes loading and reflows
+    // the document, and those events must never yank the editor viewport.
+    const previewIntent = createScrollIntentTracker(PREVIEW_INTENT_WINDOW_MS)
+    const notePreviewIntent = () => previewIntent.noteInteraction()
+    const notePreviewDragIntent = (event: PointerEvent) => {
+      // Hovering alone is not scroll intent; a held button (scrollbar drag,
+      // text-selection auto-scroll) is.
+      if (event.buttons !== 0) previewIntent.noteInteraction()
+    }
+
     let editorScrollFrame = 0
     const onEditorScroll = () => {
       if (!guard.canDrive('editor')) return
@@ -115,6 +134,7 @@ export function useSplitScrollSync(): void {
 
     let previewScrollFrame = 0
     const onPreviewScroll = () => {
+      if (!previewIntent.hasRecentInteraction()) return
       if (!guard.canDrive('preview')) return
       if (previewScrollFrame) cancelAnimationFrame(previewScrollFrame)
       previewScrollFrame = requestAnimationFrame(() => {
@@ -130,10 +150,22 @@ export function useSplitScrollSync(): void {
 
     editorScroller.addEventListener('scroll', onEditorScroll, { passive: true })
     previewContainer.addEventListener('scroll', onPreviewScroll, { passive: true })
+    previewContainer.addEventListener('wheel', notePreviewIntent, { passive: true })
+    previewContainer.addEventListener('touchstart', notePreviewIntent, { passive: true })
+    previewContainer.addEventListener('touchmove', notePreviewIntent, { passive: true })
+    previewContainer.addEventListener('pointerdown', notePreviewIntent, { passive: true })
+    previewContainer.addEventListener('pointermove', notePreviewDragIntent, { passive: true })
+    previewContainer.addEventListener('keydown', notePreviewIntent, { passive: true })
 
     return () => {
       editorScroller.removeEventListener('scroll', onEditorScroll)
       previewContainer.removeEventListener('scroll', onPreviewScroll)
+      previewContainer.removeEventListener('wheel', notePreviewIntent)
+      previewContainer.removeEventListener('touchstart', notePreviewIntent)
+      previewContainer.removeEventListener('touchmove', notePreviewIntent)
+      previewContainer.removeEventListener('pointerdown', notePreviewIntent)
+      previewContainer.removeEventListener('pointermove', notePreviewDragIntent)
+      previewContainer.removeEventListener('keydown', notePreviewIntent)
       if (editorScrollFrame) cancelAnimationFrame(editorScrollFrame)
       if (previewScrollFrame) cancelAnimationFrame(previewScrollFrame)
       guardRef.current = null

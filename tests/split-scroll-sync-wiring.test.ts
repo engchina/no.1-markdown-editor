@@ -38,6 +38,33 @@ test('useSplitScrollSync uses a cooldown guard to break sync feedback loops', as
   assert.match(hook, /guard\.noteDrove\('preview'\)/)
 })
 
+test('useSplitScrollSync only lets user-intended preview scrolls drive the editor', async () => {
+  const hook = await readSource('src/hooks/useSplitScrollSync.ts')
+
+  // Preview scrollTop also moves without user input (async image loads after
+  // paste, embeds, scroll anchoring). Those reflow scrolls must never yank the
+  // editor viewport, so the preview->editor handler is gated on a recent user
+  // interaction with the preview scroller.
+  assert.match(hook, /createScrollIntentTracker/)
+  assert.match(hook, /if \(!previewIntent\.hasRecentInteraction\(\)\) return/)
+
+  // Every way a user can scroll the preview must feed the intent tracker.
+  for (const eventName of ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown']) {
+    assert.match(
+      hook,
+      new RegExp(`addEventListener\\('${eventName}', notePreviewIntent`),
+      `expected ${eventName} listener feeding the preview intent tracker`
+    )
+  }
+  // Scrollbar drags arrive as pointermove with a held button.
+  assert.match(hook, /addEventListener\('pointermove', notePreviewDragIntent/)
+  assert.match(hook, /event\.buttons !== 0/)
+
+  // The editor side stays ungated: programmatic editor scrolls (navigation,
+  // AI apply) must keep mirroring into the preview.
+  assert.doesNotMatch(hook, /editorIntent/)
+})
+
 test('useSplitScrollSync rebuilds the line map on every scroll (no stale-cache class of bugs)', async () => {
   const hook = await readSource('src/hooks/useSplitScrollSync.ts')
 

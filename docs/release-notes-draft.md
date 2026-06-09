@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.25.1`.
+This document is a draft for the next public release after `v0.25.2`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,55 +8,49 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.25.2`
+`No.1 Markdown Editor v0.25.3`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.25.2 adds Markdown table of contents insertion from the Command Palette. Writers can generate H2-only navigation or nested H2/H3 navigation from the current document headings without hand-copying anchor links.
+No.1 Markdown Editor v0.25.3 improves split-view scroll stability. Preview-side layout changes from pasted images, embeds, and other asynchronous content no longer pull the source editor away from the writer's current position.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Insert a Markdown table of contents through H2 headings from the Command Palette.
-- Insert a nested Markdown table of contents through H3 headings from the Command Palette.
-- Reuse the editor's stable heading anchor generation so links match preview anchors.
-- Show localized guidance when a document has no eligible headings for a table of contents.
+- Keep the source editor steady when preview content reflows after asynchronous loads.
+- Preserve normal editor-to-preview sync for navigation, AI apply, and source editing workflows.
+- Continue supporting intentional preview scrolling through wheel, touch, keyboard, and scrollbar interactions.
 
 ### Why This Release Matters
 
-Long Markdown documents need reliable in-document navigation. This release makes table of contents generation a first-class editor command while preserving the same anchor rules used by outline and preview.
+Split view is most useful when the source and preview stay connected without fighting the writer. This release makes preview-to-editor sync respond to deliberate user scrolling instead of incidental browser reflow events.
 
 ### User-Facing Improvements
 
-#### Table of Contents
+#### Split View Scroll Sync
 
-- The Command Palette now includes TOC actions for H2-only and H2/H3 table of contents generation.
-- Generated entries are regular Markdown links, so the result stays editable and portable.
-- Nested H3 entries are indented beneath their parent H2 headings.
-- Link text escapes Markdown bracket characters while anchors stay aligned with the editor's heading slug rules.
-
-#### Empty-State Guidance
-
-- When no eligible headings exist, the editor shows localized guidance instead of inserting an empty block.
-- Command labels, descriptions, and notices are available in English, Japanese, and Chinese.
+- Pasted images that finish loading after insertion no longer yank the source editor viewport.
+- Mermaid diagrams, embeds, and other delayed preview content can reflow without being treated as user preview scrolling.
+- Users can still scroll the preview intentionally and have the editor follow the matching source position.
 
 #### Reliability
 
-- Regression tests cover heading extraction, TOC Markdown generation, editor insertion behavior, command registration, palette ordering, and locale coverage.
+- Scroll intent tracking distinguishes real preview interactions from reflow-driven scroll events.
+- Regression tests cover the scroll intent window, reflow expiry, event wiring, and the existing cooldown loop guard.
 
 ### Suggested Upgrade Notes Section
 
 - Existing Markdown documents, browser tabs, AI settings, and image-hosting settings are unchanged.
-- Generated tables of contents are plain Markdown and can be edited after insertion.
+- This release changes split-view scroll behavior only when preview scroll events are caused by layout reflow rather than user input.
 
 ### Suggested Who Should Update Section
 
 This release is especially relevant for users who:
 
-- maintain long Markdown documents
-- publish notes that need in-document navigation
-- prefer generated anchor links to manual heading link maintenance
+- write in split view while pasting local or remote images
+- work with documents containing Mermaid diagrams, embeds, or delayed-loading assets
+- rely on stable source-editor position during long editing sessions
 
 ## Packaging Checklist Before Release
 
@@ -64,7 +58,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.25.2 --date 2026-05-31` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.25.2` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.25.2` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.25.2` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.25.3 --date 2026-06-10` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.25.3` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.25.3` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.25.3` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

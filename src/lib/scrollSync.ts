@@ -105,6 +105,34 @@ export function scrollTopForLine(map: SourceLineMap, lookup: LineLookup): number
   return current.offsetTop + offsetSpan * clamp01(lineProgress)
 }
 
+export interface ScrollIntentTracker {
+  // Record that the user just interacted with the scroller (wheel, touch,
+  // scrollbar drag, keyboard).
+  noteInteraction(): void
+  // True while a scroll event can plausibly be attributed to that interaction.
+  hasRecentInteraction(): boolean
+}
+
+// Scrollers also emit scroll events without user input: async image loads,
+// innerHTML swaps, and browser scroll anchoring all mutate scrollTop. Sync
+// directions that follow "the user scrolled this pane" must check this tracker
+// so reflow-driven events never drive the other pane.
+export function createScrollIntentTracker(
+  windowMs: number,
+  getNow: () => number = () => Date.now()
+): ScrollIntentTracker {
+  let lastInteraction = Number.NEGATIVE_INFINITY
+
+  return {
+    noteInteraction() {
+      lastInteraction = getNow()
+    },
+    hasRecentInteraction() {
+      return getNow() - lastInteraction <= windowMs
+    },
+  }
+}
+
 export type ScrollSyncSource = 'editor' | 'preview'
 
 export interface ScrollSyncGuard {

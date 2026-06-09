@@ -20,6 +20,20 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.25.3 - 2026-06-10
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Split view now ignores preview scroll events caused by asynchronous preview reflows, so pasted images and embeds no longer pull the editor viewport away from the writer's current position.
+
+### Internal
+
+- Added scroll intent tracking regression coverage for preview-to-editor split scroll synchronization.
+
 ## 0.25.2 - 2026-05-31
 
 ### Added
