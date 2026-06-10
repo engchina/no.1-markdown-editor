@@ -271,23 +271,55 @@ async fn read_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn write_file(path: String, content: String) -> Result<(), String> {
-    ensure_parent_directory(&path)?;
-    std::fs::write(&path, content).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
-    ensure_parent_directory(&path)?;
-    std::fs::write(&path, bytes).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn copy_file(source_path: String, destination_path: String) -> Result<(), String> {
-    ensure_parent_directory(&destination_path)?;
-    std::fs::copy(&source_path, &destination_path)
-        .map(|_| ())
+async fn write_file(path: String, content: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || atomic_write(&path, content.as_bytes()))
+        .await
+        .map_err(|error| format!("Failed to join file write task: {error}"))?
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn copy_file(source_path: String, destination_path: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        ensure_parent_directory(&destination_path)?;
+        std::fs::copy(&source_path, &destination_path)
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("Failed to join file copy task: {error}"))?
+}
+
+/// Documents are replaced atomically (write to a sibling temp file, then
+/// rename over the target) so a crash or power loss mid-write can never leave
+/// the user's file truncated.
+fn atomic_write(path: &str, contents: &[u8]) -> std::io::Result<()> {
+    let target = Path::new(path);
+    let parent = target.parent().filter(|p| !p.as_os_str().is_empty());
+    if let Some(parent) = parent {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let file_name = target
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "file".to_string());
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let temp_name = format!("{file_name}.{}.{unique}.tmp", std::process::id());
+    let temp_path = match parent {
+        Some(parent) => parent.join(temp_name),
+        None => PathBuf::from(temp_name),
+    };
+
+    std::fs::write(&temp_path, contents)?;
+    if let Err(error) = std::fs::rename(&temp_path, target) {
+        let _ = std::fs::remove_file(&temp_path);
+        return Err(error);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -655,27 +687,6 @@ fn attach_browser_shortcut_handler<R: tauri::Runtime>(
     Ok(())
 }
 
-fn append_log(msg: &str) {
-    if let Ok(mut file) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("E:\\workspace\\no.1-markdown-editor-v2\\debug_webview.log")
-    {
-        use std::io::Write;
-        let _ = writeln!(
-            file,
-            "[{}] {}",
-            chrono::Local::now().format("%H:%M:%S"),
-            msg
-        );
-    }
-}
-
-#[tauri::command]
-fn log_debug(msg: String) {
-    append_log(&format!("[JS] {}", msg));
-}
-
 #[tauri::command]
 async fn create_browser_webview<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
@@ -686,16 +697,11 @@ async fn create_browser_webview<R: tauri::Runtime>(
     width: f64,
     height: f64,
 ) -> Result<(), String> {
-    append_log(&format!(
-        "create_browser_webview: label={}, url={}, x={}, y={}, w={}, h={}",
-        label, url, x, y, width, height
-    ));
     let main_window = app
         .get_window("main")
         .ok_or_else(|| "Main window not found".to_string())?;
 
     if let Some(webview) = app.get_webview(&label) {
-        append_log("webview already exists, repositioning and showing");
         let (tx, rx) = tokio::sync::oneshot::channel();
         let _ = app.run_on_main_thread(move || {
             let res = (|| -> Result<(), String> {
@@ -710,12 +716,10 @@ async fn create_browser_webview<R: tauri::Runtime>(
         return rx.await.map_err(|e| format!("Channel error: {e}"))?;
     }
 
-    append_log("creating new child webview");
-    let webview_url = WebviewUrl::External(url.parse().map_err(|error| {
-        let err_msg = format!("Invalid URL: {error}");
-        append_log(&err_msg);
-        err_msg
-    })?);
+    let webview_url = WebviewUrl::External(
+        url.parse()
+            .map_err(|error| format!("Invalid URL: {error}"))?,
+    );
     let label_clone = label.clone();
     let app_handle = app.clone();
     let app_handle_title = app.clone();
@@ -742,16 +746,11 @@ async fn create_browser_webview<R: tauri::Runtime>(
                     LogicalPosition::new(x, y),
                     LogicalSize::new(width, height),
                 )
-                .map_err(|error| {
-                    let err_msg = format!("Failed to create child webview: {error}");
-                    append_log(&err_msg);
-                    err_msg
-                })?;
+                .map_err(|error| format!("Failed to create child webview: {error}"))?;
 
             let _ = child.show();
             let _ = child.set_focus();
             attach_browser_shortcut_handler(app_handle_shortcuts, &child)?;
-            append_log("new child webview created and shown successfully");
             Ok(())
         })();
         let _ = tx.send(res);
@@ -1167,26 +1166,15 @@ pub fn run() {
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("editor-navigation-guard")
                 .on_navigation(|webview, url| {
-                    append_log(&format!(
-                        "on_navigation: label={}, url={}",
-                        webview.label(),
-                        url
-                    ));
                     if is_pdf_export_webview_label(webview.label()) {
                         // Hidden webviews created for silent PDF export are allowed to
                         // load the local `file://` source html we stage for them.
                         return true;
                     }
                     if is_browser_webview_label(webview.label()) {
-                        append_log(&format!(
-                            "allowing navigation for browser label: {}",
-                            webview.label()
-                        ));
                         return true;
                     }
-                    let allowed = is_allowed_editor_navigation(url);
-                    append_log(&format!("is_allowed_editor_navigation: {}", allowed));
-                    allowed
+                    is_allowed_editor_navigation(url)
                 })
                 .build(),
         )
@@ -1215,7 +1203,6 @@ pub fn run() {
             image_hosting::image_hosting_upload,
             read_file,
             write_file,
-            write_binary_file,
             copy_file,
             get_file_name,
             allow_fs_scope_path,
@@ -1224,7 +1211,6 @@ pub fn run() {
             fetch_local_image_data_url,
             pdf_export::export_pdf_to_file,
             update::check_for_app_update,
-            log_debug,
             create_browser_webview,
             reposition_browser_webview,
             show_browser_webview,
@@ -1381,6 +1367,71 @@ mod tests {
             resolve_browser_accelerator_shortcut(VK_W.0 as u32, false, false, false),
             None
         );
+    }
+
+    #[test]
+    fn write_file_atomically_replaces_existing_contents() {
+        let target_path = make_temp_markdown_path("atomic-write");
+        fs::write(&target_path, "# old contents").expect("write initial markdown file");
+
+        tauri::async_runtime::block_on(super::write_file(
+            target_path.to_string_lossy().into_owned(),
+            "# new contents".to_string(),
+        ))
+        .expect("atomically replace markdown file");
+
+        assert_eq!(
+            fs::read_to_string(&target_path).expect("read replaced markdown file"),
+            "# new contents"
+        );
+
+        let parent = target_path.parent().expect("temp file parent");
+        let leftover_temp_files = fs::read_dir(parent)
+            .expect("list temp directory")
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                name.starts_with(
+                    target_path
+                        .file_name()
+                        .expect("temp file name")
+                        .to_string_lossy()
+                        .as_ref(),
+                ) && name.ends_with(".tmp")
+            })
+            .count();
+        assert_eq!(
+            leftover_temp_files, 0,
+            "no temp files should be left behind"
+        );
+
+        let _ = fs::remove_file(target_path);
+    }
+
+    #[test]
+    fn write_file_creates_missing_parent_directories() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock before unix epoch")
+            .as_nanos();
+        let nested_dir = std::env::temp_dir().join(format!(
+            "no1-markdown-editor-atomic-nested-{}-{unique}",
+            std::process::id()
+        ));
+        let target_path = nested_dir.join("nested").join("doc.md");
+
+        tauri::async_runtime::block_on(super::write_file(
+            target_path.to_string_lossy().into_owned(),
+            "# nested".to_string(),
+        ))
+        .expect("write markdown file into missing directories");
+
+        assert_eq!(
+            fs::read_to_string(&target_path).expect("read nested markdown file"),
+            "# nested"
+        );
+
+        let _ = fs::remove_dir_all(nested_dir);
     }
 
     #[test]

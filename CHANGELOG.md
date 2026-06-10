@@ -20,6 +20,28 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.25.5 - 2026-06-10
+
+### Added
+
+### Changed
+
+- Auto-save now pauses when a document has an unresolved external file conflict and retries transient save failures with a bounded backoff instead of silently giving up after one attempt.
+- Editor settings persistence now batches rapid local state writes so typing in large documents does not pay a synchronous localStorage cost on every keystroke.
+- Draft image persistence now writes binary files through the filesystem plugin path to avoid inflating large image payloads through JSON IPC.
+
+### Fixed
+
+- Saving a document now records the exact content that was written, so edits made while a disk write is in flight remain dirty instead of being marked saved accidentally.
+- Desktop document saves now replace files atomically to avoid leaving truncated Markdown files if a write is interrupted.
+- External file change detection now matches Windows path aliases such as verbatim paths, separator differences, and drive-letter casing back to the open tab.
+- Browser tab titles now strip only a leading `www.` prefix instead of removing matching text from the middle of a hostname.
+
+### Internal
+
+- Removed the temporary browser debug log command and switched browser diagnostics back to console errors.
+- Updated smoke-test state seeding for debounced persistence and added regression coverage for auto-save conflicts, save races, persistence batching, path canonicalization, atomic writes, and browser title normalization.
+
 ## 0.25.4 - 2026-06-10
 
 ### Added

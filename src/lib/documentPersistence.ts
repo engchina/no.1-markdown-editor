@@ -9,6 +9,7 @@ import {
   getImageAltText,
   getImageFileExtension,
 } from './fileTypes.ts'
+import { ensureFsPathAccess } from './fsAccess.ts'
 
 export interface FilePersistence {
   appConfigDir(): Promise<string>
@@ -125,9 +126,10 @@ export async function persistDraftImageFilesAsMarkdown(
 }
 
 async function createTauriFilePersistence(): Promise<FilePersistence> {
-  const [{ appConfigDir, dirname, join }, { invoke }] = await Promise.all([
+  const [{ appConfigDir, dirname, join }, { invoke }, { mkdir, writeFile }] = await Promise.all([
     import('@tauri-apps/api/path'),
     import('@tauri-apps/api/core'),
+    import('@tauri-apps/plugin-fs'),
   ])
 
   return {
@@ -140,8 +142,14 @@ async function createTauriFilePersistence(): Promise<FilePersistence> {
     writeTextFile: async (path, content) => {
       await invoke('write_file', { path, content })
     },
+    // Goes through the fs plugin instead of a custom command so the bytes ride
+    // the raw IPC channel — serializing them into a JSON number array inflates
+    // the payload roughly 4x and blocks the main thread on large images.
     writeBinaryFile: async (path, bytes) => {
-      await invoke('write_binary_file', { path, bytes: Array.from(bytes) })
+      const directory = await dirname(path)
+      await ensureFsPathAccess(directory, { kind: 'dir', recursive: true })
+      await mkdir(directory, { recursive: true })
+      await writeFile(path, bytes)
     },
   }
 }

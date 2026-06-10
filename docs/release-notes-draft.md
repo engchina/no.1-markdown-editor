@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.25.3`.
+This document is a draft for the next public release after `v0.25.4`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,60 +8,62 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.25.4`
+`No.1 Markdown Editor v0.25.5`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.25.4 improves WYSIWYG table paste behavior and preview/source synchronization fidelity. Spreadsheet-style clipboard content converts more consistently into Markdown tables, front-matter documents keep accurate preview source-line mapping, and split-view cleanup avoids stale preview containers.
+No.1 Markdown Editor v0.25.5 strengthens save reliability and local state persistence. Auto-save now respects unresolved external file conflicts, failed saves retry with a bounded backoff, desktop saves replace Markdown files atomically, and editor settings persistence batches rapid writes during active typing.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Convert spreadsheet-style clipboard data into Markdown tables through the editor-level paste path in WYSIWYG mode.
-- Keep copy, cut, and paste inside active WYSIWYG table cells so decoded cell text and sanitized Markdown stay aligned.
-- Preserve full-document preview source-line markers when a document starts with front matter.
-- Avoid stale preview container references when split preview unmounts.
+- Keep unsaved edits dirty when the user keeps typing while a save is still in flight.
+- Replace desktop Markdown files atomically during save to avoid truncated files after interrupted writes.
+- Pause auto-save while an external file conflict is unresolved, then resume after the document state changes.
+- Batch editor settings persistence so large drafts do not trigger synchronous localStorage work on every keystroke.
+- Match Windows watcher path aliases back to the correct open tab.
 
 ### Why This Release Matters
 
-WYSIWYG editing should feel direct without weakening Markdown fidelity. This release closes several edge cases where table clipboard handling, front matter, and split preview lifecycle behavior could drift away from the source document.
+Saving must be boring and trustworthy. This release tightens the editor's save path around the cases most likely to lose confidence: concurrent edits during disk writes, external file conflicts, interrupted writes, large image payloads, and noisy local persistence during sustained typing.
 
 ### User-Facing Improvements
 
-#### WYSIWYG Table Clipboard Handling
+#### Save Reliability
 
-- Spreadsheet-style TSV or HTML table content now inserts as a Markdown table when pasted into the WYSIWYG document surface.
-- Clipboard events inside an active WYSIWYG table cell stay with the cell editor, preserving decoded text for copy/cut while still sanitizing pasted cell content before writing Markdown.
-- Table paste behavior now uses one shared planner for document-level paste handling and WYSIWYG plugin handling.
+- Save completion now records the exact content written to disk. If the document changed while that write was running, the tab stays dirty instead of being marked saved incorrectly.
+- Desktop saves now write through a temporary sibling file and rename over the target, reducing the chance of a partially written Markdown file.
+- Auto-save skips tabs with unresolved external file conflicts so it does not overwrite another app's changes.
+- Transient auto-save failures retry a limited number of times before waiting for the next edit.
 
-#### Preview Source-Line Fidelity
+#### External File Changes
 
-- Preview anchors and scroll-sync source markers now account for stripped front matter, so rendered headings, paragraphs, raw HTML, and math blocks map back to their true document lines.
-- Worker and non-worker preview rendering paths now share the same source-line offset behavior.
-- Scroll lookup no longer assumes preview markers are strictly ordered by document line.
+- File watcher events with Windows verbatim paths, different separators, or different drive-letter casing now resolve back to the matching open tab.
+- Missing-file and conflict bookkeeping stays keyed to the tab's canonical path.
 
-#### Split View Stability
+#### Local Persistence And Large Files
 
-- Preview container registration now clears detached nodes on unmount, keeping split-scroll wiring attached only to the live preview.
+- Editor settings persistence is debounced and flushed before unload or when the page becomes hidden.
+- Draft image persistence writes raw bytes through the filesystem plugin path instead of serializing large byte arrays through JSON IPC.
 
-#### Performance
+#### Browser Tabs
 
-- WYSIWYG structural analysis is cached per CodeMirror document version, reducing repeated full-document scans across editor plugins, gutter classes, and table decorations.
+- Browser tab titles now remove only a leading `www.` prefix, keeping hostnames such as `mywww.example.com` intact.
 
 ### Suggested Upgrade Notes Section
 
 - Existing Markdown documents, AI settings, browser tabs, and image-hosting settings are unchanged.
-- This release only changes clipboard handling in WYSIWYG table workflows and preview/source synchronization metadata.
+- This release changes save bookkeeping and local persistence behavior but does not change the Markdown file format.
 
 ### Suggested Who Should Update Section
 
 This release is especially relevant for users who:
 
-- paste spreadsheet data into Markdown tables
-- edit table cells in WYSIWYG mode
-- use front matter in long Markdown documents
-- rely on split-view scroll sync between source and preview
+- edit while auto-save is active
+- keep notes open while the same files may change in another app
+- paste or persist large local images
+- work with Markdown files on Windows paths or network shares
 
 ## Packaging Checklist Before Release
 
@@ -69,7 +71,7 @@ This release is especially relevant for users who:
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.25.4 --date 2026-06-10` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.25.4` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.25.4` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.25.4` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.25.5 --date 2026-06-10` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.25.5` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.25.5` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.25.5` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

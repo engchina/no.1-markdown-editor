@@ -187,7 +187,12 @@ async function saveFailureArtifacts(page, error, consoleMessages, pageErrors, di
 }
 
 async function seed(page, options) {
-  await page.evaluate(({ persistedState, storageKey }) => {
+  // Seed via addInitScript instead of evaluate-before-reload: the init script
+  // runs after the old page (and its debounced persistence flush) is gone and
+  // before any app code, so the seeded state can never be clobbered by writes
+  // from the outgoing page. Scripts accumulate across seeds and run in
+  // registration order, so the latest seed wins.
+  await page.addInitScript(({ persistedState, storageKey }) => {
     localStorage.clear()
     localStorage.setItem(storageKey, JSON.stringify(persistedState))
     localStorage.setItem('language', 'en')

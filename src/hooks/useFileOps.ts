@@ -71,7 +71,7 @@ export function useFileOps() {
       reader.readAsText(file)
     }
     input.click()
-  }, [addRecent, openDocument])
+  }, [openDocument])
 
   const saveTabById = useCallback(
     async (tabId: string, forceDialog = false): Promise<boolean> => {
@@ -101,7 +101,7 @@ export function useFileOps() {
           }
           setTabPath(tab.id, savePath, name)
           rekeyDocumentHistory(tab.id, tab.path, savePath)
-          saveTab(tab.id)
+          saveTab(tab.id, nextContent)
           addRecent(savePath, name)
           return true
         } catch (error) {
@@ -119,7 +119,7 @@ export function useFileOps() {
         anchor.download = /\.[A-Za-z0-9]+$/.test(tab.name) ? tab.name : `${tab.name}.md`
         anchor.click()
         setTimeout(() => URL.revokeObjectURL(url), 1000)
-        saveTab(tab.id)
+        saveTab(tab.id, tab.content)
         return true
       } catch (error) {
         console.error('Save file error:', error)

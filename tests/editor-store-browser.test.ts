@@ -31,3 +31,26 @@ test('editor store updateTabUrl updates tab URL and name based on parsed hostnam
   // Clean up tab
   useEditorStore.getState().closeTab(tabId)
 })
+
+test('editor store updateTabUrl strips only a leading www. from the hostname', () => {
+  const tabId = useEditorStore.getState().addTab({
+    type: 'browser',
+    url: DEFAULT_BROWSER_URL,
+    name: 'Browser',
+  })
+
+  useEditorStore.getState().updateTabUrl(tabId, 'https://www.github.com/engchina')
+  assert.equal(
+    useEditorStore.getState().tabs.find((t) => t.id === tabId)?.name,
+    'github.com'
+  )
+
+  // 'www.' inside the hostname must be preserved
+  useEditorStore.getState().updateTabUrl(tabId, 'https://mywww.example.com/page')
+  assert.equal(
+    useEditorStore.getState().tabs.find((t) => t.id === tabId)?.name,
+    'mywww.example.com'
+  )
+
+  useEditorStore.getState().closeTab(tabId)
+})

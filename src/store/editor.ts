@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import i18n, { type Language } from '../i18n/index.ts'
+import { createJSONStorage, persist } from 'zustand/middleware'
+import i18n, { getInitialLanguage, type Language } from '../i18n/index.ts'
+import { createDebouncedStateStorage, createSafeLocalStorage } from '../lib/persistStorage.ts'
 import type { AIHistoryProviderRerankBudget, AISelectedTextRole } from '../lib/ai/types.ts'
 import {
   clampFocusWidthPx,
@@ -97,7 +98,7 @@ interface EditorState {
   setActiveTab: (id: string) => void
   updateTabContent: (id: string, content: string) => void
   updateTabUrl: (id: string, url: string) => void
-  saveTab: (id: string) => void
+  saveTab: (id: string, savedContent: string) => void
   setTabPath: (id: string, path: string, name: string) => void
   replaceTabFromDisk: (id: string, content: string) => void
   resolveExternalFileConflict: (id: string, content: string, diskContent: string) => void
@@ -174,6 +175,9 @@ interface EditorState {
 }
 
 function generateId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
   return Math.random().toString(36).slice(2, 10)
 }
 
@@ -196,6 +200,18 @@ function isReusableScratchTab(tab: FileTab): boolean {
 }
 
 const initialTab = createNewTab()
+
+// updateTabContent fires on every keystroke and zustand persist writes
+// synchronously per set(); debounce the localStorage writes so large drafts
+// don't add per-keystroke JSON.stringify + setItem latency.
+const editorSettingsStorage = createDebouncedStateStorage(createSafeLocalStorage(), 250)
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => editorSettingsStorage.flush())
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') editorSettingsStorage.flush()
+  })
+}
 
 function sanitizeSidebarTab(value: unknown): SidebarTab {
   if (value === 'ai' || value === 'links' || value === 'inspect' || value === 'assets' || value === 'health') {
@@ -228,7 +244,7 @@ export const useEditorStore = create<EditorState>()(
       toggleTheme: () => set((s) => ({ theme: s.theme === 'light' ? 'dark' : 'light' })),
 
       // Language
-      language: 'en',
+      language: getInitialLanguage(),
       setLanguage: (lang) => {
         i18n.changeLanguage(lang)
         localStorage.setItem('language', lang)
@@ -370,7 +386,7 @@ export const useEditorStore = create<EditorState>()(
               let name = t.name;
               try {
                 const parsed = new URL(url);
-                name = parsed.hostname.replace('www.', '');
+                name = parsed.hostname.replace(/^www\./, '');
               } catch (_) {
                 // If it fails to parse, fallback to current name
               }
@@ -380,10 +396,14 @@ export const useEditorStore = create<EditorState>()(
           }),
         }))
       },
-      saveTab: (id) => {
+      // `savedContent` must be the content that was actually written to disk.
+      // The tab may have received new edits while the write was in flight, so
+      // dirtiness is recomputed against the current content instead of being
+      // cleared unconditionally.
+      saveTab: (id, savedContent) => {
         set((s) => ({
           tabs: s.tabs.map((t) =>
-            t.id === id ? { ...t, savedContent: t.content, isDirty: false } : t
+            t.id === id ? { ...t, savedContent, isDirty: t.content !== savedContent } : t
           ),
         }))
       },
@@ -630,9 +650,9 @@ export const useEditorStore = create<EditorState>()(
     }),
     {
       name: 'editor-settings',
+      storage: createJSONStorage(() => editorSettingsStorage),
       partialize: (s) => ({
         theme: s.theme,
-        language: s.language,
         viewMode: s.viewMode,
         sidebarWidth: s.sidebarWidth,
         sidebarOpen: s.sidebarOpen,
@@ -677,6 +697,9 @@ export const useEditorStore = create<EditorState>()(
 
         return {
           ...mergedState,
+          // The `language` localStorage key consumed by i18n init is the single
+          // source of truth; ignore any stale copy persisted by older versions.
+          language: current.language,
           viewMode: viewModeSanitized,
           sidebarTab: sanitizeSidebarTab(persistedState?.sidebarTab),
           sidebarWidth: clampSidebarWidth(

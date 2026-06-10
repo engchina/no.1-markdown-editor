@@ -334,6 +334,17 @@ async function main() {
     await expectNoText(page, '[data-theme-panel="true"]', 'AI provider secrets can only be configured in the desktop app right now.')
 
     await page.locator('label').filter({ hasText: 'WYSIWYG (Live Preview)' }).locator('button').click()
+    // Persisted writes are debounced, so poll until the toggle lands in storage.
+    await waitForCondition(
+      async () => {
+        const state = await page.evaluate((storageKey) => {
+          const raw = localStorage.getItem(storageKey)
+          return raw ? JSON.parse(raw).state : null
+        }, LOCAL_STORAGE_KEY)
+        return state?.wysiwygMode === true
+      },
+      'persisted wysiwygMode toggle'
+    )
     const storedState = await page.evaluate((storageKey) => {
       const raw = localStorage.getItem(storageKey)
       return raw ? JSON.parse(raw).state : null

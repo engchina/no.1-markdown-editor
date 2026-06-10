@@ -26,15 +26,6 @@ interface BrowserContainerProps {
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
-const logDebug = async (msg: string) => {
-  console.log('[BrowserContainer]', msg)
-  if (isTauri) {
-    try {
-      await invoke('log_debug', { msg: `[JS] ${msg}` })
-    } catch (_) {}
-  }
-}
-
 export default function BrowserContainer({ tab }: BrowserContainerProps) {
   const { t } = useTranslation()
   const label = `browser-${tab.id}`
@@ -64,10 +55,9 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         savedContent: '',
         isDirty: true,
       })
-      void logDebug(`clip extraction: ${snapshot.extraction?.mode || 'unknown'} via ${snapshot.extraction?.source || 'unknown'}`)
       pushSuccessNotice('browser.agent.clipSuccess')
     } catch (e) {
-      void logDebug('clip failed: ' + e)
+      console.error('Browser clip error:', e)
       pushErrorNotice('browser.agent.clipError', 'browser.agent.clipError')
     } finally {
       setAgentBusy(null)
@@ -83,7 +73,6 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     setAgentBusy('ask')
     try {
       const snapshot = await collectPageContent(label, { extractionMode })
-      void logDebug(`ask extraction: ${snapshot.extraction?.mode || 'unknown'} via ${snapshot.extraction?.source || 'unknown'}`)
       dispatchEditorAIOpen({
         source: 'command-palette',
         intent: 'ask',
@@ -91,7 +80,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         explicitContextAttachments: [buildWebpageAttachment(snapshot)],
       })
     } catch (e) {
-      void logDebug('ask failed: ' + e)
+      console.error('Browser ask error:', e)
       pushErrorNotice('browser.agent.askError', 'browser.agent.askError')
     } finally {
       setAgentBusy(null)
@@ -138,15 +127,13 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
       if (shouldHide) {
         if (!screenshotUrl && !isCapturingRef.current) {
           isCapturingRef.current = true
-          void logDebug('Initiating webview screenshot capture...')
           invoke<string>('capture_browser_webview', { label })
             .then((b64) => {
-              void logDebug('Screenshot capture successful!')
               setScreenshotUrl(b64)
               setShouldHideWebview(true)
             })
             .catch((err) => {
-              void logDebug('Screenshot capture failed: ' + err)
+              console.error('Browser screenshot capture error:', err)
               setShouldHideWebview(true)
             })
             .finally(() => {
@@ -199,7 +186,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     try {
       await invoke('browser_navigate', { label, url })
     } catch (e) {
-      void logDebug('Failed to navigate: ' + e)
+      console.error('Browser navigate error:', e)
     }
   }
 
@@ -209,7 +196,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     try {
       await invoke('browser_go_back', { label })
     } catch (e) {
-      void logDebug('Failed goBack: ' + e)
+      console.error('Browser go back error:', e)
     }
   }
 
@@ -219,7 +206,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     try {
       await invoke('browser_go_forward', { label })
     } catch (e) {
-      void logDebug('Failed goForward: ' + e)
+      console.error('Browser go forward error:', e)
     }
   }
 
@@ -229,7 +216,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     try {
       await invoke('browser_reload', { label })
     } catch (e) {
-      void logDebug('Failed reload: ' + e)
+      console.error('Browser reload error:', e)
     }
   }
 
@@ -251,7 +238,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
           }
         })
       } catch (e) {
-        void logDebug('Listen failed: ' + e)
+        console.error('Browser URL change listener error:', e)
       }
     })()
 
@@ -266,7 +253,6 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
 
     let active = true
     const viewport = viewportRef.current
-    void logDebug("BrowserContainer useEffect mounted for " + label)
 
     const syncPosition = async () => {
       if (!active) return
@@ -281,10 +267,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
       const rect = viewport.getBoundingClientRect()
 
       // Skip if size is zero (unrendered or hidden tab)
-      if (rect.width <= 0 || rect.height <= 0) {
-        void logDebug("syncPosition skipped due to 0 size: w=" + rect.width + ", h=" + rect.height)
-        return
-      }
+      if (rect.width <= 0 || rect.height <= 0) return
 
       let x = rect.left
       let y = rect.top
@@ -296,8 +279,6 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         y += offset
         height -= offset
       }
-
-      void logDebug(`syncPosition calling create_browser_webview: x=${x}, y=${y}, w=${width}, h=${height}`)
 
       try {
         // This command will create the webview if it doesn't exist,
@@ -316,13 +297,12 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
         const currentZoom = useEditorStore.getState().zoom
         await invoke('browser_set_zoom', { label, zoom: currentZoom / 100 })
       } catch (e) {
-        void logDebug("syncPosition invoke ERROR: " + e)
+        console.error('Browser webview position sync error:', e)
       }
     }
 
     // Set up ResizeObserver to sync webview bounds on size changes
     const resizeObserver = new ResizeObserver(() => {
-      void logDebug("ResizeObserver triggered")
       void syncPosition()
     })
     resizeObserver.observe(viewport)
@@ -334,7 +314,6 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
     window.addEventListener('resize', syncPosition)
 
     return () => {
-      void logDebug("BrowserContainer useEffect cleanup for " + label)
       active = false
       resizeObserver.disconnect()
       window.removeEventListener('resize', syncPosition)
@@ -346,14 +325,12 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
           const tabExists = tabs.some((t) => t.id === tab.id)
 
           if (tabExists) {
-            void logDebug("tabExists is true, calling show_browser_webview(false)")
             await invoke('show_browser_webview', { label, visible: false })
           } else {
-            void logDebug("tabExists is false, calling destroy_browser_webview")
             await invoke('destroy_browser_webview', { label })
           }
         } catch (e) {
-          void logDebug("cleanup invoke ERROR: " + e)
+          console.error('Browser webview cleanup error:', e)
         }
       })()
     }
@@ -369,7 +346,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
           await invoke('browser_set_zoom', { label, zoom: zoom / 100 })
         }
       } catch (e) {
-        void logDebug('Failed to set zoom: ' + e)
+        console.error('Browser zoom sync error:', e)
       }
     }
     void updateZoom()

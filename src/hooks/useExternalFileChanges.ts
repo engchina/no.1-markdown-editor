@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useEditorStore } from '../store/editor'
-import { resolveExternalFileContentChange } from '../lib/externalFileChanges'
+import { canonicalFsPathKey, resolveExternalFileContentChange } from '../lib/externalFileChanges'
 import { ensureFsPathAccess, ensureFsPathAccessBatch } from '../lib/fsAccess'
 import { pushErrorNotice, pushInfoNotice } from '../lib/notices'
 
@@ -108,13 +108,23 @@ export function useExternalFileChanges() {
   }, [watchedPaths])
 }
 
+function findTabByFsPath<T extends { path: string | null }>(tabs: T[], path: string): T | undefined {
+  const pathKey = canonicalFsPathKey(path)
+  return tabs.find((tab) => tab.path !== null && canonicalFsPathKey(tab.path) === pathKey)
+}
+
 async function verifyExternalFileChange(
-  path: string,
+  eventPath: string,
   warnedMissing: Set<string>,
   warnedConflict: Map<string, string>
 ) {
-  const currentTab = useEditorStore.getState().tabs.find((tab) => tab.path === path)
-  if (!currentTab) return
+  const currentTab = findTabByFsPath(useEditorStore.getState().tabs, eventPath)
+  if (!currentTab?.path) return
+
+  // Watcher events can report a differently-spelled alias of the tab path
+  // (e.g. a `\\?\` prefix on Windows); use the tab's own path for all store
+  // bookkeeping so conflict/missing entries stay keyed consistently.
+  const path = currentTab.path
 
   try {
     await ensureFsPathAccess(path)
@@ -151,7 +161,7 @@ async function verifyExternalFileChange(
     return
   }
 
-  const latestTab = useEditorStore.getState().tabs.find((tab) => tab.path === path)
+  const latestTab = findTabByFsPath(useEditorStore.getState().tabs, path)
   if (!latestTab) return
   switch (resolveExternalFileContentChange(latestTab, diskContent)) {
     case 'noop':

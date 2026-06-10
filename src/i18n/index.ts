@@ -19,6 +19,16 @@ function resolveSavedLanguage(): Language {
   return isLanguage(savedLanguage) ? savedLanguage : 'en'
 }
 
+/**
+ * The language i18next was initialized with. The `language` localStorage key
+ * is the single persisted source of truth (it must be readable before any
+ * store is created); stores should seed from this instead of persisting their
+ * own copy.
+ */
+export function getInitialLanguage(): Language {
+  return savedLang
+}
+
 function isLanguage(value: string | null): value is Language {
   return value === 'en' || value === 'ja' || value === 'zh'
 }

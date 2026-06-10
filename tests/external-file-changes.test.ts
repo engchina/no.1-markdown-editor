@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { resolveExternalFileContentChange } from '../src/lib/externalFileChanges.ts'
+import { canonicalFsPathKey, resolveExternalFileContentChange } from '../src/lib/externalFileChanges.ts'
 
 test('resolveExternalFileContentChange ignores local unsaved edits when disk still matches the last save', () => {
   assert.equal(
@@ -57,6 +57,26 @@ test('resolveExternalFileContentChange reloads clean tabs when disk changed exte
     ),
     'reload'
   )
+})
+
+test('canonicalFsPathKey matches Windows verbatim, separator, and casing aliases of the same file', () => {
+  assert.equal(
+    canonicalFsPathKey('\\\\?\\C:\\Docs\\Note.md'),
+    canonicalFsPathKey('c:/docs/note.md')
+  )
+  assert.equal(
+    canonicalFsPathKey('C:\\Docs\\Note.md'),
+    canonicalFsPathKey('C:/Docs/Note.md')
+  )
+  assert.equal(
+    canonicalFsPathKey('\\\\?\\UNC\\server\\share\\Note.md'),
+    canonicalFsPathKey('\\\\server\\share\\note.md')
+  )
+})
+
+test('canonicalFsPathKey keeps POSIX paths case-sensitive', () => {
+  assert.notEqual(canonicalFsPathKey('/home/user/Note.md'), canonicalFsPathKey('/home/user/note.md'))
+  assert.equal(canonicalFsPathKey('/home/user/Note.md'), canonicalFsPathKey('/home/user/Note.md'))
 })
 
 test('ExternalFileConflictDialog keeps memo hooks above the early return guard', async () => {
