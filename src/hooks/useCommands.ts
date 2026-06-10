@@ -568,6 +568,7 @@ export function useCommands(): Command[] {
         label: t('toolbar.h1'),
         icon: 'H1',
         category: 'edit',
+        shortcut: getFormatShortcutLabel('h1'),
         action: () => emitFormat('h1'),
       },
       {
@@ -575,6 +576,7 @@ export function useCommands(): Command[] {
         label: t('toolbar.h2'),
         icon: 'H2',
         category: 'edit',
+        shortcut: getFormatShortcutLabel('h2'),
         action: () => emitFormat('h2'),
       },
       {
@@ -582,6 +584,7 @@ export function useCommands(): Command[] {
         label: t('toolbar.h3'),
         icon: 'H3',
         category: 'edit',
+        shortcut: getFormatShortcutLabel('h3'),
         action: () => emitFormat('h3'),
       },
       {
@@ -589,6 +592,7 @@ export function useCommands(): Command[] {
         label: t('toolbar.h4'),
         icon: 'H4',
         category: 'edit',
+        shortcut: getFormatShortcutLabel('h4'),
         action: () => emitFormat('h4'),
       },
       {
@@ -596,6 +600,7 @@ export function useCommands(): Command[] {
         label: t('toolbar.h5'),
         icon: 'H5',
         category: 'edit',
+        shortcut: getFormatShortcutLabel('h5'),
         action: () => emitFormat('h5'),
       },
       {
@@ -603,6 +608,7 @@ export function useCommands(): Command[] {
         label: t('toolbar.h6'),
         icon: 'H6',
         category: 'edit',
+        shortcut: getFormatShortcutLabel('h6'),
         action: () => emitFormat('h6'),
       },
       {

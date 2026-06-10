@@ -56,6 +56,32 @@ test('old Ctrl+Shift+S strikethrough binding no longer matches', () => {
   assert.equal(action, null)
 })
 
+test('Ctrl+1 through Ctrl+6 map to heading levels', () => {
+  for (let level = 1; level <= 6; level += 1) {
+    const action = getFormatActionFromShortcut(createShortcutEvent({ ctrlKey: true, code: `Digit${level}` }))
+    assert.equal(action, `h${level}`)
+  }
+})
+
+test('Cmd+1 through Cmd+6 map to heading levels on macOS', () => {
+  for (let level = 1; level <= 6; level += 1) {
+    const action = getFormatActionFromShortcut(createShortcutEvent({ metaKey: true, code: `Digit${level}` }), true)
+    assert.equal(action, `h${level}`)
+  }
+})
+
+test('Ctrl+5 maps to h5 while Ctrl+Shift+5 stays strikethrough', () => {
+  assert.equal(getFormatActionFromShortcut(createShortcutEvent({ ctrlKey: true, code: 'Digit5' })), 'h5')
+  assert.equal(getFormatActionFromShortcut(createShortcutEvent({ ctrlKey: true, shiftKey: true, code: 'Digit5' })), 'strikethrough')
+})
+
+test('heading level shortcut labels', () => {
+  assert.equal(getFormatShortcutLabel('h1'), 'Ctrl+1')
+  assert.equal(getFormatShortcutLabel('h6'), 'Ctrl+6')
+  assert.equal(getFormatShortcutLabel('h1', true), '⌘1')
+  assert.equal(getFormatShortcutLabel('h6', true), '⌘6')
+})
+
 test('Markdown insertion shortcuts map to their formatting actions', () => {
   assert.equal(getFormatActionFromShortcut(createShortcutEvent({ ctrlKey: true, shiftKey: true, code: 'KeyH' })), 'heading')
   assert.equal(getFormatActionFromShortcut(createShortcutEvent({ ctrlKey: true, shiftKey: true, code: 'KeyO' })), 'ol')
@@ -93,6 +119,8 @@ test('command palette uses the shared Markdown shortcut registry for insert comm
   assert.match(commands, /id: 'edit\.task'[\s\S]*shortcut: getFormatShortcutLabel\('task'\)/)
   assert.match(commands, /id: 'edit\.link'[\s\S]*shortcut: getFormatShortcutLabel\('link'\)/)
   assert.match(commands, /id: 'edit\.image'[\s\S]*shortcut: getFormatShortcutLabel\('image'\)/)
+  assert.match(commands, /id: 'edit\.h1'[\s\S]*?shortcut: getFormatShortcutLabel\('h1'\)/)
+  assert.match(commands, /id: 'edit\.h6'[\s\S]*?shortcut: getFormatShortcutLabel\('h6'\)/)
   assert.match(palette, /\['edit\.heading', 125]/)
   assert.match(palette, /case 'edit\.heading':\s+return <TextBadge label="H" \/>/)
 })

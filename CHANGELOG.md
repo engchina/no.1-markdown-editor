@@ -20,6 +20,22 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.25.6 - 2026-06-11
+
+### Added
+
+- Heading levels now have direct keyboard shortcuts: `Ctrl+1` through `Ctrl+6` on Windows/Linux and `Cmd+1` through `Cmd+6` on macOS.
+
+### Changed
+
+- Heading menu items and command palette heading actions now show their shortcut labels alongside the existing H1-H6 commands.
+
+### Fixed
+
+### Internal
+
+- Split the Rust AI backend from a single `ai.rs` file into focused modules for commands, provider config, secrets, hosted agents, OCI, MCP, streaming, and response parsing, and updated AI wiring tests to read the module tree.
+
 ## 0.25.5 - 2026-06-10
 
 ### Added

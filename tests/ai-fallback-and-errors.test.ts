@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
+
+async function readAiRustSources(): Promise<string> {
+  const dir = new URL('../src-tauri/src/ai/', import.meta.url)
+  const entries = (await readdir(dir)).filter((name) => name.endsWith('.rs')).sort()
+  const sources = await Promise.all(entries.map((name) => readFile(new URL(name, dir), 'utf8')))
+  return sources.join('\n')
+}
 
 test('AI rust backend normalizes timeout, auth, rate limit, and malformed response paths', async () => {
-  const rust = await readFile(new URL('../src-tauri/src/ai.rs', import.meta.url), 'utf8')
+  const rust = await readAiRustSources()
 
   assert.match(rust, /AI request timed out/)
   assert.match(rust, /Unable to reach the AI service\. Check your network connection/)

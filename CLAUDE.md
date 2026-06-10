@@ -40,7 +40,7 @@ Packaging — `npm run package:win` (Windows, cmd) / `npm run package:mac` (bash
 
 ## Architecture
 
-Tauri v2 desktop shell + Vite/React 18 frontend. Single source of truth for Markdown lives in the frontend; `src-tauri` provides file I/O, image loading (with size limits in `src-tauri/src/lib.rs`: 12 MB remote / 24 MB local), AI proxying (`src-tauri/src/ai.rs`), updates (`update.rs`), and a `single-instance-open-files` event for OS-level "open with" integration.
+Tauri v2 desktop shell + Vite/React 18 frontend. Single source of truth for Markdown lives in the frontend; `src-tauri` provides file I/O, image loading (with size limits in `src-tauri/src/lib.rs`: 12 MB remote / 24 MB local), AI proxying (`src-tauri/src/ai/`), updates (`update.rs`), and a `single-instance-open-files` event for OS-level "open with" integration.
 
 ### Frontend layout (`src/`)
 
@@ -65,7 +65,7 @@ Independent of the editor core, wired in via events (`events.ts`, `dispatchEdito
 
 1. `opening.ts` / `selectionBubble.ts` / `slashCommands.ts` / `quickActions.ts` determine entry and output target.
 2. `context.ts` + `contextChips.ts` + `mentions.ts` + `retrievalMetadata.ts` build the context packet (selection, current block, workspace mentions, retrieval metadata).
-3. `prompt.ts` + `templateLibrary.ts` compose the prompt; `provider.ts` + `client.ts` call the model (proxied through `src-tauri/src/ai.rs` when in Tauri).
+3. `prompt.ts` + `templateLibrary.ts` compose the prompt; `provider.ts` + `client.ts` call the model (proxied through `src-tauri/src/ai/` when in Tauri).
 4. Streaming results flow through `thread.ts` → `resultViews.ts` / `ghostText.ts` / `diffPresentation.ts`.
 5. `apply.ts` + `provenance.ts` apply output back into the document with undo-safe history markers.
 6. `history*.ts` + `providerHistory*.ts` + `workspaceExecution.ts` persist and audit runs; `historyArchiveFile.ts` and `historyWorkspaceHandoff.ts` cover cross-workspace handoff.
@@ -76,7 +76,7 @@ Anything touching AI flows almost certainly needs matching updates to tests in `
 
 - `main.rs` — entry; delegates to `lib.rs`.
 - `lib.rs` — Tauri commands for file read/write (text and binary), copy, remote/local image loading with size caps, and emitting `single-instance-open-files` to the frontend.
-- `ai.rs` — AI provider HTTP proxy so API keys never touch the renderer.
+- `ai/` — AI provider HTTP proxy so API keys never touch the renderer. `mod.rs` holds shared types/constants/state, `commands.rs` the Tauri command surface; the rest is split by domain: `secrets.rs` (keyring), `config.rs` (provider config), `urls.rs`, `http.rs` (client + error normalization), `openai.rs`, `oci.rs` (Responses/NL2SQL), `oci_sign.rs` (IAM request signing), `hosted.rs` (hosted agent + OAuth), `mcp.rs`, `responses.rs` (payloads/grounding), `enrichment.rs`, `streaming.rs` (SSE), `tests.rs`.
 - `update.rs` — update check/download.
 
 Versioning is triple-pinned: keep `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` in sync. Release is tag-driven via `.github/workflows/release.yml` — pushing `vX.Y.Z` builds Win x64, universal macOS (unsigned, `--target universal-apple-darwin --no-sign`), and Linux x64, and the workflow fails fast if the tag does not match the app version.
@@ -84,5 +84,6 @@ Versioning is triple-pinned: keep `package.json`, `src-tauri/tauri.conf.json`, a
 ### Testing conventions
 
 - Pure logic goes in `src/lib/` and gets a `tests/<name>.test.ts` sibling using the built-in `node:test` API (no test framework import — uses `--experimental-strip-types`).
+- New Rust tests for `src-tauri/src/ai/` go in a `#[cfg(test)]` block inside the module they cover; `ai/tests.rs` is legacy from the pre-split single file — migrate its tests opportunistically when touching them, don't add to it.
 - Playwright smokes are separate (`scripts/run-*-smoke.mjs`) and always build first; they exercise the built `dist/` via `vite preview`.
 - When adding UI state or stores, prefer a `*-wiring.test.ts` that asserts the event/store contract rather than a component render test.

@@ -8,6 +8,12 @@ export type ShortcutFormatAction = Extract<
   | 'underline'
   | 'strikethrough'
   | 'heading'
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'h4'
+  | 'h5'
+  | 'h6'
   | 'code'
   | 'codeblock'
   | 'link'
@@ -38,6 +44,12 @@ const FORMAT_SHORTCUTS: Record<ShortcutFormatAction, FormatShortcutDefinition> =
   underline: { code: 'KeyU', requiresShift: false, keyLabel: 'U' },
   strikethrough: { code: 'Digit5', requiresShift: true, keyLabel: '5' },
   heading: { code: 'KeyH', requiresShift: true, keyLabel: 'H' },
+  h1: { code: 'Digit1', requiresShift: false, keyLabel: '1' },
+  h2: { code: 'Digit2', requiresShift: false, keyLabel: '2' },
+  h3: { code: 'Digit3', requiresShift: false, keyLabel: '3' },
+  h4: { code: 'Digit4', requiresShift: false, keyLabel: '4' },
+  h5: { code: 'Digit5', requiresShift: false, keyLabel: '5' },
+  h6: { code: 'Digit6', requiresShift: false, keyLabel: '6' },
   code: { code: 'Backquote', requiresShift: false, keyLabel: '`' },
   codeblock: { code: 'KeyK', requiresShift: true, keyLabel: 'K' },
   link: { code: 'KeyL', requiresShift: true, keyLabel: 'L' },

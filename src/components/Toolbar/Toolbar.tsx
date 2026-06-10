@@ -448,12 +448,12 @@ export default function Toolbar({
   }, [])
 
   const headingItems: ToolbarMenuItem[] = [
-    { id: 'h1', label: t('toolbar.h1'), textIcon: 'H1', action: () => emitFormat('h1') },
-    { id: 'h2', label: t('toolbar.h2'), textIcon: 'H2', action: () => emitFormat('h2') },
-    { id: 'h3', label: t('toolbar.h3'), textIcon: 'H3', action: () => emitFormat('h3') },
-    { id: 'h4', label: t('toolbar.h4'), textIcon: 'H4', action: () => emitFormat('h4') },
-    { id: 'h5', label: t('toolbar.h5'), textIcon: 'H5', action: () => emitFormat('h5') },
-    { id: 'h6', label: t('toolbar.h6'), textIcon: 'H6', action: () => emitFormat('h6') },
+    { id: 'h1', label: t('toolbar.h1'), textIcon: 'H1', shortcut: getFormatShortcutLabel('h1'), action: () => emitFormat('h1') },
+    { id: 'h2', label: t('toolbar.h2'), textIcon: 'H2', shortcut: getFormatShortcutLabel('h2'), action: () => emitFormat('h2') },
+    { id: 'h3', label: t('toolbar.h3'), textIcon: 'H3', shortcut: getFormatShortcutLabel('h3'), action: () => emitFormat('h3') },
+    { id: 'h4', label: t('toolbar.h4'), textIcon: 'H4', shortcut: getFormatShortcutLabel('h4'), action: () => emitFormat('h4') },
+    { id: 'h5', label: t('toolbar.h5'), textIcon: 'H5', shortcut: getFormatShortcutLabel('h5'), action: () => emitFormat('h5') },
+    { id: 'h6', label: t('toolbar.h6'), textIcon: 'H6', shortcut: getFormatShortcutLabel('h6'), action: () => emitFormat('h6') },
   ]
 
   const formatItems: ToolbarMenuItem[] = [
