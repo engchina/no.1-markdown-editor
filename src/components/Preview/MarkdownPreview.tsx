@@ -93,11 +93,14 @@ export default function MarkdownPreview() {
   const pendingExternalFallbacksRef = useRef(new Set<string>())
 
   useEffect(() => {
+    // Capture the node now: React detaches refs before unmount cleanups run,
+    // so reading previewRef.current inside the cleanup would always yield null
+    // and the store would keep a detached container forever.
+    const node = previewRef.current
     const setPreviewContainer = useScrollSyncStore.getState().setPreviewContainer
-    setPreviewContainer(previewRef.current)
+    setPreviewContainer(node)
     return () => {
-      const current = useScrollSyncStore.getState().previewContainer
-      if (current === previewRef.current) setPreviewContainer(null)
+      if (useScrollSyncStore.getState().previewContainer === node) setPreviewContainer(null)
     }
   }, [])
 

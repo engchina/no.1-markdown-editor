@@ -20,6 +20,26 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.25.4 - 2026-06-10
+
+### Added
+
+### Changed
+
+- Spreadsheet-style clipboard content now uses the same Markdown table insertion path across WYSIWYG document paste and editor-level paste handling.
+- WYSIWYG table cell copy, cut, and paste now stay inside the active cell editor so decoded cell text is preserved while cell content is sanitized before it reaches the Markdown document.
+
+### Fixed
+
+- Preview source-line markers now stay aligned with full-document line numbers when a note starts with front matter, including raw HTML, math, and worker-rendered preview paths.
+- Split preview container cleanup now clears detached preview nodes during unmount so scroll-sync wiring does not retain stale DOM containers.
+- Scroll sync now handles preview source-line markers that are not strictly ordered by document line.
+
+### Internal
+
+- Cached WYSIWYG structural analysis per CodeMirror document version to avoid repeated full-document scans across plugin, gutter, and table decoration passes.
+- Added regression coverage for front matter source-line offsets, table paste planning, WYSIWYG table cell clipboard routing, preview cleanup, and unordered source-line scroll lookup.
+
 ## 0.25.3 - 2026-06-10
 
 ### Added

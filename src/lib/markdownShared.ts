@@ -107,9 +107,17 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
-export function stripFrontMatter(markdown: string): { meta: FrontMatterMeta; body: string } {
+export function stripFrontMatter(markdown: string): {
+  meta: FrontMatterMeta
+  body: string
+  // Number of source lines removed ahead of `body` (front matter block plus the
+  // blank line swallowed after it). Body line N maps to document line
+  // N + bodyLineOffset — the render pipeline adds this back so data-source-line
+  // markers always reference full-document line numbers.
+  bodyLineOffset: number
+} {
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
-  if (!match) return { meta: {}, body: markdown }
+  if (!match) return { meta: {}, body: markdown, bodyLineOffset: 0 }
 
   const meta: FrontMatterMeta = {}
   for (const line of match[1].split(/\r?\n/)) {
@@ -121,10 +129,11 @@ export function stripFrontMatter(markdown: string): { meta: FrontMatterMeta; bod
     if (key) meta[key] = value
   }
 
-  return {
-    meta,
-    body: markdown.slice(match[0].length).replace(/^\r?\n/, ''),
-  }
+  const body = markdown.slice(match[0].length).replace(/^\r?\n/, '')
+  const strippedPrefix = markdown.slice(0, markdown.length - body.length)
+  const bodyLineOffset = strippedPrefix.match(/\n/g)?.length ?? 0
+
+  return { meta, body, bodyLineOffset }
 }
 
 export function buildFrontMatterHtml(meta: FrontMatterMeta): string {

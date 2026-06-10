@@ -11,6 +11,7 @@ import {
   buildWordWrapExtensions,
 } from './extensions'
 import { collectMarkdownTableBlocks } from './tableBlockRanges.ts'
+import { planClipboardTablePaste } from './tablePasteConverter.ts'
 import {
   loadAutocompleteExtensions,
   loadMarkdownLanguageExtensions,
@@ -693,8 +694,14 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       view.destroy()
       viewRef.current = null
     }
+    // `t` is intentionally excluded: locale changes must not destroy and
+    // recreate the EditorView (sibling effects capture the view once on mount,
+    // so a rebuild would leave typewriter/delete-scroll/bubble listeners
+    // attached to the destroyed view). The placeholder text is the only
+    // t-dependent input here and its compartment is reconfigured on language
+    // change by a dedicated effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab?.id, handleCursorChange, scheduleTableExitFocusRestore, t])
+  }, [activeTab?.id, handleCursorChange, scheduleTableExitFocusRestore])
 
   useEffect(() => {
     void ensureAutocompleteExtensions()
@@ -1077,6 +1084,11 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       const view = viewRef.current
       if (!view) return
 
+      // Pastes targeting a WYSIWYG table cell textarea are handled by the
+      // cell's own sanitize/encode handler (wysiwyg.ts). Consuming them here
+      // would insert raw pipes/newlines into the document and break the table.
+      if (isWysiwygTableCellInputTarget(event.target)) return
+
       const clipboardApi = typeof navigator === 'object' ? navigator.clipboard : null
       const resolveActivePasteView = (): EditorView | null => {
         const currentView = viewRef.current
@@ -1117,7 +1129,9 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         if (plainText) {
           const activeView = resolveActivePasteView()
           if (!activeView) return
-          replaceSelectionWithMarkdown(activeView, plainText)
+          if (!insertClipboardTableMarkdown(activeView, plainText, html)) {
+            replaceSelectionWithMarkdown(activeView, plainText)
+          }
           queuePasteCursorBottomGapSync()
           return
         }
@@ -1153,7 +1167,9 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       if (plainText) {
         const activeView = resolveActivePasteView()
         if (!activeView) return
-        replaceSelectionWithMarkdown(activeView, plainText)
+        if (!insertClipboardTableMarkdown(activeView, plainText, null)) {
+          replaceSelectionWithMarkdown(activeView, plainText)
+        }
         queuePasteCursorBottomGapSync()
       }
     }
@@ -1164,6 +1180,10 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
       const target = event.target
       if (!(target instanceof Node) || !view.dom.contains(target)) return
+      // Native copy/cut inside a WYSIWYG table cell textarea must win: it
+      // copies the decoded display text (real newlines, unescaped pipes) and a
+      // native cut fires the input event that syncs the cell back to the doc.
+      if (isWysiwygTableCellInputTarget(target)) return
       if (view.state.selection.ranges.length !== 1) return
 
       const selection = view.state.selection.main
@@ -1656,6 +1676,36 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       />
     </div>
   )
+}
+
+function isWysiwygTableCellInputTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('.cm-wysiwyg-table__input') !== null
+}
+
+// Mirrors the WYSIWYG plugin's spreadsheet paste: tab-separated (or HTML
+// table) clipboard content becomes a markdown table. Only applies in WYSIWYG
+// mode and never inside an existing table, matching the plugin behavior the
+// capture-phase paste handler would otherwise shadow.
+function insertClipboardTableMarkdown(
+  view: EditorView,
+  plainText: string,
+  html: string | null
+): boolean {
+  if (!selectEffectiveWysiwygMode(useEditorStore.getState())) return false
+
+  const docText = view.state.doc.toString()
+  const selection = view.state.selection.main
+  const plan = planClipboardTablePaste({
+    docText,
+    selectionFrom: selection.from,
+    selectionTo: selection.to,
+    clipboard: { text: plainText, html },
+    tableRanges: collectMarkdownTableBlocks(docText),
+  })
+  if (!plan) return false
+
+  insertMarkdown(view, plan.insert, { from: plan.from, to: plan.to }, { userEvent: 'input.paste' })
+  return true
 }
 
 function replaceSelectionWithMarkdown(view: EditorView, markdownText: string): void {

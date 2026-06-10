@@ -105,7 +105,7 @@ import {
   resolveSetTableColumnAlignment,
   type TableStructuralEditPlan,
 } from './wysiwygTable.ts'
-import { convertClipboardToMarkdownTable } from './tablePasteConverter.ts'
+import { planClipboardTablePaste } from './tablePasteConverter.ts'
 import type { TableAlignment } from './tableBlockRanges.ts'
 import i18n from '../../i18n/index.ts'
 import { useEditorStore } from '../../store/editor'
@@ -2028,6 +2028,31 @@ function rangeIntersectsAnyRange(range: { from: number; to: number }, ranges: re
   return ranges.some((candidate) => range.from <= candidate.to && range.to >= candidate.from)
 }
 
+interface WysiwygDocumentAnalysis extends WysiwygStructuralBlocks {
+  markdown: string
+  footnoteIndices: Map<string, number>
+}
+
+// The plugin, the gutter StateField, and the table-decoration StateField all
+// need the structural scan for the same document version within a single
+// transaction. CodeMirror's Text is immutable, so caching per Text instance
+// collapses those repeated full-document scans into one per doc change.
+const wysiwygAnalysisCache = new WeakMap<object, WysiwygDocumentAnalysis>()
+
+function analyzeWysiwygDocument(doc: CodeMirrorState['doc']): WysiwygDocumentAnalysis {
+  const cached = wysiwygAnalysisCache.get(doc)
+  if (cached) return cached
+
+  const markdown = doc.toString()
+  const analysis: WysiwygDocumentAnalysis = {
+    markdown,
+    ...collectWysiwygStructuralBlocks(markdown),
+    footnoteIndices: collectFootnoteIndices(markdown),
+  }
+  wysiwygAnalysisCache.set(doc, analysis)
+  return analysis
+}
+
 function markDetailsGapGutterLine(
   state: CodeMirrorState,
   markers: Map<number, GutterMarker>,
@@ -2042,8 +2067,8 @@ function markDetailsGapGutterLine(
 }
 
 function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarker> {
-  const markdown = state.doc.toString()
-  const { fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks, setextHeadings } = collectWysiwygStructuralBlocks(markdown)
+  const { fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks, setextHeadings } =
+    analyzeWysiwygDocument(state.doc)
   const { doc } = state
   const markers = new Map<number, GutterMarker>()
   const setextUnderlineLineStarts = new Set<number>(setextHeadings.map((heading) => heading.underlineFrom))
@@ -2263,8 +2288,7 @@ interface WysiwygTableDecorationState {
 }
 
 function buildWysiwygTableDecorationState(state: CodeMirrorState): WysiwygTableDecorationState {
-  const markdown = state.doc.toString()
-  const { tables } = collectWysiwygStructuralBlocks(markdown)
+  const { markdown, tables } = analyzeWysiwygDocument(state.doc)
   const activeTableCell = resolveActiveTableCellFromSelection(state, tables)
   const spellcheckConfig = resolveDocumentSpellcheckConfig(
     detectDocumentLanguage(markdown),
@@ -2756,14 +2780,14 @@ class WysiwygPluginValue {
   activeTableCell: ActiveWysiwygTableCell | null
 
   constructor(view: EditorView) {
-    const structuralBlocks = collectWysiwygStructuralBlocks(view.state.doc.toString())
-    this.fencedCodeBlocks = structuralBlocks.fencedCodeBlocks
-    this.mathBlocks = structuralBlocks.mathBlocks
-    this.tables = structuralBlocks.tables
-    this.detailsBlocks = structuralBlocks.detailsBlocks
-    this.rawHtmlBlocks = structuralBlocks.rawHtmlBlocks
-    this.setextHeadings = structuralBlocks.setextHeadings
-    this.footnoteIndices = collectFootnoteIndices(view.state.doc.toString())
+    const analysis = analyzeWysiwygDocument(view.state.doc)
+    this.fencedCodeBlocks = analysis.fencedCodeBlocks
+    this.mathBlocks = analysis.mathBlocks
+    this.tables = analysis.tables
+    this.detailsBlocks = analysis.detailsBlocks
+    this.rawHtmlBlocks = analysis.rawHtmlBlocks
+    this.setextHeadings = analysis.setextHeadings
+    this.footnoteIndices = analysis.footnoteIndices
     this.activeTableCell = null
     this.syncActiveTableCell(view)
     this.syncTableEditingPresentation(view, null)
@@ -2781,14 +2805,14 @@ class WysiwygPluginValue {
 
   update(update: ViewUpdate) {
     if (update.docChanged) {
-      const structuralBlocks = collectWysiwygStructuralBlocks(update.state.doc.toString())
-      this.fencedCodeBlocks = structuralBlocks.fencedCodeBlocks
-      this.mathBlocks = structuralBlocks.mathBlocks
-      this.tables = structuralBlocks.tables
-      this.detailsBlocks = structuralBlocks.detailsBlocks
-      this.rawHtmlBlocks = structuralBlocks.rawHtmlBlocks
-      this.setextHeadings = structuralBlocks.setextHeadings
-      this.footnoteIndices = collectFootnoteIndices(update.state.doc.toString())
+      const analysis = analyzeWysiwygDocument(update.state.doc)
+      this.fencedCodeBlocks = analysis.fencedCodeBlocks
+      this.mathBlocks = analysis.mathBlocks
+      this.tables = analysis.tables
+      this.detailsBlocks = analysis.detailsBlocks
+      this.rawHtmlBlocks = analysis.rawHtmlBlocks
+      this.setextHeadings = analysis.setextHeadings
+      this.footnoteIndices = analysis.footnoteIndices
       pruneTableColumnWidthSnapshots(this.tables)
     }
 
@@ -3830,40 +3854,28 @@ function handleDocumentClipboardTablePaste(event: ClipboardEvent, view: EditorVi
   const clipboard = event.clipboardData
   if (!clipboard) return false
 
-  const markdownTable = convertClipboardToMarkdownTable({
-    text: clipboard.getData('text/plain'),
-    html: clipboard.getData('text/html'),
-  })
-  if (!markdownTable) return false
-
   const selection = view.state.selection.main
   const plugin = getWysiwygPluginState(view)
-  if (plugin && isSelectionInsideAnyTable(plugin.tables, selection.from, selection.to)) {
-    return false
-  }
-
-  const line = view.state.doc.lineAt(selection.from)
-  const needsLeadingNewline = selection.from === line.from ? false : true
-  const followingText = view.state.doc.sliceString(selection.to, Math.min(selection.to + 1, view.state.doc.length))
-  const needsTrailingNewline = followingText !== '\n' && selection.to !== view.state.doc.length
-  const insert = `${needsLeadingNewline ? '\n\n' : ''}${markdownTable}${needsTrailingNewline ? '\n\n' : '\n'}`
+  const plan = planClipboardTablePaste({
+    docText: view.state.doc.toString(),
+    selectionFrom: selection.from,
+    selectionTo: selection.to,
+    clipboard: {
+      text: clipboard.getData('text/plain'),
+      html: clipboard.getData('text/html'),
+    },
+    tableRanges: plugin?.tables,
+  })
+  if (!plan) return false
 
   event.preventDefault()
   view.dispatch({
-    changes: { from: selection.from, to: selection.to, insert },
-    selection: { anchor: selection.from + insert.length },
+    changes: { from: plan.from, to: plan.to, insert: plan.insert },
+    selection: { anchor: plan.from + plan.insert.length },
     userEvent: 'input.paste',
     scrollIntoView: true,
   })
   return true
-}
-
-function isSelectionInsideAnyTable(
-  tables: readonly MarkdownTableBlock[],
-  from: number,
-  to: number
-): boolean {
-  return tables.some((table) => from >= table.from && to <= table.to)
 }
 
 export const wysiwygTableDecorations = [wysiwygTableDecorationField, wysiwygGutterClassField]

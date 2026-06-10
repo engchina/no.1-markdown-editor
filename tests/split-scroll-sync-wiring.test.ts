@@ -100,8 +100,13 @@ test('MarkdownPreview publishes its scrolling container to useScrollSyncStore', 
   const preview = await readSource('src/components/Preview/MarkdownPreview.tsx')
 
   assert.match(preview, /useScrollSyncStore/)
-  assert.match(preview, /setPreviewContainer\(previewRef\.current\)/)
-  assert.match(preview, /setPreviewContainer\(null\)/)
+  // The registration effect must capture the node in a local: React detaches
+  // refs before unmount cleanups run, so a cleanup comparing previewRef.current
+  // would never fire and the store would retain a detached container.
+  assert.match(preview, /const node = previewRef\.current/)
+  assert.match(preview, /setPreviewContainer\(node\)/)
+  assert.match(preview, /previewContainer === node\) setPreviewContainer\(null\)/)
+  assert.doesNotMatch(preview, /=== previewRef\.current\) setPreviewContainer\(null\)/)
 })
 
 test('App.tsx mounts useSplitScrollSync once per render so split-mode wiring stays active', async () => {

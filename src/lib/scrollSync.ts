@@ -43,12 +43,12 @@ function searchByOffsetTop(entries: readonly SourceLineEntry[], scrollTop: numbe
 
 function searchByLine(entries: readonly SourceLineEntry[], line: number): number {
   // Largest index with entries[i].line <= line. Returns -1 if none.
-  // Lines correlate with offsetTop in practice, so a linear scan is simple
-  // and avoids assumptions about strict monotonicity.
+  // Entries are sorted by offsetTop, not by line, so scan the whole array
+  // instead of stopping at the first larger line — a single out-of-order entry
+  // must not hide every annotation that follows it.
   let best = -1
   for (let i = 0; i < entries.length; i += 1) {
     if (entries[i].line <= line) best = i
-    else break
   }
   return best
 }

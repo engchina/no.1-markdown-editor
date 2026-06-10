@@ -127,6 +127,44 @@ test('math+html pipeline annotates math wrapper, raw inner elements, and ordinar
   noDuplicateAttributes(html)
 })
 
+test('front matter documents keep full-document line numbers in data-source-line', async () => {
+  // ---            line 1
+  // title: Test    line 2
+  // ---            line 3
+  // (blank)        line 4
+  // # Heading      line 5
+  // (blank)        line 6
+  // paragraph      line 7
+  const doc = ['---', 'title: Test', '---', '', '# Heading line 5', '', 'paragraph line 7.'].join('\n')
+
+  for (const render of [renderMarkdown, renderMarkdownInWorker]) {
+    const html = await render(doc)
+    assert.match(html, /<h1[^>]*data-source-line="5"/, `expected heading at document line 5 in: ${html}`)
+    assert.match(html, /<p[^>]*data-source-line="7"/, `expected paragraph at document line 7 in: ${html}`)
+    noDuplicateAttributes(html)
+  }
+})
+
+test('front matter offset flows through the raw-html and math pipelines', async () => {
+  const rawHtmlDoc = [
+    '---', 'title: Test', '---', '',          // lines 1-4
+    '<div class="raw">',                        // line 5
+    '  <p>raw inner line 6</p>',                // line 6
+    '</div>',                                   // line 7
+    '',                                         // line 8
+    'after line 9.',                            // line 9
+  ].join('\n')
+  const rawHtml = await renderMarkdown(rawHtmlDoc)
+  assert.match(rawHtml, /<div[^>]*data-source-line="5"/)
+  assert.match(rawHtml, /<p[^>]*data-source-line="6"/)
+  assert.match(rawHtml, /<p[^>]*data-source-line="9"/)
+
+  const mathDoc = ['---', 'title: Test', '---', '', '$$', 'x + y', '$$', '', 'after line 9.'].join('\n')
+  const mathHtml = await renderMarkdown(mathDoc)
+  assert.match(mathHtml, /<div class="math-source-line-wrap" data-source-line="5">/)
+  assert.match(mathHtml, /<p[^>]*data-source-line="9"/)
+})
+
 test('sanitize allowlist preserves data-source-line through all four pipelines', async () => {
   const docs = [PLAIN_DOC, RAW_HTML_DOC, MATH_DOC, MATH_HTML_DOC]
   for (const doc of docs) {

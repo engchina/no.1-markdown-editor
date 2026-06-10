@@ -62,6 +62,20 @@ test('stripFrontMatter parses CRLF front matter blocks', () => {
 
   assert.deepEqual(result.meta, { title: 'Hello', lang: 'en' })
   assert.equal(result.body, '# Body')
+  // 4 front matter lines + the swallowed blank line: body line 1 is document line 6
+  assert.equal(result.bodyLineOffset, 5)
+})
+
+test('stripFrontMatter reports the number of stripped lines as bodyLineOffset', () => {
+  assert.equal(stripFrontMatter('# No front matter\n').bodyLineOffset, 0)
+
+  const withoutBlankLine = ['---', 'title: x', '---', '# Body'].join('\n')
+  assert.equal(stripFrontMatter(withoutBlankLine).bodyLineOffset, 3)
+  assert.equal(stripFrontMatter(withoutBlankLine).body, '# Body')
+
+  const withBlankLine = ['---', 'title: x', '---', '', '# Body'].join('\n')
+  assert.equal(stripFrontMatter(withBlankLine).bodyLineOffset, 4)
+  assert.equal(stripFrontMatter(withBlankLine).body, '# Body')
 })
 
 test('buildFrontMatterHtml escapes metadata values', () => {

@@ -59,12 +59,12 @@ export async function renderMarkdownWithHtml(
   markdown: string,
   syntaxHighlightEngine: MarkdownSyntaxHighlightEngine = 'highlightjs'
 ): Promise<string> {
-  const { meta, body } = stripFrontMatter(markdown)
+  const { meta, body, bodyLineOffset } = stripFrontMatter(markdown)
   const normalizedBody = normalizeSelfClosingRawHtmlBlocks(body)
   const processor = await getProcessorWithHtml(syntaxHighlightEngine)
   const rendered = await processor.process({
     value: normalizedBody,
-    data: { markdownSource: normalizedBody },
+    data: { markdownSource: normalizedBody, sourceLineOffset: bodyLineOffset },
   })
   return finalizeRenderedMarkdownHtml(meta, String(rendered))
 }

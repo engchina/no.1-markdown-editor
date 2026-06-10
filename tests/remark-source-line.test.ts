@@ -74,6 +74,22 @@ test('remarkSourceLine does not duplicate attributes when called twice', async (
   assert.equal(matches.length, 1, 'expected single data-source-line attribute, got: ' + html)
 })
 
+test('remarkSourceLine applies the sourceLineOffset from file data', async () => {
+  // Simulates a front-matter-stripped body whose first line was document line 5.
+  const html = String(
+    await unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .use(remarkSourceLine)
+      .use(remarkRehype)
+      .use(rehypeStringify)
+      .process({ value: '# H1\n\nparagraph\n', data: { sourceLineOffset: 4 } })
+  )
+
+  assert.match(html, /<h1 data-source-line="5">H1<\/h1>/)
+  assert.match(html, /<p data-source-line="7">paragraph<\/p>/)
+})
+
 test('remarkSourceLine ignores inline nodes', async () => {
   const html = await render('a paragraph with **bold** and *italic*\n')
 

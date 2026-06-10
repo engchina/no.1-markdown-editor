@@ -46,6 +46,26 @@ test('rehypeSourceLineFromPosition fills inner raw HTML elements', async () => {
   assert.match(html, /<li data-source-line="6">/)
 })
 
+test('rehypeSourceLineFromPosition applies the sourceLineOffset from file data', async () => {
+  const markdown = ['<div class="raw">', '  <p>raw inner</p>', '</div>'].join('\n')
+
+  const html = String(
+    await unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .use(remarkSourceLine)
+      .use(remarkRehype, { allowDangerousHtml: true })
+      .use(rehypeRaw)
+      .use(rehypeSourceLineFromPosition)
+      .use(rehypeStringify)
+      .process({ value: markdown, data: { sourceLineOffset: 4 } })
+  )
+
+  // Body line 1/2 → document line 5/6 once the stripped front matter is added back.
+  assert.match(html, /<div class="raw" data-source-line="5">/)
+  assert.match(html, /<p data-source-line="6">/)
+})
+
 test('rehypeSourceLineFromPosition does not overwrite an existing dataSourceLine', async () => {
   const markdown = ['outer paragraph line 1', '', 'after line 3'].join('\n')
 

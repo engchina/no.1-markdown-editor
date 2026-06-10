@@ -1,4 +1,5 @@
 import type { Plugin } from 'unified'
+import { resolveSourceLineOffset } from './remarkSourceLine.ts'
 
 type HastNode = {
   type: string
@@ -33,7 +34,10 @@ function walk(node: HastNode, visitor: (node: HastNode) => void): void {
 }
 
 export const rehypeSourceLineFromPosition: Plugin = () => {
-  return (tree: unknown) => {
+  return (tree: unknown, file: unknown) => {
+    // Positions are body-relative (front matter is stripped before parsing);
+    // add the stripped-line offset back so markers stay full-document based.
+    const lineOffset = resolveSourceLineOffset(file)
     walk(tree as HastNode, (node) => {
       if (node.type !== 'element') return
       if (typeof node.tagName !== 'string' || !BLOCK_TAGS.has(node.tagName)) return
@@ -43,7 +47,7 @@ export const rehypeSourceLineFromPosition: Plugin = () => {
       const properties = node.properties ?? (node.properties = {})
       if (properties.dataSourceLine) return
 
-      properties.dataSourceLine = String(line)
+      properties.dataSourceLine = String(line + lineOffset)
     })
   }
 }

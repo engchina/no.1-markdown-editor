@@ -41,6 +41,31 @@ test('collapsed details paste notice keys exist in all locales', async () => {
   }
 })
 
+test('CodeMirrorEditor leaves WYSIWYG table cell clipboard events to the cell textarea handlers', async () => {
+  const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
+
+  // The capture-phase paste handler must not consume events targeting the
+  // table cell textarea — its own handler sanitizes and encodes the text
+  // (pipes, newlines) before it reaches the document. Same for copy/cut:
+  // native textarea behavior copies the decoded display text.
+  assert.match(source, /function isWysiwygTableCellInputTarget/)
+  assert.match(source, /closest\('\.cm-wysiwyg-table__input'\)/)
+  assert.match(source, /if \(isWysiwygTableCellInputTarget\(event\.target\)\) return/)
+  assert.match(source, /if \(isWysiwygTableCellInputTarget\(target\)\) return/)
+})
+
+test('CodeMirrorEditor converts spreadsheet-style plain text pastes into markdown tables', async () => {
+  const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
+
+  // The capture-phase handler shadows the WYSIWYG plugin paste handler, so the
+  // TSV → markdown table conversion has to run here before the raw plain-text
+  // fallback.
+  assert.match(source, /planClipboardTablePaste/)
+  assert.match(source, /insertClipboardTableMarkdown\(activeView, plainText, html\)/)
+  assert.match(source, /insertClipboardTableMarkdown\(activeView, plainText, null\)/)
+  assert.match(source, /selectEffectiveWysiwygMode\(useEditorStore\.getState\(\)\)/)
+})
+
 test('CodeMirrorEditor aborts async paste writes when the original editor view is no longer active', async () => {
   const source = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
 

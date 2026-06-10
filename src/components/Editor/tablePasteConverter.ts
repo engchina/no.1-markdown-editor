@@ -63,6 +63,39 @@ export function convertHtmlTableToMarkdown(html: string): string | null {
   return buildMarkdownTable(normalizedRows)
 }
 
+export interface ClipboardTablePastePlan {
+  from: number
+  to: number
+  insert: string
+}
+
+// Shared planner for "paste spreadsheet cells as a markdown table". Returns
+// null when the clipboard does not look like a table, or when the selection
+// sits inside an existing table (cell-level paste handles that case).
+export function planClipboardTablePaste(options: {
+  docText: string
+  selectionFrom: number
+  selectionTo: number
+  clipboard: ClipboardTableSource
+  tableRanges?: readonly { from: number; to: number }[]
+}): ClipboardTablePastePlan | null {
+  const markdownTable = convertClipboardToMarkdownTable(options.clipboard)
+  if (!markdownTable) return null
+
+  const { docText, selectionFrom, selectionTo } = options
+  const insideTable = (options.tableRanges ?? []).some(
+    (table) => selectionFrom >= table.from && selectionTo <= table.to
+  )
+  if (insideTable) return null
+
+  const needsLeadingNewline = selectionFrom > 0 && docText[selectionFrom - 1] !== '\n'
+  const followingText = docText.slice(selectionTo, selectionTo + 1)
+  const needsTrailingNewline = followingText !== '\n' && selectionTo !== docText.length
+  const insert = `${needsLeadingNewline ? '\n\n' : ''}${markdownTable}${needsTrailingNewline ? '\n\n' : '\n'}`
+
+  return { from: selectionFrom, to: selectionTo, insert }
+}
+
 function buildMarkdownTable(rows: string[][]): string {
   const [header, ...body] = rows
   const columnCount = header.length

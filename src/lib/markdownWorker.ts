@@ -84,7 +84,7 @@ export async function renderMarkdownInWorker(
   const normalizedBody = normalizeSelfClosingRawHtmlBlocks(frontMatter.body)
   const rendered = await processor.process({
     value: normalizedBody,
-    data: { markdownSource: normalizedBody },
+    data: { markdownSource: normalizedBody, sourceLineOffset: frontMatter.bodyLineOffset },
   })
   return finalizeRenderedMarkdownHtml(frontMatter.meta, String(rendered))
 }

@@ -349,7 +349,7 @@ test('wysiwyg table integration keeps the table rendered while exposing an inlin
   assert.match(source, /function activateTable\(view: EditorView, target: EventTarget \| null\): boolean \{/u)
   assert.match(source, /paste\(event, view\) \{[\s\S]*?handleDocumentClipboardTablePaste\(event, view\)/u)
   assert.match(source, /function handleDocumentClipboardTablePaste\(event: ClipboardEvent, view: EditorView\): boolean \{/u)
-  assert.match(source, /convertClipboardToMarkdownTable\(\{/u)
+  assert.match(source, /planClipboardTablePaste\(\{/u)
   assert.match(source, /const wysiwygTableDecorationField = StateField\.define<WysiwygTableDecorationState>\(/u)
   assert.match(source, /EditorView\.decorations\.from\(field, \(value\) => value\.decorations\)/u)
   assert.match(source, /export const wysiwygTableDecorations = \[wysiwygTableDecorationField, wysiwygGutterClassField\]/u)
