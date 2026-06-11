@@ -361,11 +361,33 @@ fn allow_fs_scope_path<R: tauri::Runtime>(
 fn take_pending_open_paths(
     state: tauri::State<'_, PendingOpenPaths>,
 ) -> Result<Vec<String>, String> {
+    take_pending_open_paths_from_state(&state)
+}
+
+fn take_pending_open_paths_from_state(state: &PendingOpenPaths) -> Result<Vec<String>, String> {
     let mut pending_paths = state
         .0
         .lock()
         .map_err(|_| "Failed to access pending open paths".to_string())?;
     Ok(std::mem::take(&mut *pending_paths))
+}
+
+fn append_pending_open_paths(
+    state: &PendingOpenPaths,
+    launch_paths: &[String],
+) -> Result<(), String> {
+    let mut pending_paths = state
+        .0
+        .lock()
+        .map_err(|_| "Failed to access pending open paths".to_string())?;
+
+    for path in launch_paths {
+        if !pending_paths.contains(path) {
+            pending_paths.push(path.clone());
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -1141,6 +1163,10 @@ fn register_single_instance_plugin(
             return;
         }
 
+        if let Some(pending_paths) = app.try_state::<PendingOpenPaths>() {
+            let _ = append_pending_open_paths(&pending_paths, &launch_paths);
+        }
+
         if let Some(window) = app.get_webview_window("main") {
             let _ = window.emit(SINGLE_INSTANCE_OPEN_FILES_EVENT, launch_paths);
         }
@@ -1238,6 +1264,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    use super::append_pending_open_paths;
     use super::collect_launch_paths_from_args;
     use super::is_allowed_editor_navigation;
     use super::is_safe_browser_title_chunk;
@@ -1245,9 +1272,12 @@ mod tests {
     use super::read_file;
     #[cfg(target_os = "windows")]
     use super::resolve_browser_accelerator_shortcut;
+    use super::take_pending_open_paths_from_state;
+    use super::PendingOpenPaths;
     use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn make_temp_path(prefix: &str, extension: &str) -> PathBuf {
@@ -1541,6 +1571,29 @@ mod tests {
 
         let _ = fs::remove_file(existing_path);
         let _ = fs::remove_dir(temp_dir);
+    }
+
+    #[test]
+    fn pending_open_paths_append_deduplicates_and_take_drains() {
+        let first_path = make_temp_markdown_path("pending-first")
+            .to_string_lossy()
+            .into_owned();
+        let second_path = make_temp_markdown_path("pending-second")
+            .to_string_lossy()
+            .into_owned();
+        let state = PendingOpenPaths(Mutex::new(vec![first_path.clone()]));
+
+        append_pending_open_paths(&state, &[first_path.clone(), second_path.clone()])
+            .expect("append pending launch paths");
+
+        assert_eq!(
+            take_pending_open_paths_from_state(&state).expect("take pending launch paths"),
+            vec![first_path, second_path]
+        );
+        assert_eq!(
+            take_pending_open_paths_from_state(&state).expect("drain pending launch paths"),
+            Vec::<String>::new()
+        );
     }
 
     #[test]

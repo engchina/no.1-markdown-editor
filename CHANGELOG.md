@@ -20,6 +20,18 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.26.1 - 2026-06-11
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Windows file-association opens now queue launch paths before notifying the running app window, so double-clicking a Markdown file opens it directly even during startup timing races.
+
+### Internal
+
 ## 0.26.0 - 2026-06-11
 
 ### Added

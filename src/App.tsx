@@ -231,14 +231,27 @@ export default function App() {
         const { invoke } = await import('@tauri-apps/api/core')
         const { getCurrentWindow } = await import('@tauri-apps/api/window')
         const currentWindow = getCurrentWindow()
+        const openQueuedDesktopDocumentPaths = async (eventPaths: readonly string[] = []) => {
+          let pendingPaths: string[] = []
+          try {
+            const queuedPaths = await invoke<string[]>('take_pending_open_paths')
+            pendingPaths = Array.isArray(queuedPaths) ? queuedPaths : []
+          } catch (error) {
+            console.error('Load queued launch files error:', error)
+          }
+
+          await openDesktopDocumentPaths([
+            ...eventPaths,
+            ...pendingPaths,
+          ])
+        }
 
         unlistenOpenFiles = await currentWindow.listen<string[]>(SINGLE_INSTANCE_OPEN_FILES_EVENT, (event) => {
           const paths = Array.isArray(event.payload) ? event.payload : []
-          void openDesktopDocumentPaths(paths)
+          void openQueuedDesktopDocumentPaths(paths)
         })
 
-        const pendingPaths = await invoke<string[]>('take_pending_open_paths')
-        await openDesktopDocumentPaths(Array.isArray(pendingPaths) ? pendingPaths : [])
+        await openQueuedDesktopDocumentPaths()
       } catch (error) {
         console.error('Load launch files error:', error)
       }
