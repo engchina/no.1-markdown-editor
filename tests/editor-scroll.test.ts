@@ -5,7 +5,6 @@ import {
   captureEditorScrollSnapshot,
   createEditorNavigationScrollEffect,
   createEditorSelectionScrollEffect,
-  resolveEditorCursorBottomGapScrollTop,
 } from '../src/lib/editorScroll.ts'
 
 test('createEditorSelectionScrollEffect uses nearest alignment so visible cursors stay put after paste', () => {
@@ -42,42 +41,6 @@ test('createEditorNavigationScrollEffect aligns outline jumps to the top with so
   assert.equal(target.range.to, 42)
   assert.equal(target.y, 'start')
   assert.equal(target.yMargin, 20)
-})
-
-test('resolveEditorCursorBottomGapScrollTop keeps the cursor line three lines above the viewport bottom', () => {
-  const nextScrollTop = resolveEditorCursorBottomGapScrollTop({
-    currentScrollTop: 0,
-    clientHeight: 600,
-    scrollHeight: 1800,
-    lineBottom: 580,
-    bottomMargin: 84,
-  })
-
-  assert.equal(nextScrollTop, 64)
-})
-
-test('resolveEditorCursorBottomGapScrollTop does not scroll when the cursor already has enough room below it', () => {
-  const nextScrollTop = resolveEditorCursorBottomGapScrollTop({
-    currentScrollTop: 240,
-    clientHeight: 600,
-    scrollHeight: 1800,
-    lineBottom: 700,
-    bottomMargin: 84,
-  })
-
-  assert.equal(nextScrollTop, null)
-})
-
-test('resolveEditorCursorBottomGapScrollTop clamps to the available scroll range', () => {
-  const nextScrollTop = resolveEditorCursorBottomGapScrollTop({
-    currentScrollTop: 800,
-    clientHeight: 600,
-    scrollHeight: 1500,
-    lineBottom: 1490,
-    bottomMargin: 84,
-  })
-
-  assert.equal(nextScrollTop, 900)
 })
 
 test('captureEditorScrollSnapshot reads the current editor scroll offsets', () => {

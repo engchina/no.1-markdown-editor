@@ -20,6 +20,18 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.26.0 - 2026-06-11
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Pasting in the editor no longer jumps the viewport away from the pasted line. Post-insertion scrolling now relies solely on CodeMirror's own scroll effects; the manual bottom-gap scroll pass read height-map estimates before layout settled and flung the viewport on every real clipboard paste.
+
+### Internal
+
 ## 0.25.6 - 2026-06-11
 
 ### Added

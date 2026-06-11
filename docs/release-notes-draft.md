@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.25.5`.
+This document is a draft for the next public release after `v0.25.6`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,47 +8,45 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.25.6`
+`No.1 Markdown Editor v0.26.0`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.25.6 adds direct keyboard shortcuts for heading levels and includes a maintenance refactor of the desktop AI backend. Writers can now use `Ctrl+1` through `Ctrl+6` on Windows/Linux or `Cmd+1` through `Cmd+6` on macOS for H1-H6, while the Rust AI implementation is split into focused modules without changing the existing command surface.
+No.1 Markdown Editor v0.26.0 fixes a disruptive paste scrolling issue in the editor. Clipboard paste now stays anchored around the inserted content instead of jumping the viewport away from the line the user just edited.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Apply H1-H6 directly with `Ctrl+1` through `Ctrl+6` on Windows/Linux and `Cmd+1` through `Cmd+6` on macOS.
-- Show heading shortcut labels in the heading menu and command palette.
-- Organize the Rust AI backend into smaller modules for safer maintenance.
-- Update AI wiring tests so they cover the new module tree instead of the previous single-file backend.
+- Keep the editor viewport near the pasted line after real clipboard paste.
+- Rely on CodeMirror's own scroll effects for post-insertion visibility instead of manual scrollTop adjustment.
+- Preserve the existing off-screen insertion scroll behavior without forcing a bottom-gap scroll pass.
 
 ### Why This Release Matters
 
-Fast heading changes are part of everyday Markdown writing. This release makes heading levels reachable from the keyboard and visible in command surfaces, while also reducing AI backend maintenance risk by moving related Rust code into dedicated modules.
+Pasting should feel stable. The previous manual bottom-gap scroll pass could read layout estimates before CodeMirror had settled after a paste, which made the editor jump away from the user's insertion point. This release removes that extra scroll path and keeps paste navigation predictable.
 
 ### User-Facing Improvements
 
-#### Heading Shortcuts
+#### Paste Scroll Stability
 
-- Heading levels now have direct keyboard shortcuts: `Ctrl+1` through `Ctrl+6` on Windows/Linux and `Cmd+1` through `Cmd+6` on macOS.
-- The heading dropdown and command palette now display shortcut labels for H1-H6.
-- `Ctrl+5` maps to H5 while `Ctrl+Shift+5` remains strikethrough.
+- Pasting Markdown, plain text, tables, or persisted image Markdown no longer runs the manual bottom-gap scroll adjustment after insertion.
+- The editor now uses the same CodeMirror scroll effect path for paste visibility that it already uses for normal inserted Markdown.
+- The viewport stays focused around the paste target instead of jumping away after clipboard insertion.
 
 ### Developer-Facing Improvements
 
-- AI provider state, secrets, hosted-agent OAuth, OCI Responses, MCP execution, response parsing, and streaming logic now live in focused Rust modules under `src-tauri/src/ai/`.
-- Tauri command registration now targets `ai::commands::*`, keeping the public command surface explicit.
-- AI tests that inspect backend behavior now read all Rust files in the AI module directory.
+- Removed the manual cursor bottom-gap helper from `editorScroll.ts`.
+- Updated scroll wiring tests so paste insertion must stay on CodeMirror scroll effects and must not reintroduce `keepEditorCursorBottomGap`.
 
 ### Suggested Upgrade Notes Section
 
 - Existing Markdown documents, AI settings, provider credentials, browser tabs, and local editor state are unchanged.
-- This release does not change the Markdown file format or the AI configuration file format.
+- This release does not change the Markdown file format.
 
 ### Suggested Who Should Update Section
 
-This release is useful for writers who frequently restructure headings from the keyboard and for maintainers who want the latest desktop build with the refactored AI backend packaging.
+This release is especially relevant for users who paste tables, images, or multi-line Markdown into long documents.
 
 ## Packaging Checklist Before Release
 
@@ -56,7 +54,7 @@ This release is useful for writers who frequently restructure headings from the 
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.25.6 --date 2026-06-11` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.25.6` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.25.6` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.25.6` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.26.0 --date 2026-06-11` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.26.0` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.26.0` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.26.0` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

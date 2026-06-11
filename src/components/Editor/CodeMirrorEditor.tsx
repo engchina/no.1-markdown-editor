@@ -88,7 +88,6 @@ import {
   appendEditorSelectionScrollEffect,
   captureEditorScrollSnapshot,
   createEditorNavigationScrollEffect,
-  keepEditorCursorBottomGap,
   restoreEditorScrollSnapshot,
   scheduleEditorNavigationScroll,
   type EditorScrollSnapshot,
@@ -1096,13 +1095,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         return currentView
       }
 
-      const queuePasteCursorBottomGapSync = () => {
-        setTimeout(() => {
-          if (viewRef.current !== view || !view.dom.isConnected) return
-          keepEditorCursorBottomGap(view, { force: true })
-        }, 0)
-      }
-
       const clipboardData = event.clipboardData
       const items = clipboardData?.items
       const hasHtml = clipboardHasType(clipboardData, 'text/html')
@@ -1122,7 +1114,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
           if (collapsedDetailsOmittedBody) {
             pushInfoNotice('notices.collapsedDetailsPasteTitle', 'notices.collapsedDetailsPasteMessage')
           }
-          queuePasteCursorBottomGapSync()
           return
         }
 
@@ -1132,7 +1123,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
           if (!insertClipboardTableMarkdown(activeView, plainText, html)) {
             replaceSelectionWithMarkdown(activeView, plainText)
           }
-          queuePasteCursorBottomGapSync()
           return
         }
       }
@@ -1154,7 +1144,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
             const activeView = resolveActivePasteView()
             if (!activeView) return
             replaceSelectionWithImageMarkdown(activeView, markdownText)
-            queuePasteCursorBottomGapSync()
           } catch (error) {
             console.error('Persist pasted image error:', error)
           }
@@ -1170,7 +1159,6 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         if (!insertClipboardTableMarkdown(activeView, plainText, null)) {
           replaceSelectionWithMarkdown(activeView, plainText)
         }
-        queuePasteCursorBottomGapSync()
       }
     }
 
@@ -1784,7 +1772,6 @@ function insertMarkdown(
         view.dispatch({
           effects: appendEditorSelectionScrollEffect(view, undefined, selectionAnchor),
         })
-        keepEditorCursorBottomGap(view, { force: true })
       })
     )
   }

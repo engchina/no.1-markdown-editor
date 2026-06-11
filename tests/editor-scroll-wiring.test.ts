@@ -6,7 +6,11 @@ test('CodeMirrorEditor scrolls inserted markdown into view when it updates the s
   const editor = await readFile(new URL('../src/components/Editor/CodeMirrorEditor.tsx', import.meta.url), 'utf8')
 
   assert.match(editor, /appendEditorSelectionScrollEffect\(view, options\.effects, selectionAnchor\)/)
-  assert.match(editor, /keepEditorCursorBottomGap\(view, \{ force: true \}\)/)
+  // Post-insertion scrolling must stay inside CodeMirror's own scroll effects.
+  // Manual scrollTop math through requestMeasure read height-map estimates
+  // before layout settled and flung the viewport on paste (see editorScroll.ts
+  // history for keepEditorCursorBottomGap).
+  assert.doesNotMatch(editor, /keepEditorCursorBottomGap/)
 })
 
 test('insertMarkdown re-dispatches scroll effect after double rAF so off-screen content gets correct coordinates', async () => {
@@ -35,7 +39,7 @@ test('outline source navigation repeats the CodeMirror scroll effect after layou
   const helper = await readFile(new URL('../src/lib/editorScroll.ts', import.meta.url), 'utf8')
   const navigationHelper = helper.slice(
     helper.indexOf('export function scheduleEditorNavigationScroll'),
-    helper.indexOf('export function resolveEditorCursorBottomGapScrollTop')
+    helper.indexOf('function resolveEditorNavigationMargin')
   )
 
   assert.match(editor, /createEditorNavigationScrollEffect\(anchor, \{ align \}\)/)
