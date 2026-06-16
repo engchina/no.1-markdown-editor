@@ -232,6 +232,7 @@ export default function App() {
     if (!isTauri) return
 
     let unlistenOpenFiles: (() => void) | undefined
+    let unlistenFocus: (() => void) | undefined
 
     void (async () => {
       try {
@@ -258,6 +259,15 @@ export default function App() {
           void openQueuedDesktopDocumentPaths(paths)
         })
 
+        // Safety net: if the single-instance event is dropped (e.g. the main
+        // webview was occluded by a frontmost browser tab and its message pump
+        // was throttled), re-drain the native pending queue whenever the window
+        // regains focus. take_pending_open_paths drains atomically, so this
+        // never double-opens a document.
+        unlistenFocus = await currentWindow.onFocusChanged(({ payload: focused }) => {
+          if (focused) void openQueuedDesktopDocumentPaths()
+        })
+
         await openQueuedDesktopDocumentPaths()
       } catch (error) {
         console.error('Load launch files error:', error)
@@ -266,6 +276,7 @@ export default function App() {
 
     return () => {
       if (unlistenOpenFiles) unlistenOpenFiles()
+      if (unlistenFocus) unlistenFocus()
     }
   }, [])
 

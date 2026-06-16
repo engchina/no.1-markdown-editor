@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.26.2`.
+This document is a draft for the next public release after `v0.26.3`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,45 +8,44 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.26.3`
+`No.1 Markdown Editor v0.26.4`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.26.3 strengthens Windows file association registration and tightens native browser webview visibility. Installers now advertise stable document ProgIds through Windows Default Apps, and browser webviews only show while their own tab remains active.
+No.1 Markdown Editor v0.26.4 hardens Windows desktop file opening when a browser tab is frontmost. The native layer now reveals the editor surface before dispatching file-open events, the frontend re-drains queued open requests on focus, and the NSIS installer repairs stale generated Markdown associations from older installs.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Register stable `No1MarkdownEditor.<ext>` document ProgIds for Markdown, MDX, and text files.
-- Advertise file associations through Windows Default Apps capabilities and App Paths.
-- Keep native browser webviews hidden if their tab becomes inactive during async webview creation.
-- Expand diagnostics for Windows UserChoice and Default Apps registration.
+- Reveal the main editor surface natively before single-instance file-open events are emitted.
+- Re-drain queued desktop file-open requests when the window regains focus.
+- Reclaim stale generated Markdown `*_auto_file` associations during NSIS install.
+- Keep `.txt` generated associations untouched to avoid taking over another editor's user default.
 
 ### Why This Release Matters
 
-Windows file association behavior depends on several registry surfaces, including Default Apps capabilities and protected UserChoice records. This release registers stable document ProgIds for supported file types and adds diagnostics for the Windows state that can override installer defaults. It also closes a native browser webview timing gap where an inactive browser tab could become visible again after an async create or reposition call.
+Windows native browser child webviews paint above the main editor webview. If a browser tab is frontmost when Explorer sends a Markdown file to the running app, the frontend message pump can be throttled before it gets a chance to hide the browser view. This release moves the first reveal step into the native single-instance path and adds a focus-time pending queue drain as a second recovery path.
 
 ### User-Facing Improvements
 
 #### Windows File Associations
 
-- WiX and NSIS installers register stable `No1MarkdownEditor.md`, `No1MarkdownEditor.markdown`, `No1MarkdownEditor.mdx`, and `No1MarkdownEditor.txt` ProgIds.
-- Installers advertise supported file types through Windows Default Apps capabilities.
-- App Paths entries point Windows at the installed desktop executable.
-- The diagnostic PowerShell script now reports UserChoice, extension defaults, Default Apps capabilities, and stale association warnings.
+- NSIS installs reclaim stale `md_auto_file`, `markdown_auto_file`, and `mdx_auto_file` ProgIds when they shadow the stable No.1 Markdown Editor association.
+- Stale generated Markdown associations are repaired before the shell association cache is refreshed.
+- `txt_auto_file` is deliberately not reclaimed, because that generated handler commonly belongs to another editor.
 
 #### Browser And Markdown Tab Switching
 
-- Markdown tabs regain the visible editor surface after switching away from a browser tab.
-- Opening a Markdown document from the desktop hides browser webviews before the document tab is activated.
-- Browser webviews check that their tab is still active before showing, and hide again if the active tab changes during async setup.
+- Opening a Markdown document from Explorer now hides frontmost native browser child webviews from the Rust single-instance handler before notifying the frontend.
+- The main editor webview is refocused after the native reveal.
+- The frontend drains pending launch paths again when the window regains focus, without double-opening documents.
 
 ### Developer-Facing Improvements
 
-- Expanded WiX and NSIS packaging coverage for stable ProgIds, Default Apps capabilities, and App Paths.
-- Added regression tests for active-tab browser webview show guards.
-- Expanded Windows file association diagnostic coverage.
+- Added regression coverage for native editor-surface reveal before single-instance events.
+- Added regression coverage for focus-time pending queue drains.
+- Added NSIS packaging coverage for stale generated Markdown association cleanup.
 
 ### Suggested Upgrade Notes Section
 
@@ -55,7 +54,7 @@ Windows file association behavior depends on several registry surfaces, includin
 
 ### Suggested Who Should Update Section
 
-This release is especially relevant for Windows users who open Markdown files through file associations and for users who switch rapidly between browser and Markdown tabs.
+This release is especially relevant for Windows users who open Markdown files from Explorer while browser tabs are open in the editor, or who upgraded from an install that left stale generated Markdown file associations behind.
 
 ## Packaging Checklist Before Release
 
@@ -63,7 +62,7 @@ This release is especially relevant for Windows users who open Markdown files th
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.26.3 --date 2026-06-16` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.26.3` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.26.3` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.26.3` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.26.4 --date 2026-06-16` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.26.4` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.26.4` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.26.4` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

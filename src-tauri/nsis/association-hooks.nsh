@@ -70,9 +70,38 @@
   !insertmacro NO1_UNREGISTER_DOCUMENT_PROGID "txt"
 !macroend
 
+; Windows creates a generated "<ext>_auto_file" ProgId when a default handler is
+; picked through the legacy Open With dialog. When an older No.1 Markdown Editor
+; install lived at a path that no longer exists, that ProgId is left pointing at
+; the missing executable and shadows our stable association in the merged
+; HKEY_CLASSES_ROOT view (HKCU shadows HKLM), so a double-click silently fails.
+; Reclaim the extension for our stable ProgId and drop the orphaned auto_file.
+!macro NO1_RECLAIM_AUTOFILE_EXTENSION ROOTKEY EXT
+  Push $0
+  ReadRegStr $0 ${ROOTKEY} "Software\Classes\.${EXT}" ""
+  StrCmp $0 "${EXT}_auto_file" 0 +4
+  WriteRegStr ${ROOTKEY} "Software\Classes\.${EXT}" "" "${NO1_PROGID_PREFIX}.${EXT}"
+  DeleteRegValue ${ROOTKEY} "Software\Classes\.${EXT}\OpenWithProgids" "${EXT}_auto_file"
+  DeleteRegKey ${ROOTKEY} "Software\Classes\${EXT}_auto_file"
+  Pop $0
+!macroend
+
+!macro NO1_CLEANUP_STALE_FILE_ASSOCIATIONS
+  ; Only reclaim the markdown extensions we register as the default handler.
+  ; ".txt" is intentionally left untouched: "txt_auto_file" commonly belongs to
+  ; another editor (e.g. Notepad), so hijacking it would be hostile.
+  !insertmacro NO1_RECLAIM_AUTOFILE_EXTENSION HKCU "md"
+  !insertmacro NO1_RECLAIM_AUTOFILE_EXTENSION HKCU "markdown"
+  !insertmacro NO1_RECLAIM_AUTOFILE_EXTENSION HKCU "mdx"
+  !insertmacro NO1_RECLAIM_AUTOFILE_EXTENSION HKLM "md"
+  !insertmacro NO1_RECLAIM_AUTOFILE_EXTENSION HKLM "markdown"
+  !insertmacro NO1_RECLAIM_AUTOFILE_EXTENSION HKLM "mdx"
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
   !insertmacro NO1_REGISTER_APPLICATION_FILE_OPEN_HANDLER
   !insertmacro NO1_REGISTER_DEFAULT_FILE_ASSOCIATIONS
+  !insertmacro NO1_CLEANUP_STALE_FILE_ASSOCIATIONS
   !insertmacro NO1_REGISTER_DEFAULT_APPS_CAPABILITIES
   !insertmacro UPDATEFILEASSOC
 !macroend

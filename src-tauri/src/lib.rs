@@ -1150,6 +1150,30 @@ fn focus_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     let _ = window.set_focus();
 }
 
+/// Reveal the main editor surface that external browser child webviews render on
+/// top of.
+///
+/// Browser tabs are `add_child` webviews of the main window, and on Windows
+/// child webviews always paint above the parent webview. When a browser tab is
+/// frontmost the main editor webview is fully occluded — and an occluded
+/// WebView2 throttles its script message pump, so the `single-instance-open-files`
+/// event may not reach the frontend promptly (or at all). The frontend therefore
+/// cannot reliably hide the browser webview by itself. Hiding the browser
+/// children natively here guarantees a double-clicked document surfaces, and
+/// un-occluding the main webview lets its event handler resume so the document
+/// actually opens.
+fn reveal_main_editor_surface<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    for (label, webview) in app.webviews() {
+        if is_browser_webview_label(&label) {
+            let _ = webview.hide();
+        }
+    }
+
+    if let Some(main_webview) = app.get_webview("main") {
+        let _ = main_webview.set_focus();
+    }
+}
+
 #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
 fn register_single_instance_plugin(
     builder: tauri::Builder<tauri::Wry>,
@@ -1162,6 +1186,10 @@ fn register_single_instance_plugin(
         if launch_paths.is_empty() {
             return;
         }
+
+        // Surface the editor natively before notifying the frontend so a
+        // frontmost browser tab cannot keep the document from appearing.
+        reveal_main_editor_surface(app);
 
         if let Some(pending_paths) = app.try_state::<PendingOpenPaths>() {
             let _ = append_pending_open_paths(&pending_paths, &launch_paths);

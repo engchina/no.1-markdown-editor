@@ -63,6 +63,40 @@ test('single-instance file open requests are queued before notifying the fronten
   )
 })
 
+test('single-instance file open reveals the editor surface before notifying the frontend', async () => {
+  const source = await readFile(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
+
+  const singleInstanceBlock = source.slice(
+    source.indexOf('fn register_single_instance_plugin'),
+    source.indexOf('#[cfg_attr(mobile, tauri::mobile_entry_point)]')
+  )
+
+  // The native reveal must run only once a launch document is present, and
+  // before the frontend is asked to open it, so a frontmost browser child
+  // webview can never keep the document from appearing.
+  assert.match(singleInstanceBlock, /reveal_main_editor_surface\(app\)/)
+  assert.ok(
+    singleInstanceBlock.indexOf('if launch_paths.is_empty()') <
+      singleInstanceBlock.indexOf('reveal_main_editor_surface(app)'),
+    'the editor surface should only be revealed when a launch document is present'
+  )
+  assert.ok(
+    singleInstanceBlock.indexOf('reveal_main_editor_surface(app)') <
+      singleInstanceBlock.indexOf('window.emit'),
+    'the editor surface should be revealed before the frontend open event is emitted'
+  )
+
+  // The reveal hides browser child webviews (which paint above the editor) and
+  // refocuses the main editor webview.
+  const revealBlock = source.slice(
+    source.indexOf('fn reveal_main_editor_surface'),
+    source.indexOf('fn register_single_instance_plugin')
+  )
+  assert.match(revealBlock, /is_browser_webview_label\(&label\)/)
+  assert.match(revealBlock, /webview\.hide\(\)/)
+  assert.match(revealBlock, /app\.get_webview\("main"\)[\s\S]*set_focus\(\)/)
+})
+
 test('App drains queued launch paths when a single-instance event arrives', async () => {
   const source = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
 
@@ -74,6 +108,16 @@ test('App drains queued launch paths when a single-instance event arrives', asyn
     /currentWindow\.listen<string\[]>\(SINGLE_INSTANCE_OPEN_FILES_EVENT,[\s\S]*void openQueuedDesktopDocumentPaths\(paths\)/
   )
   assert.match(source, /await openQueuedDesktopDocumentPaths\(\)/)
+})
+
+test('App re-drains the native pending queue when the window regains focus', async () => {
+  const source = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
+
+  assert.match(
+    source,
+    /currentWindow\.onFocusChanged\(\(\{ payload: focused \}\) => \{[\s\S]*if \(focused\) void openQueuedDesktopDocumentPaths\(\)/
+  )
+  assert.match(source, /if \(unlistenFocus\) unlistenFocus\(\)/)
 })
 
 test('App hides inactive native browser webviews when the active tab changes', async () => {

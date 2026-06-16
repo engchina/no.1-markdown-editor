@@ -75,6 +75,53 @@ test('NSIS installer registers default document ProgIds and refreshes shell asso
   assert.equal((hooks.match(/!insertmacro UPDATEFILEASSOC/gu) ?? []).length, 2)
 })
 
+test('NSIS installer reclaims stale "<ext>_auto_file" associations on install', async () => {
+  const hooks = await readFile(
+    new URL('../src-tauri/nsis/association-hooks.nsh', import.meta.url),
+    'utf8'
+  )
+
+  // The reclaim macro repoints the extension default at our stable ProgId and
+  // removes the orphaned generated ProgId left by an older install.
+  assert.match(hooks, /!macro NO1_RECLAIM_AUTOFILE_EXTENSION ROOTKEY EXT/u)
+  assert.match(hooks, /StrCmp \$0 "\$\{EXT\}_auto_file" 0 \+4/u)
+  assert.match(
+    hooks,
+    /WriteRegStr \$\{ROOTKEY\} "Software\\Classes\\\.\$\{EXT\}" "" "\$\{NO1_PROGID_PREFIX\}\.\$\{EXT\}"/u
+  )
+  assert.match(hooks, /DeleteRegKey \$\{ROOTKEY\} "Software\\Classes\\\$\{EXT\}_auto_file"/u)
+
+  // Cleanup runs during install, before the shell association refresh.
+  assert.match(hooks, /!macro NO1_CLEANUP_STALE_FILE_ASSOCIATIONS/u)
+  const postinstall = hooks.slice(
+    hooks.indexOf('!macro NSIS_HOOK_POSTINSTALL'),
+    hooks.indexOf('!macroend', hooks.indexOf('!macro NSIS_HOOK_POSTINSTALL'))
+  )
+  assert.match(postinstall, /!insertmacro NO1_CLEANUP_STALE_FILE_ASSOCIATIONS/u)
+  assert.ok(
+    postinstall.indexOf('NO1_CLEANUP_STALE_FILE_ASSOCIATIONS') <
+      postinstall.indexOf('UPDATEFILEASSOC'),
+    'stale associations should be reclaimed before the shell association cache is refreshed'
+  )
+
+  // Only the markdown extensions we own are reclaimed, across both registry
+  // hives; ".txt" is deliberately excluded so we never hijack another editor's
+  // generated txt_auto_file handler.
+  const cleanup = hooks.slice(
+    hooks.indexOf('!macro NO1_CLEANUP_STALE_FILE_ASSOCIATIONS'),
+    hooks.indexOf('!macroend', hooks.indexOf('!macro NO1_CLEANUP_STALE_FILE_ASSOCIATIONS'))
+  )
+  for (const hive of ['HKCU', 'HKLM']) {
+    for (const ext of ['md', 'markdown', 'mdx']) {
+      assert.match(
+        cleanup,
+        new RegExp(`!insertmacro NO1_RECLAIM_AUTOFILE_EXTENSION ${hive} "${ext}"`, 'u')
+      )
+    }
+  }
+  assert.doesNotMatch(cleanup, /NO1_RECLAIM_AUTOFILE_EXTENSION \w+ "txt"/u)
+})
+
 test('Windows file association diagnostics check UserChoice, default classes, and Default Apps registration', async () => {
   const source = await readFile(
     new URL('../scripts/diagnose-windows-file-associations.ps1', import.meta.url),

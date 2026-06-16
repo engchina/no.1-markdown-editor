@@ -20,6 +20,22 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.26.4 - 2026-06-16
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Double-clicking a Markdown file while a native browser tab is frontmost now reveals the main editor surface natively before notifying the frontend, so WebView2 occlusion cannot block the document-open event from surfacing.
+- The app now re-drains queued desktop file-open requests when the window regains focus, recovering safely if a single-instance event was delayed or dropped.
+- NSIS installs now reclaim stale generated `md_auto_file`, `markdown_auto_file`, and `mdx_auto_file` associations that point at removed executables, while deliberately leaving `txt_auto_file` untouched.
+
+### Internal
+
+- Added regression coverage for native editor-surface reveal, focus-time pending queue drain, and stale NSIS auto-file association cleanup.
+
 ## 0.26.3 - 2026-06-16
 
 ### Added
