@@ -16,6 +16,9 @@ if (-not $Extension.StartsWith('.')) {
   $Extension = ".$Extension"
 }
 
+$extensionWithoutDot = $Extension.TrimStart('.')
+$stableProgId = "No1MarkdownEditor.$extensionWithoutDot"
+
 function Get-RegistryDefaultValue {
   param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -100,9 +103,35 @@ $extensionClasses = foreach ($path in $extensionClassPaths) {
   }
 }
 
+$registeredApplications = foreach ($path in @(
+  'HKCU:\Software\RegisteredApplications',
+  'HKLM:\Software\RegisteredApplications'
+)) {
+  [pscustomobject]@{
+    Path = $path
+    CapabilitiesPath = Get-RegistryValue -Path $path -Name $ProductName
+  }
+}
+
+$capabilityFileAssociations = foreach ($entry in $registeredApplications) {
+  if ([string]::IsNullOrWhiteSpace($entry.CapabilitiesPath)) {
+    continue
+  }
+
+  foreach ($root in @('HKCU:', 'HKLM:')) {
+    $path = "$root\$($entry.CapabilitiesPath)\FileAssociations"
+    [pscustomobject]@{
+      Path = $path
+      Extension = $Extension
+      ProgId = Get-RegistryValue -Path $path -Name $Extension
+    }
+  }
+}
+
 $candidateProgIds = New-Object System.Collections.Generic.List[string]
 foreach ($progId in @(
   $userChoiceProgId,
+  $stableProgId,
   "Applications\$BinaryName",
   "$ProductName$Extension",
   'Markdown Document',
@@ -117,6 +146,12 @@ foreach ($progId in @(
 foreach ($entry in $extensionClasses) {
   if (-not [string]::IsNullOrWhiteSpace($entry.DefaultValue) -and -not $candidateProgIds.Contains($entry.DefaultValue)) {
     $candidateProgIds.Add($entry.DefaultValue)
+  }
+}
+
+foreach ($entry in $capabilityFileAssociations) {
+  if (-not [string]::IsNullOrWhiteSpace($entry.ProgId) -and -not $candidateProgIds.Contains($entry.ProgId)) {
+    $candidateProgIds.Add($entry.ProgId)
   }
 }
 
@@ -140,6 +175,16 @@ Write-Host ''
 Write-Host 'Extension class registry values:' -ForegroundColor Cyan
 $extensionClasses | Format-Table -AutoSize
 
+Write-Host 'Default Apps registration:' -ForegroundColor Cyan
+$registeredApplications | Format-Table -AutoSize
+
+Write-Host 'Default Apps file associations:' -ForegroundColor Cyan
+if ($capabilityFileAssociations) {
+  $capabilityFileAssociations | Format-Table -AutoSize
+} else {
+  Write-Host "No Default Apps capability file association was found for $Extension."
+}
+
 Write-Host 'Candidate open commands:' -ForegroundColor Cyan
 $commands | Format-List
 
@@ -159,6 +204,20 @@ if ([string]::IsNullOrWhiteSpace($userChoiceProgId)) {
   if ($userChoiceCommands.Count -eq 0) {
     $warnings.Add("UserChoice points to Applications\$BinaryName, but no open command was found for that Applications ProgId.")
   }
+} elseif ($userChoiceProgId -ne $stableProgId -and $userChoiceProgId -ne "$ProductName$Extension") {
+  $warnings.Add("UserChoice points to $userChoiceProgId. Windows will prefer that protected user default over the installed $stableProgId association.")
+}
+
+$defaultClassValues = @($extensionClasses | ForEach-Object { $_.DefaultValue } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+if ($defaultClassValues.Count -eq 0) {
+  $warnings.Add("No extension default class is registered for $Extension.")
+} elseif ($stableProgId -notin $defaultClassValues -and "$ProductName$Extension" -notin $defaultClassValues) {
+  $warnings.Add("The extension default class for $Extension is not registered to $stableProgId.")
+}
+
+$capabilityProgIds = @($capabilityFileAssociations | ForEach-Object { $_.ProgId } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+if ($stableProgId -notin $capabilityProgIds) {
+  $warnings.Add("Default Apps registration does not advertise $Extension as $stableProgId.")
 }
 
 foreach ($command in $commands | Where-Object { $_.HasCommand }) {

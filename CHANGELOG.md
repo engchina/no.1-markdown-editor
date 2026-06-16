@@ -20,6 +20,22 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.26.3 - 2026-06-16
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Windows installers now register stable `No1MarkdownEditor.<ext>` document ProgIds, Default Apps capabilities, and App Paths entries so Windows can resolve Markdown and text file associations after install or upgrade.
+- Native browser webviews now verify that their tab is still active before showing, and hide themselves again if the active tab changes during async webview creation.
+
+### Internal
+
+- Expanded the Windows file association diagnostic script to report RegisteredApplications, capability file associations, protected UserChoice overrides, and stale default classes.
+- Added regression coverage for active-tab browser webview show guards and stable Windows association registration.
+
 ## 0.26.2 - 2026-06-16
 
 ### Added

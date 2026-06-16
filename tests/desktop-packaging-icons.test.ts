@@ -37,9 +37,19 @@ test('Windows installer shortcuts and file associations use the product icon exp
   assert.ok(wixTemplate.includes('<RegistryValue Type="string" Name="FriendlyAppName" Value="{{product_name}}" />'))
   assert.ok(wixTemplate.includes('<RegistryValue Type="string" Value="&quot;[!Path]&quot; &quot;%1&quot;" />'))
   assert.ok(wixTemplate.includes('<RegistryValue Type="string" Name=".{{ext}}" Value="" />'))
+  assert.ok(wixTemplate.includes('Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\no1-markdown-editor.exe'))
+  assert.ok(wixTemplate.includes('Software\\RegisteredApplications'))
+  assert.ok(wixTemplate.includes('Software\\No1MarkdownEditor\\Capabilities'))
+  assert.ok(wixTemplate.includes('Name="{{product_name}}" Value="Software\\No1MarkdownEditor\\Capabilities"'))
+  assert.ok(wixTemplate.includes('Name=".{{ext}}" Value="No1MarkdownEditor.{{ext}}"'))
+  assert.ok(wixTemplate.includes('Software\\Classes\\.{{ext}}"'))
+  assert.ok(wixTemplate.includes('<RegistryValue Type="string" Value="No1MarkdownEditor.{{ext}}" />'))
+  assert.ok(wixTemplate.includes('Name="Content Type" Value="{{association.mimeType}}"'))
+  assert.ok(wixTemplate.includes('Software\\Classes\\No1MarkdownEditor.{{ext}}"'))
+  assert.ok(wixTemplate.includes('Software\\Classes\\{{../../product_name}}.{{ext}}"'))
 })
 
-test('NSIS installer registers the executable Applications ProgId and refreshes shell associations', async () => {
+test('NSIS installer registers default document ProgIds and refreshes shell associations', async () => {
   const [config, hooks] = await Promise.all([
     readTauriConfig(),
     readFile(new URL('../src-tauri/nsis/association-hooks.nsh', import.meta.url), 'utf8'),
@@ -53,23 +63,36 @@ test('NSIS installer registers the executable Applications ProgId and refreshes 
   assert.match(hooks, /SupportedTypes" "\.markdown" ""/u)
   assert.match(hooks, /SupportedTypes" "\.mdx" ""/u)
   assert.match(hooks, /SupportedTypes" "\.txt" ""/u)
+  assert.match(hooks, /!define NO1_PROGID_PREFIX "No1MarkdownEditor"/u)
+  assert.match(hooks, /Software\\Classes\\\.\$\{EXT\}" "" "\$\{NO1_PROGID_PREFIX\}\.\$\{EXT\}"/u)
+  assert.match(hooks, /Software\\Classes\\\$\{NO1_PROGID_PREFIX\}\.\$\{EXT\}\\shell\\open\\command/u)
+  assert.match(hooks, /Software\\Classes\\\$\{PRODUCTNAME\}\.\$\{EXT\}\\shell\\open\\command/u)
+  assert.match(hooks, /Software\\RegisteredApplications" "\$\{PRODUCTNAME\}" "Software\\\$\{NO1_PROGID_PREFIX\}\\Capabilities"/u)
+  assert.match(hooks, /Software\\\$\{NO1_PROGID_PREFIX\}\\Capabilities\\FileAssociations" "\.md" "\$\{NO1_PROGID_PREFIX\}\.md"/u)
+  assert.match(hooks, /Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\\$\{MAINBINARYNAME\}\.exe/u)
   assert.match(hooks, /!macro NSIS_HOOK_POSTINSTALL/u)
   assert.match(hooks, /!macro NSIS_HOOK_POSTUNINSTALL/u)
   assert.equal((hooks.match(/!insertmacro UPDATEFILEASSOC/gu) ?? []).length, 2)
 })
 
-test('Windows file association diagnostics check UserChoice and Applications open commands', async () => {
+test('Windows file association diagnostics check UserChoice, default classes, and Default Apps registration', async () => {
   const source = await readFile(
     new URL('../scripts/diagnose-windows-file-associations.ps1', import.meta.url),
     'utf8'
   )
 
   assert.match(source, /FileExts\\\$Extension\\UserChoice/u)
+  assert.match(source, /No1MarkdownEditor\.\$extensionWithoutDot/u)
   assert.match(source, /Applications\\\$BinaryName/u)
+  assert.match(source, /Software\\RegisteredApplications/u)
+  assert.match(source, /CapabilitiesPath/u)
+  assert.match(source, /\\FileAssociations/u)
   assert.match(source, /\\shell\\open\\command/u)
   assert.match(source, /HasPathArgument/u)
   assert.match(source, /ExecutableExists/u)
   assert.match(source, /UserChoice points to Applications\\\$BinaryName/u)
+  assert.match(source, /Windows will prefer that protected user default/u)
+  assert.match(source, /Default Apps registration does not advertise/u)
 })
 
 test('desktop file associations cover every document extension the app can open', async () => {

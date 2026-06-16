@@ -12,10 +12,18 @@ test('openDesktopDocumentPath supports a silent option to suppress per-file erro
 test('openDesktopDocumentPath hides native browser webviews before activating markdown tabs', async () => {
   const source = await readFile(new URL('../src/lib/desktopFileOpen.ts', import.meta.url), 'utf8')
 
-  assert.match(source, /import \{ hideAllBrowserWebviews \} from '\.\/browser\/webviewVisibility'/)
+  assert.match(source, /import \{ hideAllBrowserWebviews, hideInactiveBrowserWebviews \} from '\.\/browser\/webviewVisibility'/)
   assert.ok(
     source.indexOf('await hideAllBrowserWebviews()') < source.indexOf("invoke<string>('read_file'"),
     'browser child webviews should be hidden before the file read/open activates a markdown tab'
+  )
+  assert.match(source, /const openedTabId = useEditorStore\.getState\(\)\.openDocument/)
+  assert.match(source, /useEditorStore\.getState\(\)\.setActiveTab\(openedTabId\)/)
+  assert.match(source, /await hideInactiveBrowserWebviews\(openedTabId\)/)
+  assert.ok(
+    source.indexOf('const openedTabId = useEditorStore.getState().openDocument') <
+      source.indexOf('await hideInactiveBrowserWebviews(openedTabId)'),
+    'browser webviews should be hidden again after the markdown tab becomes active'
   )
 })
 

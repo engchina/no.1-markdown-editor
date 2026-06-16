@@ -158,6 +158,63 @@
                         {{/each~}}
                     </RegistryKey>
                 </RegistryKey>
+                <RegistryKey Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\no1-markdown-editor.exe">
+                    <RegistryValue Type="string" Value="[!Path]" />
+                    <RegistryValue Type="string" Name="Path" Value="[INSTALLDIR]" />
+                </RegistryKey>
+                <RegistryKey Root="HKLM" Key="Software\RegisteredApplications">
+                    <RegistryValue Type="string" Name="{{product_name}}" Value="Software\No1MarkdownEditor\Capabilities" />
+                </RegistryKey>
+                <RegistryKey Root="HKLM" Key="Software\No1MarkdownEditor\Capabilities">
+                    <RegistryValue Type="string" Name="ApplicationName" Value="{{product_name}}" />
+                    <RegistryValue Type="string" Name="ApplicationDescription" Value="{{product_name}}" />
+                    <RegistryValue Type="string" Name="ApplicationIcon" Value="&quot;[!Path]&quot;,0" />
+                    <RegistryKey Key="FileAssociations">
+                        {{#each file_associations as |association| ~}}
+                        {{#each association.ext as |ext| ~}}
+                        <RegistryValue Type="string" Name=".{{ext}}" Value="No1MarkdownEditor.{{ext}}" />
+                        {{/each~}}
+                        {{/each~}}
+                    </RegistryKey>
+                </RegistryKey>
+                {{#each file_associations as |association| ~}}
+                {{#each association.ext as |ext| ~}}
+                <RegistryKey Root="HKLM" Key="Software\Classes\.{{ext}}">
+                    <RegistryValue Type="string" Value="No1MarkdownEditor.{{ext}}" />
+                    <RegistryValue Type="string" Name="Content Type" Value="{{association.mimeType}}" />
+                    <RegistryValue Type="string" Name="PerceivedType" Value="text" />
+                    <RegistryKey Key="OpenWithProgids">
+                        <RegistryValue Type="string" Name="No1MarkdownEditor.{{ext}}" Value="" />
+                    </RegistryKey>
+                </RegistryKey>
+                <RegistryKey Root="HKLM" Key="Software\Classes\No1MarkdownEditor.{{ext}}">
+                    <RegistryValue Type="string" Value="{{association.description}}" />
+                    <RegistryValue Type="string" Name="FriendlyTypeName" Value="{{association.description}}" />
+                    <RegistryKey Key="DefaultIcon">
+                        <RegistryValue Type="string" Value="&quot;[!Path]&quot;,0" />
+                    </RegistryKey>
+                    <RegistryKey Key="shell\open">
+                        <RegistryValue Type="string" Value="Open with {{../../product_name}}" />
+                        <RegistryKey Key="command">
+                            <RegistryValue Type="string" Value="&quot;[!Path]&quot; &quot;%1&quot;" />
+                        </RegistryKey>
+                    </RegistryKey>
+                </RegistryKey>
+                <RegistryKey Root="HKLM" Key="Software\Classes\{{../../product_name}}.{{ext}}">
+                    <RegistryValue Type="string" Value="{{association.description}}" />
+                    <RegistryValue Type="string" Name="FriendlyTypeName" Value="{{association.description}}" />
+                    <RegistryKey Key="DefaultIcon">
+                        <RegistryValue Type="string" Value="&quot;[!Path]&quot;,0" />
+                    </RegistryKey>
+                    <RegistryKey Key="shell\open">
+                        <RegistryValue Type="string" Value="Open with {{../../product_name}}" />
+                        <RegistryKey Key="command">
+                            <RegistryValue Type="string" Value="&quot;[!Path]&quot; &quot;%1&quot;" />
+                        </RegistryKey>
+                    </RegistryKey>
+                </RegistryKey>
+                {{/each~}}
+                {{/each~}}
                 <!-- Change the Root to HKCU for perUser installations -->
                 {{#each deep_link_protocols as |protocol| ~}}
                 <RegistryKey Root="HKLM" Key="Software\Classes\\{{protocol}}">

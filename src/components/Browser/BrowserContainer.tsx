@@ -253,9 +253,11 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
 
     let active = true
     const viewport = viewportRef.current
+    const isActiveBrowserTab = () =>
+      active && useEditorStore.getState().activeTabId === tab.id
 
     const syncPosition = async () => {
-      if (!active) return
+      if (!isActiveBrowserTab()) return
 
       if (shouldHideWebview) {
         try {
@@ -281,6 +283,7 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
       }
 
       try {
+        if (!isActiveBrowserTab()) return
         // This command will create the webview if it doesn't exist,
         // or show and reposition it if it already does.
         await invoke('create_browser_webview', {
@@ -291,8 +294,16 @@ export default function BrowserContainer({ tab }: BrowserContainerProps) {
           width,
           height,
         })
+        if (!isActiveBrowserTab()) {
+          await invoke('show_browser_webview', { label, visible: false })
+          return
+        }
         // Make sure it is visible when overlays disappear
         await invoke('show_browser_webview', { label, visible: true })
+        if (!isActiveBrowserTab()) {
+          await invoke('show_browser_webview', { label, visible: false })
+          return
+        }
         // Set zoom level
         const currentZoom = useEditorStore.getState().zoom
         await invoke('browser_set_zoom', { label, zoom: currentZoom / 100 })
