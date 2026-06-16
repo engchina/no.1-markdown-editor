@@ -20,6 +20,22 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.26.2 - 2026-06-16
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Windows installers now register the app-level `Applications\no1-markdown-editor.exe` open handler and supported document extensions, improving file association reliability when Windows UserChoice points to the executable application entry.
+- Native browser webviews are now hidden when switching back to Markdown tabs or opening a desktop document, so browser content no longer stays visually on top of the editor after tab changes.
+
+### Internal
+
+- Added a Windows file association diagnostic script and packaging regression coverage for WiX and NSIS installer association hooks.
+- Added browser webview visibility helpers and regression coverage for Markdown activation from browser tabs.
+
 ## 0.26.1 - 2026-06-11
 
 ### Added

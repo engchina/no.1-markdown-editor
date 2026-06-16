@@ -1,6 +1,6 @@
 {
   "productName": "No.1 Markdown Editor",
-  "version": "0.26.1",
+  "version": "0.26.2",
   "identifier": "com.no1.markdown-editor",
   "build": {
     "frontendDist": "../dist",
@@ -137,7 +137,8 @@
         "template": "wix/main.wxs"
       },
       "nsis": {
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "nsis/association-hooks.nsh"
       }
     }
   }

@@ -9,6 +9,16 @@ test('openDesktopDocumentPath supports a silent option to suppress per-file erro
   assert.match(source, /if\s*\(!options\.silent\)\s*\{[\s\S]*pushErrorNotice\('notices\.openFileErrorTitle'/)
 })
 
+test('openDesktopDocumentPath hides native browser webviews before activating markdown tabs', async () => {
+  const source = await readFile(new URL('../src/lib/desktopFileOpen.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /import \{ hideAllBrowserWebviews \} from '\.\/browser\/webviewVisibility'/)
+  assert.ok(
+    source.indexOf('await hideAllBrowserWebviews()') < source.indexOf("invoke<string>('read_file'"),
+    'browser child webviews should be hidden before the file read/open activates a markdown tab'
+  )
+})
+
 test('openDesktopDocumentPaths aggregates per-file failures into a single toast in batch mode', async () => {
   const source = await readFile(new URL('../src/lib/desktopFileOpen.ts', import.meta.url), 'utf8')
 
@@ -56,4 +66,13 @@ test('App drains queued launch paths when a single-instance event arrives', asyn
     /currentWindow\.listen<string\[]>\(SINGLE_INSTANCE_OPEN_FILES_EVENT,[\s\S]*void openQueuedDesktopDocumentPaths\(paths\)/
   )
   assert.match(source, /await openQueuedDesktopDocumentPaths\(\)/)
+})
+
+test('App hides inactive native browser webviews when the active tab changes', async () => {
+  const source = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /import \{ hideInactiveBrowserWebviews \} from '\.\/lib\/browser\/webviewVisibility'/)
+  assert.match(source, /const browserWebviewVisibilityKey = useEditorStore/)
+  assert.match(source, /void hideInactiveBrowserWebviews\(activeTab\?\.id \?\? null\)/)
+  assert.match(source, /\}, \[activeTab\?\.id, browserWebviewVisibilityKey\]\)/)
 })

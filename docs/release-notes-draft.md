@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.26.0`.
+This document is a draft for the next public release after `v0.26.1`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,36 +8,44 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.26.1`
+`No.1 Markdown Editor v0.26.2`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.26.1 fixes a Windows file-association startup race. Double-clicking a Markdown file while the desktop app is starting now queues the file path before notifying the running window, so the document opens reliably.
+No.1 Markdown Editor v0.26.2 improves desktop reliability around Windows file associations and native browser webview visibility. Windows installers now register the app-level open handler, and browser content is hidden before Markdown tabs become active.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Make Windows file-association opens reliable during app startup.
-- Queue single-instance launch paths before emitting the frontend open-files event.
-- Drain queued launch paths when the running app receives a single-instance event.
+- Hide inactive native browser webviews when the active tab changes.
+- Hide all browser webviews before a desktop Markdown document is opened.
+- Register the Windows `Applications\no1-markdown-editor.exe` open handler in WiX and NSIS installers.
+- Keep browser tabs available while ensuring Markdown tabs own the visible editing surface.
 
 ### Why This Release Matters
 
-Opening a Markdown file from Explorer should be dependable. During startup timing races, the file-open event could arrive before the frontend had drained pending launch paths, leaving the document unopened. This release preserves those paths in the backend queue before notifying the app window.
+Opening files from the operating system and switching back to writing should both feel dependable. This release adds the Windows application-level file-open registration used by UserChoice associations, then hides inactive native browser child webviews whenever Markdown tabs need to own the visible editing surface.
 
 ### User-Facing Improvements
 
-#### Windows File Association
+#### Windows File Associations
 
-- Double-clicking a Markdown file on Windows opens the file directly even when the app is already starting.
-- Single-instance file-open requests are queued before the frontend event is emitted.
-- The frontend drains queued launch paths both at startup and when a single-instance open-files event arrives.
+- WiX and NSIS installers register the executable application entry with supported Markdown and text extensions.
+- The application open command passes the selected file path to the desktop app.
+- A diagnostic PowerShell script can inspect UserChoice, open commands, and missing executable targets on Windows.
+
+#### Browser And Markdown Tab Switching
+
+- Markdown tabs regain the visible editor surface after switching away from a browser tab.
+- Opening a Markdown document from the desktop hides browser webviews before the document tab is activated.
+- Multiple browser tabs remain tracked so inactive browser views can be hidden consistently.
 
 ### Developer-Facing Improvements
 
-- Added backend coverage for pending open path append/dedup/drain behavior.
-- Added wiring tests that require single-instance launch paths to be queued before frontend notification.
+- Added shared browser webview visibility helpers.
+- Added WiX and NSIS packaging coverage for application-level file association registration.
+- Added regression tests for browser webview labels, Markdown activation from browser tabs, and desktop document opens.
 
 ### Suggested Upgrade Notes Section
 
@@ -46,7 +54,7 @@ Opening a Markdown file from Explorer should be dependable. During startup timin
 
 ### Suggested Who Should Update Section
 
-This release is especially relevant for Windows users who open Markdown files by double-clicking them in Explorer or from file associations.
+This release is especially relevant for Windows users who open Markdown files through file associations and for users who keep browser tabs open while switching back to Markdown editing.
 
 ## Packaging Checklist Before Release
 
@@ -54,7 +62,7 @@ This release is especially relevant for Windows users who open Markdown files by
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.26.1 --date 2026-06-11` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.26.1` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.26.1` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.26.1` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.26.2 --date 2026-06-16` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.26.2` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.26.2` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.26.2` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

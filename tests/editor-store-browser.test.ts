@@ -54,3 +54,33 @@ test('editor store updateTabUrl strips only a leading www. from the hostname', (
 
   useEditorStore.getState().closeTab(tabId)
 })
+
+test('editor store opens a desktop markdown document as the active tab when a browser tab is active', () => {
+  const browserTabId = useEditorStore.getState().addTab({
+    type: 'browser',
+    url: DEFAULT_BROWSER_URL,
+    name: 'Browser',
+  })
+
+  assert.equal(useEditorStore.getState().activeTabId, browserTabId)
+
+  const markdownTabId = useEditorStore.getState().openDocument({
+    path: 'C:\\Users\\thinkpad\\Documents\\notes.md',
+    name: 'notes.md',
+    content: '# Notes',
+    savedContent: '# Notes',
+    isDirty: false,
+  })
+
+  const state = useEditorStore.getState()
+  const markdownTab = state.tabs.find((tab) => tab.id === markdownTabId)
+
+  assert.ok(markdownTab)
+  assert.equal(markdownTab.type, 'markdown')
+  assert.equal(markdownTab.path, 'C:\\Users\\thinkpad\\Documents\\notes.md')
+  assert.equal(state.activeTabId, markdownTabId)
+  assert.equal(state.tabs.find((tab) => tab.id === browserTabId)?.type, 'browser')
+
+  useEditorStore.getState().closeTab(markdownTabId)
+  useEditorStore.getState().closeTab(browserTabId)
+})

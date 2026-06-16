@@ -138,6 +138,26 @@
                 <RegistryKey Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}">
                     <RegistryValue Name="InstallDir" Type="string" Value="[INSTALLDIR]" KeyPath="yes" />
                 </RegistryKey>
+                <RegistryKey Root="HKLM" Key="Software\Classes\Applications\no1-markdown-editor.exe">
+                    <RegistryValue Type="string" Value="{{product_name}}" />
+                    <RegistryValue Type="string" Name="FriendlyAppName" Value="{{product_name}}" />
+                    <RegistryKey Key="DefaultIcon">
+                        <RegistryValue Type="string" Value="&quot;[!Path]&quot;,0" />
+                    </RegistryKey>
+                    <RegistryKey Key="shell\open">
+                        <RegistryValue Type="string" Value="Open with {{product_name}}" />
+                        <RegistryKey Key="command">
+                            <RegistryValue Type="string" Value="&quot;[!Path]&quot; &quot;%1&quot;" />
+                        </RegistryKey>
+                    </RegistryKey>
+                    <RegistryKey Key="SupportedTypes">
+                        {{#each file_associations as |association| ~}}
+                        {{#each association.ext as |ext| ~}}
+                        <RegistryValue Type="string" Name=".{{ext}}" Value="" />
+                        {{/each~}}
+                        {{/each~}}
+                    </RegistryKey>
+                </RegistryKey>
                 <!-- Change the Root to HKCU for perUser installations -->
                 {{#each deep_link_protocols as |protocol| ~}}
                 <RegistryKey Root="HKLM" Key="Software\Classes\\{{protocol}}">

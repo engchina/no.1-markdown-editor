@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import i18n from '../i18n'
 import { useRecentFilesStore } from '../store/recentFiles'
 import { useEditorStore } from '../store/editor'
+import { hideAllBrowserWebviews } from './browser/webviewVisibility'
 import { isSupportedDocumentName } from './fileTypes'
 import { pushErrorNotice } from './notices'
 
@@ -21,6 +22,7 @@ export async function openDesktopDocumentPath(
   if (!isSupportedDocumentName(name)) return false
 
   try {
+    await hideAllBrowserWebviews()
     const content = await invoke<string>('read_file', { path })
     useEditorStore.getState().openDocument({
       path,

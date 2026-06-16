@@ -30,6 +30,7 @@ import {
   type AppBrowserShortcutCommand,
   type AppBrowserShortcutPayload,
 } from './lib/browser/shortcuts'
+import { hideInactiveBrowserWebviews } from './lib/browser/webviewVisibility'
 import { useAIStore } from './store/ai'
 import { useUpdateStore } from './store/update'
 import { useActiveTab, useEditorStore } from './store/editor'
@@ -123,6 +124,12 @@ export default function App() {
   const externalMissingDialogOpen = useEditorStore((state) => state.externalMissingFiles.length > 0)
   const externalConflictDialogOpen = useEditorStore(
     (state) => state.externalMissingFiles.length === 0 && state.externalFileConflicts.length > 0
+  )
+  const browserWebviewVisibilityKey = useEditorStore((state) =>
+    state.tabs
+      .filter((tab) => tab.type === 'browser')
+      .map((tab) => tab.id)
+      .join('|')
   )
   const { newFile, openFile, saveFile, saveFileAs, saveAllDirtyTabs, closeActiveFile } = useFileOps()
   const [paletteMode, setPaletteMode] = useState<'command' | 'file' | null>(null)
@@ -261,6 +268,12 @@ export default function App() {
       if (unlistenOpenFiles) unlistenOpenFiles()
     }
   }, [])
+
+  useEffect(() => {
+    if (!isTauri) return
+
+    void hideInactiveBrowserWebviews(activeTab?.id ?? null)
+  }, [activeTab?.id, browserWebviewVisibilityKey])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

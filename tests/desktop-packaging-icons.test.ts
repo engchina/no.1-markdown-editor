@@ -17,6 +17,7 @@ test('Windows installer shortcuts and file associations use the product icon exp
   assert.equal(config.bundle.windows.wix.template, 'wix/main.wxs')
   assert.equal(config.bundle.windows.wix.upgradeCode, '2A43089D-D7E9-533A-B6A3-43EAEF3F3D3F')
   assert.equal(config.bundle.windows.nsis.installerIcon, 'icons/icon.ico')
+  assert.equal(config.bundle.windows.nsis.installerHooks, 'nsis/association-hooks.nsh')
 
   const desktopShortcut = wixTemplate.slice(
     wixTemplate.indexOf('<Shortcut Id="ApplicationDesktopShortcut"'),
@@ -32,6 +33,43 @@ test('Windows installer shortcuts and file associations use the product icon exp
       '<ProgId Id="{{../../product_name}}.{{ext}}" Advertise="yes" Description="{{association.description}}" Icon="ProductIcon" IconIndex="0">'
     )
   )
+  assert.ok(wixTemplate.includes('Software\\Classes\\Applications\\no1-markdown-editor.exe'))
+  assert.ok(wixTemplate.includes('<RegistryValue Type="string" Name="FriendlyAppName" Value="{{product_name}}" />'))
+  assert.ok(wixTemplate.includes('<RegistryValue Type="string" Value="&quot;[!Path]&quot; &quot;%1&quot;" />'))
+  assert.ok(wixTemplate.includes('<RegistryValue Type="string" Name=".{{ext}}" Value="" />'))
+})
+
+test('NSIS installer registers the executable Applications ProgId and refreshes shell associations', async () => {
+  const [config, hooks] = await Promise.all([
+    readTauriConfig(),
+    readFile(new URL('../src-tauri/nsis/association-hooks.nsh', import.meta.url), 'utf8'),
+  ])
+
+  assert.equal(config.bundle.windows.nsis.installerHooks, 'nsis/association-hooks.nsh')
+  assert.match(hooks, /Software\\Classes\\Applications\\\$\{MAINBINARYNAME\}\.exe/u)
+  assert.match(hooks, /shell\\open\\command/u)
+  assert.match(hooks, /\$INSTDIR\\\$\{MAINBINARYNAME\}\.exe\$\\" \$\\"%1\$\\"/u)
+  assert.match(hooks, /SupportedTypes" "\.md" ""/u)
+  assert.match(hooks, /SupportedTypes" "\.markdown" ""/u)
+  assert.match(hooks, /SupportedTypes" "\.mdx" ""/u)
+  assert.match(hooks, /SupportedTypes" "\.txt" ""/u)
+  assert.match(hooks, /!macro NSIS_HOOK_POSTINSTALL/u)
+  assert.match(hooks, /!macro NSIS_HOOK_POSTUNINSTALL/u)
+  assert.equal((hooks.match(/!insertmacro UPDATEFILEASSOC/gu) ?? []).length, 2)
+})
+
+test('Windows file association diagnostics check UserChoice and Applications open commands', async () => {
+  const source = await readFile(
+    new URL('../scripts/diagnose-windows-file-associations.ps1', import.meta.url),
+    'utf8'
+  )
+
+  assert.match(source, /FileExts\\\$Extension\\UserChoice/u)
+  assert.match(source, /Applications\\\$BinaryName/u)
+  assert.match(source, /\\shell\\open\\command/u)
+  assert.match(source, /HasPathArgument/u)
+  assert.match(source, /ExecutableExists/u)
+  assert.match(source, /UserChoice points to Applications\\\$BinaryName/u)
 })
 
 test('desktop file associations cover every document extension the app can open', async () => {
