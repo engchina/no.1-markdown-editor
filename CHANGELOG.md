@@ -20,6 +20,19 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.26.6 - 2026-06-19
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Shift+Space now reliably inserts a half-width space while a Japanese IME is active. Previously the space only landed on every other press because the IME's Shift+Space hand-off desynced with the editor; the shortcut is now handled deterministically and stays out of the way while you are converting candidates.
+- Typing a digit while text is selected now replaces the selection when a Chinese IME is active. Previously the keypress did nothing because the digit was delivered as a direct key event the editor failed to apply over the selection; digit-based IME candidate selection is unaffected.
+
+### Internal
+
 ## 0.26.5 - 2026-06-19
 
 ### Added

@@ -375,6 +375,77 @@ export function insertPlainNewlineForNonSemanticIndent(
   return true
 }
 
+/**
+ * Insert a literal half-width (ASCII U+0020) space at every selection range.
+ *
+ * Japanese IMEs map Shift+Space to a half-width space, but inside CodeMirror's
+ * contenteditable the IME's default Shift+Space hand-off desyncs with the
+ * MutationObserver flush in WebView2/Chromium, so the space only lands on every
+ * other press. Binding Shift+Space explicitly takes the flaky IME default out of
+ * the loop and makes the insertion deterministic. CodeMirror already suppresses
+ * keymap handlers while a composition is active (ignoreDuringComposition), so this
+ * never fires mid-conversion.
+ */
+export function insertHalfWidthSpace(
+  view: Pick<EditorView, 'state' | 'dispatch'>
+): boolean {
+  if (view.state.readOnly) return false
+
+  view.dispatch({
+    ...view.state.changeByRange((range) => ({
+      changes: { from: range.from, to: range.to, insert: ' ' },
+      range: EditorSelection.cursor(range.from + 1),
+    })),
+    scrollIntoView: true,
+    userEvent: 'input.type',
+  })
+  return true
+}
+
+const ASCII_DIGIT_KEYS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'] as const
+
+/**
+ * Replace a non-empty selection with `text`, leaving the caret after it.
+ *
+ * Returns false (so the native input path runs untouched) when the editor is
+ * read-only or every selection range is already empty.
+ */
+export function replaceNonEmptySelectionWithText(
+  view: Pick<EditorView, 'state' | 'dispatch'>,
+  text: string
+): boolean {
+  if (view.state.readOnly) return false
+  if (view.state.selection.ranges.every((range) => range.empty)) return false
+
+  view.dispatch({
+    ...view.state.changeByRange((range) => ({
+      changes: { from: range.from, to: range.to, insert: text },
+      range: EditorSelection.cursor(range.from + text.length),
+    })),
+    scrollIntoView: true,
+    userEvent: 'input.type',
+  })
+  return true
+}
+
+/**
+ * Keymap bindings that make a bare digit key replace an active selection.
+ *
+ * With a Chinese IME active, digits are delivered as direct key events (unlike
+ * letters, which go through pinyin composition). In that state Chromium fails to
+ * apply the digit as a selection replacement inside CodeMirror's contenteditable,
+ * so the keypress appears to do nothing. Handling the keydown ourselves replaces
+ * the selection deterministically. CodeMirror skips keymap handlers while a
+ * composition is active (ignoreDuringComposition), so digit-based IME candidate
+ * selection is left untouched. The handler returns false (native path) whenever
+ * there is no selection, so ordinary digit typing is unaffected, and bare-digit
+ * bindings never match modifier combos like the Ctrl/Cmd+digit heading shortcuts.
+ */
+export const selectionReplacingDigitKeymap: KeyBinding[] = ASCII_DIGIT_KEYS.map((digit) => ({
+  key: digit,
+  run: (view: EditorView) => replaceNonEmptySelectionWithText(view, digit),
+}))
+
 export function openKeyboardShortcutsFromEditor(): boolean {
   dispatchKeyboardShortcutsOpen()
   return true
@@ -408,6 +479,12 @@ export function buildCoreExtensions(options: {
           key: 'Enter',
           run: insertPlainNewlineForNonSemanticIndent,
         },
+        {
+          key: 'Shift-Space',
+          run: insertHalfWidthSpace,
+          preventDefault: true,
+        },
+        ...selectionReplacingDigitKeymap,
       ])
     ),
     keymap.of([

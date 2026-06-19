@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.26.4`.
+This document is a draft for the next public release after `v0.26.5`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,46 +8,41 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.26.5`
+`No.1 Markdown Editor v0.26.6`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.26.5 makes the macOS download far easier to launch. The macOS build is now ad-hoc signed, every release ships a one-double-click first-launch helper, and a permanent EN/JA/ZH first-launch note is embedded in every release page so the expected Gatekeeper prompt on unsigned builds is no longer a dead end.
+No.1 Markdown Editor v0.26.6 fixes two input-method (IME) editing glitches. Shift+Space now reliably inserts a half-width space while a Japanese IME is active, and typing a digit now replaces the selected text while a Chinese IME is active.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Ad-hoc sign the macOS universal build so Apple Silicon no longer reports it as "damaged".
-- Ship `macOS-First-Launch-Helper.zip`: unzip and double-click to clear the Gatekeeper quarantine flag and launch the app — no Terminal command to memorize.
-- Embed a permanent EN/JA/ZH macOS first-launch note in every release body.
+- Shift+Space now inserts a half-width space on every press while a Japanese IME is active, instead of only landing on every other press.
+- Typing a digit now replaces the active selection while a Chinese IME is active, instead of doing nothing.
 
 ### Why This Release Matters
 
-The macOS build is not notarized by Apple, so Gatekeeper blocks the first launch and every launch right after an in-app update. That is expected behavior, not a real malware detection, but until now there was no in-product guidance for it. This release keeps the recovery steps in front of every macOS user on every release page and reduces the manual `xattr` step to a single double-click.
+Both issues only surfaced while writing with a Japanese or Chinese IME, so they were easy to miss but disruptive in everyday CJK writing. Shift+Space and digit-over-selection are common keystrokes, and the editor now handles them deterministically without interfering with IME candidate selection.
 
 ### User-Facing Improvements
 
-#### macOS First Launch
+#### Japanese IME
 
-- The universal macOS build is ad-hoc signed (`APPLE_SIGNING_IDENTITY: "-"`), which lets Apple Silicon run it without a "damaged" error. This is not Apple notarization and requires no developer certificate.
-- Each release now includes `macOS-First-Launch-Helper.zip`. Unzip it and double-click `Open-No1-Markdown-Editor.command` to clear the quarantine flag and open the app. Repeat after each update.
-- The manual fallback remains `xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"`.
+- Shift+Space inserts a half-width space on every press. Previously the IME's Shift+Space hand-off desynced with the editor, so the space only landed on alternating presses. The shortcut is now handled directly and stays out of the way while you are converting candidates.
 
-### Developer-Facing Improvements
+#### Chinese IME
 
-- The release workflow now ad-hoc signs the macOS build and uploads the first-launch helper as a release asset.
-- `scripts/build-release-body.mjs` appends a permanent macOS first-launch note to every generated release body, with regression coverage.
+- Pressing a digit while text is selected replaces the selection. Previously the digit was delivered as a direct key event that the editor failed to apply over a selection, so the keypress appeared to do nothing. Selecting IME candidates by number is unaffected, and ordinary digit typing is unchanged.
 
 ### Suggested Upgrade Notes Section
 
 - Existing Markdown documents, AI settings, provider credentials, browser tabs, and local editor state are unchanged.
 - This release does not change the Markdown file format.
-- Removing the Gatekeeper prompt entirely still requires full Apple Developer signing plus notarization.
 
 ### Suggested Who Should Update Section
 
-This release is especially relevant for macOS users who saw a Gatekeeper "cannot be opened" prompt after downloading or updating the app.
+This release is especially relevant for anyone writing with a Japanese or Chinese input method.
 
 ## Packaging Checklist Before Release
 
@@ -55,7 +50,7 @@ This release is especially relevant for macOS users who saw a Gatekeeper "cannot
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.26.5 --date 2026-06-19` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.26.5` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.26.5` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.26.5` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.26.6 --date 2026-06-19` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.26.6` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.26.6` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.26.6` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
