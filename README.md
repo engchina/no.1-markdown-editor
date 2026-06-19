@@ -119,18 +119,23 @@ Install latest package from [releases](https://github.com/engchina/no.1-markdown
 
 GitHub release automation is defined in `.github/workflows/release.yml`.
 
-- Run `npm run release:prepare -- 0.26.4` to sync `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and promote `CHANGELOG.md` `## Unreleased` into a dated `## 0.26.4 - YYYY-MM-DD` section before tagging.
-- Run `npm run release:validate` after bumping the release version to confirm `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `CHANGELOG.md` are ready for the same tag, and that the release changelog section no longer contains scaffold comment placeholders. Use `npm run release:validate -- 0.26.4` if you want to validate an explicit target before committing the version bump.
-- Run `npm run release:notes:preview -- 0.26.4` to print the GitHub release body locally before pushing `v0.26.4`.
-- After the release is published, run `npm run release:draft:advance -- 0.26.4` to reset `docs/release-notes-draft.md` and normalize `CHANGELOG.md` `## Unreleased` into the next-cycle suggested scaffold after `v0.26.4`.
+- Run `npm run release:prepare -- 0.26.5` to sync `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and promote `CHANGELOG.md` `## Unreleased` into a dated `## 0.26.5 - YYYY-MM-DD` section before tagging.
+- Run `npm run release:validate` after bumping the release version to confirm `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `CHANGELOG.md` are ready for the same tag, and that the release changelog section no longer contains scaffold comment placeholders. Use `npm run release:validate -- 0.26.5` if you want to validate an explicit target before committing the version bump.
+- Run `npm run release:notes:preview -- 0.26.5` to print the GitHub release body locally before pushing `v0.26.5`.
+- After the release is published, run `npm run release:draft:advance -- 0.26.5` to reset `docs/release-notes-draft.md` and normalize `CHANGELOG.md` `## Unreleased` into the next-cycle suggested scaffold after `v0.26.5`.
 - Keep the version aligned in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`.
 - Create and push a version tag such as `v0.14.0`. The workflow fails early if the tag does not match the app version.
 - Pushing the tag builds Windows x64, a single universal macOS release bundle for both Apple Silicon and Intel Macs, and Linux x64 release bundles on GitHub-hosted runners and uploads them to GitHub Releases automatically.
 
 For macOS builds:
 
-- The workflow uses `--target universal-apple-darwin --no-sign`, so one package covers both Apple Silicon and Intel Macs.
-- This is intended for local development and direct downloads when Apple signing certificates are not available.
-- Unsigned macOS downloads will still show the usual Gatekeeper / Privacy & Security prompts on end-user machines.
+- The workflow uses `--target universal-apple-darwin`, so one package covers both Apple Silicon and Intel Macs.
+- The build is **ad-hoc signed** (`APPLE_SIGNING_IDENTITY: "-"`), which lets Apple Silicon run it without a "damaged" error. This is **not** Apple notarization and requires no developer certificate.
+- Because the build is not notarized, Gatekeeper still blocks the **first launch and every launch right after an in-app update**. This is expected, not a real malware detection.
+- To make recovery painless for end users without an Apple Developer certificate:
+  - Every GitHub release body carries a permanent macOS first-launch note in EN/JA/ZH (appended by `scripts/build-release-body.mjs`).
+  - Each release ships `macOS-First-Launch-Helper.zip`: unzip and double-click `Open-No1-Markdown-Editor.command` to clear the quarantine flag and launch the app — no Terminal command to memorize, repeatable after every update.
+  - The manual fallback is `xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"`.
+- The only way to remove these prompts entirely is to add Apple Developer signing **and** notarization to the workflow.
 
 Windows installers are still built unsigned by default. If you want SmartScreen-friendly production releases, add a Windows code-signing configuration separately.

@@ -20,6 +20,18 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.26.5 - 2026-06-19
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Internal
+
+- Ad-hoc sign the macOS release build (`APPLE_SIGNING_IDENTITY: "-"`) instead of `--no-sign`, and ship `macOS-First-Launch-Helper.zip` plus a permanent EN/JA/ZH first-launch note in every release body, so unsigned macOS Gatekeeper prompts on first launch and after updates have a one-double-click recovery.
+
 ## 0.26.4 - 2026-06-16
 
 ### Added

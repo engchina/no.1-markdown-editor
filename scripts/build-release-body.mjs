@@ -6,6 +6,27 @@ import { pathToFileURL } from 'node:url'
 const RELEASE_NOTES_DRAFT_PATH = 'docs/release-notes-draft.md'
 const CHANGELOG_PATH = 'CHANGELOG.md'
 
+// Permanent note appended to every GitHub release body. The macOS build ships
+// unsigned/un-notarized (`--no-sign` history; now ad-hoc signed), so Gatekeeper
+// blocks the first launch and every launch right after an update. This keeps the
+// recovery steps in front of users on every release page so it never has to be
+// explained by hand again.
+export const MACOS_FIRST_LAUNCH_NOTE = [
+  '## macOS: First Launch / 初回起動 / 首次启动',
+  '',
+  'The macOS build is **not notarized by Apple**, so Gatekeeper blocks the first launch — and every launch right after an update. This is expected; it is not a real malware detection. Two ways to open it:',
+  '',
+  '- **Easiest (no command):** download `macOS-First-Launch-Helper.zip` from the Assets below, unzip it, and **double-click `Open-No1-Markdown-Editor.command`**. It clears the security flag and launches the app. Run it again after each update.',
+  '- **Manual:** in Terminal run:',
+  '  ```',
+  '  xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"',
+  '  ```',
+  '',
+  '**日本語**: この macOS ビルドは Apple の公証を受けていないため、初回起動時（およびアップデート直後）にセキュリティ警告でブロックされます。不具合ではありません。下の Assets から `macOS-First-Launch-Helper.zip` をダウンロードして解凍し、`Open-No1-Markdown-Editor.command` をダブルクリックすると解除して起動できます（アップデートのたびに同じ操作で大丈夫です）。',
+  '',
+  '**中文**: 此 macOS 版本未经 Apple 公证，首次启动（以及每次更新后）会被 Gatekeeper 拦截，这是正常现象，不是真的检测到恶意软件。从下方 Assets 下载 `macOS-First-Launch-Helper.zip`，解压后双击 `Open-No1-Markdown-Editor.command` 即可解除并启动（每次更新后重复一次即可）。',
+].join('\n')
+
 export function extractReleaseNotesDraftBody(source) {
   return extractMarkdownSection(source, 'Suggested GitHub Release Body')
 }
@@ -57,6 +78,8 @@ export function buildReleaseBody({
   if (sections.length === 0) {
     throw new Error(`No release body content found for v${version}.`)
   }
+
+  sections.push(MACOS_FIRST_LAUNCH_NOTE)
 
   return sections.join('\n\n---\n\n').replace(/\bvNext\b/gu, `v${version}`).trim()
 }

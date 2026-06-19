@@ -20,7 +20,7 @@ jobs:
             args: ""
           - label: macOS universal
             platform: macos-latest
-            args: "--target universal-apple-darwin --no-sign"
+            args: "--target universal-apple-darwin"
           - label: Linux x64
             platform: ubuntu-22.04
             args: ""
@@ -76,6 +76,10 @@ jobs:
         uses: tauri-apps/tauri-action@action-v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Ad-hoc sign the macOS build (identity "-") so Apple Silicon can run it
+          # without a "damaged" error. This is not Apple notarization, so Gatekeeper
+          # still prompts on first launch; the bundled helper script clears that.
+          APPLE_SIGNING_IDENTITY: ${{ matrix.label == 'macOS universal' && '-' || '' }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "No.1 Markdown Editor ${{ github.ref_name }}"
@@ -84,3 +88,18 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Package macOS first-launch helper
+        if: matrix.label == 'macOS universal'
+        shell: bash
+        run: |
+          chmod +x "scripts/macos/Open-No1-Markdown-Editor.command"
+          ( cd scripts/macos && zip -X "$GITHUB_WORKSPACE/macOS-First-Launch-Helper.zip" "Open-No1-Markdown-Editor.command" )
+
+      - name: Upload macOS first-launch helper
+        if: matrix.label == 'macOS universal'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" "macOS-First-Launch-Helper.zip" --clobber

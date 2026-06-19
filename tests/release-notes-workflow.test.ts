@@ -8,6 +8,7 @@ import {
   buildReleaseBody,
   extractChangelogSection,
   extractReleaseNotesDraftBody,
+  MACOS_FIRST_LAUNCH_NOTE,
 } from '../scripts/build-release-body.mjs'
 import {
   assertNoReleaseScaffoldComments,
@@ -118,6 +119,29 @@ test('build-release-body appends matching changelog content to the release draft
   assert.match(body, /## Changelog Summary/)
   assert.match(body, /Dedicated AI setup panel/)
   assert.doesNotMatch(body, /Ignore unreleased/)
+})
+
+test('build-release-body always appends the macOS first-launch helper note', () => {
+  const body = buildReleaseBody({
+    version: '0.26.5',
+    releaseNotesDraftSource: [
+      '# Draft',
+      '',
+      '## Suggested GitHub Release Body',
+      '',
+      '### Highlights',
+      '',
+      '- Something user-facing',
+    ].join('\n'),
+    changelogSource: '# Changelog\n',
+  })
+
+  assert.match(body, /## macOS: First Launch/)
+  assert.match(body, /macOS-First-Launch-Helper\.zip/)
+  assert.match(body, /Open-No1-Markdown-Editor\.command/)
+  assert.match(body, /xattr -dr com\.apple\.quarantine/)
+  // The permanent note is the last section of the release body.
+  assert.ok(body.trimEnd().endsWith(MACOS_FIRST_LAUNCH_NOTE))
 })
 
 test('extractChangelogSection returns only the requested version block', () => {
@@ -615,6 +639,15 @@ test('release workflow builds releaseBody from repository docs before invoking t
   assert.doesNotMatch(workflow, /body<<EOF/)
   assert.match(workflow, /releaseBody: \$\{\{ steps\.release_notes\.outputs\.body \}\}/)
   assert.match(workflow, /generateReleaseNotes: true/)
+
+  // macOS build is ad-hoc signed (identity "-") instead of skipped via --no-sign.
+  assert.match(workflow, /APPLE_SIGNING_IDENTITY: \$\{\{ matrix\.label == 'macOS universal' && '-' \|\| '' \}\}/)
+  assert.doesNotMatch(workflow, /--no-sign/)
+  // macOS first-launch helper is packaged and uploaded as a release asset.
+  assert.match(workflow, /name: Package macOS first-launch helper/)
+  assert.match(workflow, /name: Upload macOS first-launch helper/)
+  assert.match(workflow, /Open-No1-Markdown-Editor\.command/)
+  assert.match(workflow, /gh release upload "\$\{\{ github\.ref_name \}\}" "macOS-First-Launch-Helper\.zip" --clobber/)
 
   assert.match(readme, /User-facing change history lives in `CHANGELOG\.md`\./)
   assert.match(readme, /The next public release summary draft lives in `docs\/release-notes-draft\.md`\./)
