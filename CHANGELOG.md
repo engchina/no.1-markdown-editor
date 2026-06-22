@@ -6,6 +6,24 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 ### Added
 
+<!-- New user-visible capability. Prefer Markdown editing, workspace, export, or AI improvements users will actually notice. -->
+
+### Changed
+
+<!-- Behavior, default, workflow, or quality change users will notice in everyday writing. -->
+
+### Fixed
+
+<!-- User-visible fix affecting Markdown fidelity, files, preview, export, performance, or stability. -->
+
+### Internal
+
+<!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
+
+## 0.26.7 - 2026-06-22
+
+### Added
+
 - The desktop window can again be resized from its edges and corners. The custom title bar runs without native window decorations, which on Windows removed the OS resize border; dragging any edge or corner now resizes the window.
 
 ### Changed
