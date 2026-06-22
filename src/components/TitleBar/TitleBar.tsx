@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useActiveTab } from '../../store/editor'
+import { isMacPlatform } from '../../lib/platform'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -66,10 +67,7 @@ export default function TitleBar() {
   const { t } = useTranslation()
   const activeTab = useActiveTab()
   const [isMaximized, setIsMaximized] = useState(false)
-  const isMac = useMemo(
-    () => /mac/i.test(navigator.userAgent) || /mac/i.test(navigator.platform),
-    []
-  )
+  const isMac = useMemo(() => isMacPlatform(), [])
 
   useEffect(() => {
     if (!isTauri) return

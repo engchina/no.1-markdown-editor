@@ -42,7 +42,9 @@ test('desktop read_file command runs file IO off the Tauri event loop', async ()
   const source = await readFile(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
 
   assert.match(source, /async fn read_file\(path: String\) -> Result<String, String>/)
-  assert.match(source, /tokio::task::spawn_blocking\(move \|\| std::fs::read_to_string\(path\)\)/)
+  // Still runs file IO off the event loop, now stripping a leading UTF-8 BOM.
+  assert.match(source, /tokio::task::spawn_blocking\(move \|\| std::fs::read_to_string\(path\)\.map\(strip_utf8_bom\)\)/)
+  assert.match(source, /fn strip_utf8_bom\(content: String\) -> String/)
   assert.doesNotMatch(source, /fn read_file\(path: String\) -> Result<String, String> \{\s*std::fs::read_to_string\(&path\)/)
 })
 

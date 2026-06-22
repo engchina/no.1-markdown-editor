@@ -277,7 +277,12 @@ async function readClipboardMonitor(page) {
 
 async function selectAllEditor(page) {
   const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-  await page.locator('.cm-content').click()
+  // Focus by clicking the first line's text, NOT the .cm-content box: in a tall
+  // split-view editor that box extends well below the ~11 lines of content, so
+  // clicking its center lands below the document end and triggers the intended
+  // "click below document inserts a terminal blank line" behavior — which would
+  // otherwise add a stray trailing newline to the copied selection.
+  await page.locator('.cm-content .cm-line').first().click()
   await page.keyboard.press(`${modifier}+A`)
 }
 
@@ -386,7 +391,9 @@ async function main() {
 
     await resetClipboardMonitor(page)
     await page.getByRole('button', { name: 'Export' }).click()
-    await page.getByRole('button', { name: 'Copy as HTML' }).click()
+    // Export menu items render as role="menuitem"; label is i18n key
+    // export.copyRichHtml → "Copy Rich HTML" (EN).
+    await page.getByRole('menuitem', { name: 'Copy Rich HTML' }).click()
     await waitForCondition(async () => {
       const monitor = await readClipboardMonitor(page)
       return (

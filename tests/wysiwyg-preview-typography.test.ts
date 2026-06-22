@@ -8,7 +8,7 @@ test('preview and wysiwyg share the same prose typography tokens', async () => {
     readFile(new URL('../src/components/Editor/wysiwyg.ts', import.meta.url), 'utf8'),
   ])
 
-  assert.match(css, /--font-preview:\s*'Inter', system-ui, sans-serif;/u)
+  assert.match(css, /--font-preview:\s*'Inter', system-ui, -apple-system, 'Segoe UI',/u)
   assert.match(css, /--md-prose-line-height:\s*1\.8;/u)
   assert.match(css, /--md-heading-line-height:\s*1\.3;/u)
   assert.match(css, /--md-block-shell-inset:\s*32px;/u)

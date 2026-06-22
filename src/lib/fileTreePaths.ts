@@ -14,6 +14,18 @@ export type FileTreeOperationFailureReason =
 
 const INVALID_FILE_NAME_PATTERN = /[<>:"/\\|?*\u0000-\u001F]/
 
+// Windows compares paths case-insensitively and treats `/` and `\` as the same
+// separator; POSIX is case- and separator-sensitive. Normalize only for
+// COMPARISON — every stored/returned path keeps its original characters. This is
+// deliberately length-preserving (unlike `canonicalFsPathKey`, which strips
+// `\\?\` verbatim prefixes) so a matched prefix's length still indexes into the
+// original path for suffix extraction.
+function comparablePath(path: string): string {
+  const slashed = path.replace(/\\/g, '/')
+  const isWindowsPath = /^[a-z]:\//i.test(slashed) || slashed.startsWith('//')
+  return isWindowsPath ? slashed.toLowerCase() : slashed
+}
+
 export function ensureMarkdownFileName(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) return ''
@@ -35,7 +47,7 @@ export function pathMatchesPrefix(path: string, prefix: string): boolean {
 
 export function remapPathPrefix(path: string, oldPrefix: string, newPrefix: string): string | null {
   if (!path || !oldPrefix) return null
-  if (path === oldPrefix) return newPrefix
+  if (comparablePath(path) === comparablePath(oldPrefix)) return newPrefix
 
   const suffix = getPathSuffix(path, oldPrefix)
   if (suffix === null) return null
@@ -47,9 +59,10 @@ export function findTreeNodeByPath<T extends FileTreeTargetLike>(
   path: string | null
 ): T | null {
   if (!path) return null
+  const target = comparablePath(path)
 
   for (const node of tree) {
-    if (node.path === path) return node
+    if (comparablePath(node.path) === target) return node
 
     const children = 'children' in node && Array.isArray(node.children)
       ? (node.children as readonly T[])
@@ -67,11 +80,12 @@ export function findTreePathInTree<T extends FileTreeTargetLike & { children?: r
   trail: number[] = []
 ): number[] | null {
   if (!path) return null
+  const target = comparablePath(path)
 
   for (let index = 0; index < tree.length; index += 1) {
     const node = tree[index]
     const nextTrail = [...trail, index]
-    if (node.path === path) return nextTrail
+    if (comparablePath(node.path) === target) return nextTrail
 
     if (Array.isArray(node.children)) {
       const nested = findTreePathInTree(node.children, path, nextTrail)
@@ -97,13 +111,17 @@ export function validateMoveDestination(
   targetDirectoryPath: string
 ): FileTreeMoveValidationReason | null {
   if (source.type !== 'dir') return null
-  if (targetDirectoryPath === source.path) return 'same'
+  if (comparablePath(targetDirectoryPath) === comparablePath(source.path)) return 'same'
   if (pathMatchesPrefix(targetDirectoryPath, source.path)) return 'descendant'
   return null
 }
 
 function getPathSuffix(path: string, prefix: string): string | null {
-  if (!path.startsWith(prefix)) return null
+  // Match the prefix case/separator-insensitively (Windows), but slice the
+  // ORIGINAL path so the returned suffix keeps its real casing and separators.
+  // `comparablePath` is length-preserving, so `prefix.length` is a valid index
+  // into the original path here.
+  if (!comparablePath(path).startsWith(comparablePath(prefix))) return null
   const suffix = path.slice(prefix.length)
   if (!suffix) return ''
   if (suffix[0] !== '/' && suffix[0] !== '\\') return null

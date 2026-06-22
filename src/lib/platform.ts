@@ -10,7 +10,10 @@ export type PrimaryModifierEvent = Pick<KeyboardEvent, 'ctrlKey' | 'metaKey'>
 export function isMacPlatform(): boolean {
   if (typeof navigator === 'undefined') return false
 
-  return /mac/i.test(navigator.platform) || /mac/i.test(navigator.userAgent)
+  // `navigator.userAgent` is reliable in both Tauri WebViews (WKWebView reports
+  // "Macintosh", WebView2 reports "Windows") and the dev:web browser preview.
+  // `navigator.platform` is deprecated, so we no longer consult it.
+  return /mac/i.test(navigator.userAgent)
 }
 
 export function hasPrimaryModifier(event: PrimaryModifierEvent, mac = isMacPlatform()): boolean {

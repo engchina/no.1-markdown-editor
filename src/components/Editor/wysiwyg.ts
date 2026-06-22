@@ -1397,7 +1397,9 @@ function cursorIsOnLine(view: WysiwygDecorationView, lineFrom: number, lineTo: n
 }
 
 function isMacPlatform(): boolean {
-  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/iu.test(navigator.platform)
+  // `navigator.userAgent` is reliable across Tauri WebViews and browsers;
+  // `navigator.platform` is deprecated.
+  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/iu.test(navigator.userAgent)
 }
 
 function hasPrimaryHistoryModifier(event: KeyboardEvent, mac = isMacPlatform()): boolean {

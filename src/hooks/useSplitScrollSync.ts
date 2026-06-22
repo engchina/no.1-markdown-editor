@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { EditorView } from '@codemirror/view'
+import { EditorView } from '@codemirror/view'
 import {
   buildSourceLineMap,
   createScrollIntentTracker,
@@ -75,7 +75,16 @@ function scrollEditorToLine(view: EditorView, line: number, fraction: number): v
   const safeLine = Math.max(1, Math.min(line, docLineCount))
   const docLine = view.state.doc.line(safeLine)
   const coords = view.coordsAtPos(docLine.from)
-  if (!coords) return
+  if (!coords) {
+    // The target line is outside CodeMirror's rendered range — a large preview
+    // jump (scrollbar-track click, dragging the thumb far, momentum fling).
+    // coordsAtPos can't measure unrendered lines, so let CodeMirror scroll it in
+    // natively; it measures lazily and lands the line at the viewport top, which
+    // matches fraction ≈ 0. Without this, big preview→editor jumps silently
+    // failed to move the editor at all.
+    view.dispatch({ effects: EditorView.scrollIntoView(docLine.from, { y: 'start' }) })
+    return
+  }
   const rect = view.scrollDOM.getBoundingClientRect()
   const lineHeight = coords.bottom - coords.top
   // Position the line so that `fraction` of it has scrolled past the top.

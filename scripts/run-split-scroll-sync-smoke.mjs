@@ -260,7 +260,12 @@ async function scrollEditorToLine(page, line) {
 }
 
 async function scrollPreviewToLine(page, line) {
-  await page.evaluate((targetLine) => {
+  // The app mirrors preview→editor only for genuine user scroll intent
+  // (wheel/pointer/touch/keydown) so async reflows never yank the editor. A
+  // programmatic scrollTo fires only a 'scroll' event and is ignored, so drive
+  // the preview with a real mouse wheel over the pane — it both registers intent
+  // and scrolls natively, exactly as a user would.
+  const plan = await page.evaluate((targetLine) => {
     const preview = document.querySelector('.markdown-preview')
     if (!preview) throw new Error('Cannot resolve preview container')
     const candidates = preview.querySelectorAll(`[data-source-line]`)
@@ -274,8 +279,16 @@ async function scrollPreviewToLine(page, line) {
       }
     }
     if (!target) throw new Error(`No preview element found at or before line ${targetLine}`)
-    preview.scrollTo({ top: target.offsetTop, behavior: 'auto' })
+    const rect = preview.getBoundingClientRect()
+    return {
+      delta: target.offsetTop - preview.scrollTop,
+      centerX: rect.left + rect.width / 2,
+      centerY: rect.top + rect.height / 2,
+    }
   }, line)
+
+  await page.mouse.move(plan.centerX, plan.centerY)
+  await page.mouse.wheel(0, plan.delta)
 }
 
 async function runEditorDrivesPreview(page, diagnostics) {

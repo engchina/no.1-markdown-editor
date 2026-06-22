@@ -1,3 +1,5 @@
+import { toLf } from './textFormat.ts'
+
 export type ExternalFileChangeResolution = 'noop' | 'conflict' | 'reload'
 
 /**
@@ -32,7 +34,14 @@ export function resolveExternalFileContentChange(
   tab: ExternalFileSnapshot,
   diskContent: string
 ): ExternalFileChangeResolution {
-  if (diskContent === tab.content) {
+  // In-memory content is always LF (CodeMirror strips `\r`), while disk content
+  // keeps its original EOL. Compare EOL-insensitively so a CRLF file does not
+  // look like an endless external change against its LF in-memory twin.
+  const disk = toLf(diskContent)
+  const content = toLf(tab.content)
+  const savedContent = toLf(tab.savedContent)
+
+  if (disk === content) {
     return 'noop'
   }
 
@@ -40,5 +49,5 @@ export function resolveExternalFileContentChange(
     return 'reload'
   }
 
-  return diskContent === tab.savedContent ? 'noop' : 'conflict'
+  return disk === savedContent ? 'noop' : 'conflict'
 }

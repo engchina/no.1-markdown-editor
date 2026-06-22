@@ -262,9 +262,21 @@ async fn browser_collect_content<R: tauri::Runtime>(
     }
 }
 
+/// Strips a leading UTF-8 BOM (U+FEFF) if present. Windows tools (older Notepad,
+/// some exporters) prefix text files with `EF BB BF`; left in place it surfaces
+/// as an invisible character that breaks front-matter (`---`) and heading
+/// detection in the editor. We normalize it away on read; saves never write it
+/// back, matching VS Code's default.
+fn strip_utf8_bom(content: String) -> String {
+    match content.strip_prefix('\u{feff}') {
+        Some(stripped) => stripped.to_string(),
+        None => content,
+    }
+}
+
 #[tauri::command]
 async fn read_file(path: String) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || std::fs::read_to_string(path))
+    tokio::task::spawn_blocking(move || std::fs::read_to_string(path).map(strip_utf8_bom))
         .await
         .map_err(|error| format!("Failed to join file read task: {error}"))?
         .map_err(|error| error.to_string())
@@ -1502,6 +1514,40 @@ mod tests {
                 .expect("read temp markdown file");
 
         assert_eq!(content, "# async read");
+
+        let _ = fs::remove_file(existing_path);
+    }
+
+    #[test]
+    fn read_file_strips_leading_utf8_bom() {
+        let existing_path = make_temp_markdown_path("bom-read");
+        // EF BB BF is the UTF-8 BOM; write raw bytes so the marker is preserved.
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice("# heading".as_bytes());
+        fs::write(&existing_path, &bytes).expect("write temp markdown file with BOM");
+
+        let content =
+            tauri::async_runtime::block_on(read_file(existing_path.to_string_lossy().into_owned()))
+                .expect("read temp markdown file with BOM");
+
+        // The BOM must be gone so front-matter / heading detection sees `#` first.
+        assert_eq!(content, "# heading");
+        assert!(!content.starts_with('\u{feff}'));
+
+        let _ = fs::remove_file(existing_path);
+    }
+
+    #[test]
+    fn read_file_preserves_interior_feff() {
+        let existing_path = make_temp_markdown_path("interior-feff");
+        // A zero-width no-break space mid-document is real content, not a BOM.
+        fs::write(&existing_path, "a\u{feff}b").expect("write temp markdown file");
+
+        let content =
+            tauri::async_runtime::block_on(read_file(existing_path.to_string_lossy().into_owned()))
+                .expect("read temp markdown file");
+
+        assert_eq!(content, "a\u{feff}b");
 
         let _ = fs::remove_file(existing_path);
     }

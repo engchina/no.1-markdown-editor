@@ -102,3 +102,38 @@ test('validateMoveDestination blocks moving a folder into itself or a descendant
   assert.equal(validateMoveDestination(source, 'C:\\archive'), null)
   assert.equal(validateMoveDestination({ name: 'a.md', path: 'C:\\docs\\a.md', type: 'file' }, 'C:\\docs'), null)
 })
+
+test('Windows path comparisons ignore drive-letter casing and separator style', () => {
+  // Same file, different casing / separators (e.g. OS-returned vs stored).
+  const tree = [
+    {
+      name: 'Docs',
+      path: 'C:\\Docs',
+      type: 'dir' as const,
+      children: [{ name: 'A.md', path: 'C:\\Docs\\A.md', type: 'file' as const }],
+    },
+  ]
+  assert.deepEqual(findTreeNodeByPath(tree, 'c:/docs/a.md'), tree[0].children[0])
+  assert.deepEqual(findTreePathInTree(tree, 'c:/docs/a.md'), [0, 0])
+
+  // Move validation must treat the same folder (cased/separated differently) as self.
+  const source = { name: 'Docs', path: 'C:\\Docs', type: 'dir' as const }
+  assert.equal(validateMoveDestination(source, 'c:/docs'), 'same')
+  assert.equal(validateMoveDestination(source, 'c:/docs/nested'), 'descendant')
+})
+
+test('remapPathPrefix matches Windows aliases yet preserves the original suffix characters', () => {
+  // Prefix differs in case/separator from the path, but the suffix keeps its
+  // original form so the remapped path is well-formed.
+  assert.equal(
+    remapPathPrefix('C:\\Docs\\Nested\\A.md', 'c:/docs/nested', 'C:\\Archive'),
+    'C:\\Archive\\A.md'
+  )
+  assert.equal(pathMatchesPrefix('c:/docs/nested/a.md', 'C:\\Docs\\Nested'), true)
+})
+
+test('POSIX path comparisons stay case-sensitive', () => {
+  const tree = [{ name: 'Docs', path: '/Docs', type: 'dir' as const, children: [] }]
+  assert.equal(findTreeNodeByPath(tree, '/docs'), null)
+  assert.equal(findTreeNodeByPath(tree, '/Docs'), tree[0])
+})

@@ -10,6 +10,7 @@ import {
   getImageFileExtension,
 } from './fileTypes.ts'
 import { ensureFsPathAccess } from './fsAccess.ts'
+import { applyEol, type EolStyle } from './textFormat.ts'
 
 export interface FilePersistence {
   appConfigDir(): Promise<string>
@@ -24,6 +25,8 @@ export interface PersistOptions {
   batchId?: number
   imageDirectory?: string
   draftImageDirectory?: string
+  /** EOL to restore on disk. Content is processed/returned as LF regardless. */
+  eol?: EolStyle
 }
 
 export interface PersistableImageFile {
@@ -68,7 +71,9 @@ export async function saveMarkdownDocumentWithAssets(
     },
   })
 
-  await persistence.writeTextFile(savePath, nextContent)
+  // Restore the document's original line endings only at the disk boundary; the
+  // returned value stays LF so the in-memory tab keeps one canonical form.
+  await persistence.writeTextFile(savePath, applyEol(nextContent, options.eol ?? '\n'))
   return nextContent
 }
 

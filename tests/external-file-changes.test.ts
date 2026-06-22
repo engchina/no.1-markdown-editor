@@ -59,6 +59,50 @@ test('resolveExternalFileContentChange reloads clean tabs when disk changed exte
   )
 })
 
+test('resolveExternalFileContentChange treats a CRLF disk file as unchanged against its LF in-memory twin', () => {
+  // CodeMirror normalizes content to LF in memory; the file on disk keeps CRLF.
+  // Without EOL-insensitive comparison this would loop as a phantom reload.
+  assert.equal(
+    resolveExternalFileContentChange(
+      {
+        content: '# Title\n\nBody line',
+        savedContent: '# Title\n\nBody line',
+        isDirty: false,
+      },
+      '# Title\r\n\r\nBody line'
+    ),
+    'noop'
+  )
+})
+
+test('resolveExternalFileContentChange ignores unsaved edits when CRLF disk still matches the last save', () => {
+  assert.equal(
+    resolveExternalFileContentChange(
+      {
+        content: '# Title\n\nNew edit',
+        savedContent: '# Title\n\nBody',
+        isDirty: true,
+      },
+      '# Title\r\n\r\nBody'
+    ),
+    'noop'
+  )
+})
+
+test('resolveExternalFileContentChange still detects real content changes on CRLF files', () => {
+  assert.equal(
+    resolveExternalFileContentChange(
+      {
+        content: '# Title\n\nBody',
+        savedContent: '# Title\n\nBody',
+        isDirty: false,
+      },
+      '# Title\r\n\r\nBody changed externally'
+    ),
+    'reload'
+  )
+})
+
 test('canonicalFsPathKey matches Windows verbatim, separator, and casing aliases of the same file', () => {
   assert.equal(
     canonicalFsPathKey('\\\\?\\C:\\Docs\\Note.md'),

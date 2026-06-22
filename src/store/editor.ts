@@ -17,6 +17,7 @@ import {
 import { isSidebarSurfaceId, type SidebarSurfaceId } from '../lib/sidebarSurfaces.ts'
 import { clampSidebarWidth, SIDEBAR_DEFAULT_WIDTH } from '../lib/layout.ts'
 import { pathMatchesPrefix, remapPathPrefix } from '../lib/fileTreePaths.ts'
+import { detectEol, stripBom, toLf, type EolStyle } from '../lib/textFormat.ts'
 import { pushInfoNotice } from '../lib/notices.ts'
 import type { AIDefaultWriteTarget } from '../lib/ai/opening.ts'
 import type { SpellcheckMode } from '../lib/documentLanguage.ts'
@@ -34,6 +35,11 @@ export interface FileTab {
   content: string
   savedContent: string
   isDirty: boolean
+  // Original on-disk line-ending style. `content`/`savedContent` are always LF
+  // in memory; this is restored at the disk-write boundary so a CRLF file stays
+  // CRLF after editing. Optional for backward-compatible persisted state and
+  // scratch tabs (treated as LF).
+  eol?: EolStyle
   type?: 'markdown' | 'browser'
   url?: string
 }
@@ -93,7 +99,7 @@ interface EditorState {
   tabs: FileTab[]
   activeTabId: string | null
   addTab: (tab?: Partial<FileTab>) => string
-  openDocument: (doc: Pick<FileTab, 'path' | 'name' | 'content' | 'savedContent'> & { isDirty?: boolean }) => string
+  openDocument: (doc: Pick<FileTab, 'path' | 'name' | 'content' | 'savedContent'> & { isDirty?: boolean; eol?: EolStyle }) => string
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
   updateTabContent: (id: string, content: string) => void
@@ -296,8 +302,19 @@ export const useEditorStore = create<EditorState>()(
         set((s) => ({ tabs: [...s.tabs, tab], activeTabId: tab.id }))
         return tab.id
       },
-      openDocument: ({ path, name, content, savedContent, isDirty = false }) => {
-        const doc = { path, name, content, savedContent, isDirty }
+      openDocument: ({ path, name, content, savedContent, isDirty = false, eol }) => {
+        // Disk content may be CRLF and/or BOM-prefixed; remember its EOL and
+        // store a BOM-stripped, LF-normalized copy so in-memory comparisons stay
+        // EOL-insensitive and front-matter detection sees real content first.
+        const resolvedEol = eol ?? detectEol(content)
+        const doc = {
+          path,
+          name,
+          content: toLf(stripBom(content)),
+          savedContent: toLf(stripBom(savedContent)),
+          isDirty,
+          eol: resolvedEol,
+        }
         let nextActiveId = ''
 
         set((s) => {
@@ -413,23 +430,31 @@ export const useEditorStore = create<EditorState>()(
         }))
       },
       replaceTabFromDisk: (id, content) => {
+        const eol = detectEol(content)
+        const normalized = toLf(stripBom(content))
         set((s) => ({
           tabs: s.tabs.map((t) =>
-            t.id === id ? { ...t, content, savedContent: content, isDirty: false } : t
+            t.id === id ? { ...t, content: normalized, savedContent: normalized, isDirty: false, eol } : t
           ),
           externalFileConflicts: s.externalFileConflicts.filter((conflict) => conflict.tabId !== id),
           externalMissingFiles: s.externalMissingFiles.filter((missing) => missing.tabId !== id),
         }))
       },
       resolveExternalFileConflict: (id, content, diskContent) => {
+        // `content` is the editor's kept text (already LF); the disk side carries
+        // the authoritative EOL going forward.
+        const eol = detectEol(diskContent)
+        const normalizedContent = toLf(stripBom(content))
+        const normalizedDisk = toLf(stripBom(diskContent))
         set((s) => ({
           tabs: s.tabs.map((tab) =>
             tab.id === id
               ? {
                   ...tab,
-                  content,
-                  savedContent: diskContent,
-                  isDirty: content !== diskContent,
+                  content: normalizedContent,
+                  savedContent: normalizedDisk,
+                  isDirty: normalizedContent !== normalizedDisk,
+                  eol,
                 }
               : tab
           ),
@@ -437,6 +462,8 @@ export const useEditorStore = create<EditorState>()(
         }))
       },
       relinkTabToPath: (id, path, name, savedContent) => {
+        const eol = detectEol(savedContent)
+        const normalized = toLf(stripBom(savedContent))
         set((s) => ({
           tabs: s.tabs.map((tab) =>
             tab.id === id
@@ -444,8 +471,9 @@ export const useEditorStore = create<EditorState>()(
                   ...tab,
                   path,
                   name,
-                  savedContent,
-                  isDirty: tab.content !== savedContent,
+                  savedContent: normalized,
+                  isDirty: tab.content !== normalized,
+                  eol,
                 }
               : tab
           ),

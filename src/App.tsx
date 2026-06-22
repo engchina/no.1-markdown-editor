@@ -6,6 +6,7 @@ import StatusBar from './components/StatusBar/StatusBar'
 import DocumentTabs from './components/DocumentTabs/DocumentTabs'
 import ResizableDivider from './components/Layout/ResizableDivider'
 import TitleBar from './components/TitleBar/TitleBar'
+import WindowResizeHandles from './components/TitleBar/WindowResizeHandles'
 import NotificationCenter from './components/Notifications/NotificationCenter'
 import RecoverableErrorBoundary from './components/ErrorBoundary/RecoverableErrorBoundary'
 import ErrorFallback from './components/ErrorBoundary/ErrorFallback'
@@ -686,6 +687,7 @@ export default function App() {
       )}
 
       {isTauri && <TitleBar />}
+      {isTauri && <WindowResizeHandles />}
 
       <div data-overlay-boundary="true" className="relative flex min-h-0 flex-1 flex-col">
         <div

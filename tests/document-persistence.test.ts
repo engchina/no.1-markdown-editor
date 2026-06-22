@@ -72,6 +72,31 @@ test('saveMarkdownDocumentWithAssets writes sibling image assets outside plugin-
   assert.deepEqual([...binaryWrites.entries()], [['/docs/images/image-7.png', [1, 2, 3]]])
 })
 
+test('saveMarkdownDocumentWithAssets restores CRLF on disk while returning LF in memory', async () => {
+  const { persistence, textWrites } = createPersistenceRecorder()
+  const markdown = ['# Title', '', 'Body line', ''].join('\n')
+
+  const result = await saveMarkdownDocumentWithAssets(markdown, '/docs/post.md', persistence, {
+    eol: '\r\n',
+  })
+
+  // The returned value stays LF so the in-memory tab keeps one canonical form...
+  assert.equal(result, markdown)
+  assert.ok(!result.includes('\r\n'))
+  // ...but the bytes written to disk preserve the document's CRLF line endings.
+  assert.equal(textWrites.get('/docs/post.md'), '# Title\r\n\r\nBody line\r\n')
+})
+
+test('saveMarkdownDocumentWithAssets defaults to LF on disk when no EOL is provided', async () => {
+  const { persistence, textWrites } = createPersistenceRecorder()
+  const markdown = ['# Title', '', 'Body'].join('\n')
+
+  const result = await saveMarkdownDocumentWithAssets(markdown, '/docs/post.md', persistence)
+
+  assert.equal(textWrites.get('/docs/post.md'), markdown)
+  assert.ok(!result.includes('\r'))
+})
+
 test('persistImageFilesAsMarkdown stores pasted images beside the active document', async () => {
   const { persistence, binaryWrites } = createPersistenceRecorder()
   const markdown = await persistImageFilesAsMarkdown(

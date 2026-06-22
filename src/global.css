@@ -4,9 +4,13 @@
 
 /* ── CSS Custom Properties ── */
 :root {
-  --font-ui: 'Inter', system-ui, sans-serif;
-  --font-preview: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  /* Latin-first stacks with explicit CJK fallbacks so Japanese/Chinese text
+     renders with a real CJK face on every OS (Windows lacks CJK in Segoe UI;
+     macOS/Linux pick PingFang/Hiragino/Noto). `system-ui`/`ui-monospace` keep
+     the native look when bundled webfonts are unavailable. */
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans', 'Yu Gothic UI', Meiryo, 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans CJK JP', sans-serif;
+  --font-preview: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans', 'Yu Gothic UI', Meiryo, 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans CJK JP', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, 'SF Mono', Menlo, Consolas, 'Noto Sans Mono CJK SC', monospace;
   /* Light theme */
   --bg-canvas: #E5E7EB;
   /* Subtle gray background for floating look */
@@ -1004,7 +1008,7 @@ a:focus-visible {
 /* ── CodeMirror Editor Overrides ── */
 .cm-editor {
   height: 100%;
-  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace);
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0, "calt" 0;
   font-size: inherit;
@@ -1723,7 +1727,7 @@ a:focus-visible {
 }
 
 .preview-external-embed__host {
-  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', Consolas, monospace);
   font-size: 0.82em;
 }
 

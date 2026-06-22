@@ -100,6 +100,14 @@ Install latest package from [releases](https://github.com/engchina/no.1-markdown
 - macOS universal desktop bundle
 - Linux x64 desktop bundle
 
+### First launch (unsigned builds)
+
+The packages are not code-signed, so the OS warns the first time you open them. This is expected, not a malware detection.
+
+- **Windows**: SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
+- **macOS**: Gatekeeper blocks the first launch (and the first launch after each in-app update). Easiest fix: unzip `macOS-First-Launch-Helper.zip` from the release and double-click `Open-No1-Markdown-Editor.command`. Manual fallback: `xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"`. See [Release / macOS signing](#release) for details.
+- **Linux**: no prompt; mark the bundle executable if your file manager requires it.
+
 
 ## Development
 

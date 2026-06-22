@@ -93,7 +93,9 @@ export function useFileOps() {
           }
 
           const persistence = await getTauriFilePersistence()
-          const nextContent = await saveMarkdownDocumentWithAssets(tab.content, savePath, persistence)
+          const nextContent = await saveMarkdownDocumentWithAssets(tab.content, savePath, persistence, {
+            eol: tab.eol,
+          })
 
           const name = savePath.split(/[\\/]/).pop() ?? tab.name
           if (nextContent !== tab.content) {

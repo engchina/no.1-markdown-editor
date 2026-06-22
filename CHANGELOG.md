@@ -6,19 +6,24 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 ### Added
 
-<!-- New user-visible capability. Prefer Markdown editing, workspace, export, or AI improvements users will actually notice. -->
+- The desktop window can again be resized from its edges and corners. The custom title bar runs without native window decorations, which on Windows removed the OS resize border; dragging any edge or corner now resizes the window.
 
 ### Changed
 
-<!-- Behavior, default, workflow, or quality change users will notice in everyday writing. -->
+- Interface and preview fonts fall back to platform and CJK typefaces (PingFang, Hiragino, Yu Gothic, Microsoft YaHei, Noto Sans CJK), so Japanese and Chinese text renders with a proper font on every OS even when the bundled webfonts are not installed.
 
 ### Fixed
 
-<!-- User-visible fix affecting Markdown fidelity, files, preview, export, performance, or stability. -->
+- Files saved with Windows (CRLF) line endings keep those line endings after editing instead of being silently rewritten to LF, avoiding whole-file diffs in version control.
+- Opening a file that begins with a UTF-8 byte-order mark no longer leaves an invisible character at the top of the document; front matter and the first heading are detected correctly again.
+- On Windows the file tree no longer creates duplicate entries or fails to match an open file when the same path returns with different drive-letter casing or path separators.
+- In split view, a large preview jump (such as clicking the preview scrollbar track) now scrolls the source editor to the matching line instead of leaving it behind.
 
 ### Internal
 
-<!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
+- Platform detection relies on the user-agent string instead of the deprecated `navigator.platform`.
+- Documented the first-launch steps for the unsigned builds (macOS Gatekeeper helper, Windows SmartScreen) in the README.
+- Refreshed the copy, split-scroll-sync, and AI i18n Playwright smoke tests for the current UI labels and interaction model.
 
 ## 0.26.6 - 2026-06-19
 
