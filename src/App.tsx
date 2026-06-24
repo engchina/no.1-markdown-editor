@@ -147,7 +147,9 @@ export default function App() {
     background: 'transparent',
     '--focus-column-max-width': `${focusColumnWidth}px`,
     '--focus-column-inline-padding': `${focusColumnPadding}px`,
-    zoom: `${zoom}%`,
+    // WebKit (WKWebView/macOS) ignore `zoom` en pourcentage avant Safari 16.4 ;
+    // la valeur numérique sans unité est honorée partout (WebKit + Blink/WebView2).
+    zoom: zoom / 100,
   } as CSSProperties
   useDocumentDrop()
   useExternalFileChanges()

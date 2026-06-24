@@ -20,6 +20,13 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.0 - 2026-06-25
+
+### Fixed
+
+- Mermaid diagrams no longer render at a tiny size on macOS. On the macOS WebView (WebKit), label text could be measured as zero-width before fonts finished loading, collapsing the whole diagram to a few pixels; rendering now waits for fonts to be ready, so diagrams size correctly. Windows was unaffected.
+- Editor zoom and anchored overlays (such as menus and popovers) scale correctly on macOS again. The zoom level is now applied as a unitless value, which older WebKit honors, instead of a percentage that was ignored before Safari 16.4.
+
 ## 0.26.7 - 2026-06-22
 
 ### Added
