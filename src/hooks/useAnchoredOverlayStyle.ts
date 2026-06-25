@@ -89,7 +89,7 @@ export function resolveAnchoredOverlayStyle({
     position: 'fixed',
     top,
     width: resolvedWidth,
-    // Valeur numérique sans unité : WebKit/macOS ignore `zoom` en pourcentage avant Safari 16.4.
+    // Unitless numeric value: WebKit/macOS ignores percentage `zoom` before Safari 16.4.
     zoom: zoom / 100,
   }
 }

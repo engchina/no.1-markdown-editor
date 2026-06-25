@@ -20,7 +20,7 @@ test('resolveAnchoredOverlayStyle keeps zoomed overlays aligned with zoomed trig
   assert.equal(style.top, 90)
   assert.equal(style.width, 200)
   assert.equal(style.maxHeight, 298)
-  assert.equal(style.zoom, '150%')
+  assert.equal(style.zoom, 1.5)
 })
 
 test('resolveAnchoredOverlayStyle clamps right-aligned zoomed overlays in logical viewport space', () => {
@@ -42,7 +42,7 @@ test('resolveAnchoredOverlayStyle clamps right-aligned zoomed overlays in logica
   assert.equal(style.top, 60)
   assert.equal(style.width, 376)
   assert.equal(style.maxHeight, 228)
-  assert.equal(style.zoom, '200%')
+  assert.equal(style.zoom, 2)
 })
 
 test('resolveAnchoredOverlayStyle keeps overlays inside the editor boundary instead of the full viewport', () => {
@@ -69,5 +69,5 @@ test('resolveAnchoredOverlayStyle keeps overlays inside the editor boundary inst
   assert.equal(style.top, 160)
   assert.equal(style.width, 396)
   assert.equal(style.maxHeight, 78)
-  assert.equal(style.zoom, '100%')
+  assert.equal(style.zoom, 1)
 })

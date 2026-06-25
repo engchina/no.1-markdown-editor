@@ -24,8 +24,8 @@ test('view commands reserve the primary zoom shortcuts for app zoom and leave fo
     /id: 'view\.fontSizeDecrease',[\s\S]*?shortcut:[\s\S]*?action: \(\) => store\.setFontSize\(Math\.max\(store\.fontSize - 1, 11\)\)/
   )
   assert.doesNotMatch(commands, /id: 'view\.fontSizeReset',[\s\S]*?shortcut:[\s\S]*?action: \(\) => store\.setFontSize\(14\)/)
-  assert.match(app, /import \{ hasPrimaryModifier, matchesPrimaryShortcut \} from '\.\/lib\/platform'/)
-  assert.match(app, /if \(event\.altKey \|\| !hasPrimaryModifier\(event\)\) return/)
+  assert.match(app, /import \{ matchesPrimaryShortcut, matchZoomShortcut \} from '\.\/lib\/platform'/)
+  assert.match(app, /const zoomShortcut = matchZoomShortcut\(event\)/)
 })
 
 test('command palette prioritizes and badges zoom commands ahead of font size commands', async () => {

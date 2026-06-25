@@ -20,6 +20,12 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.1 - 2026-06-25
+
+### Fixed
+
+- macOS (JIS keyboard): zoom, undo/redo, and command shortcuts are no longer swallowed while a Japanese IME is composing.
+
 ## 0.27.0 - 2026-06-25
 
 ### Fixed

@@ -39,7 +39,7 @@ export function matchesEditorUndoShortcut(
   event: EditorHistoryShortcutKeyboardEventLike,
   mac = isMacPlatform()
 ): boolean {
-  if (event.isComposing || event.altKey || event.shiftKey) return false
+  if (event.altKey || event.shiftKey) return false
   if (!hasPrimaryHistoryModifier(event, mac)) return false
 
   return event.key.toLowerCase() === 'z'
@@ -49,7 +49,7 @@ export function matchesEditorRedoShortcut(
   event: EditorHistoryShortcutKeyboardEventLike,
   mac = isMacPlatform()
 ): boolean {
-  if (event.isComposing || event.altKey) return false
+  if (event.altKey) return false
   if (!hasPrimaryHistoryModifier(event, mac)) return false
 
   const key = event.key.toLowerCase()

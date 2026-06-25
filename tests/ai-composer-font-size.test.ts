@@ -29,7 +29,7 @@ test('sidebar stays width-driven while app-level zoom remains separate from docu
   assert.match(sidebar, /className="sidebar-surface flex h-full min-h-0 flex-shrink-0 flex-col"[\s\S]*style=\{\{\s*width\s*,?\s*\}\}/)
   assert.doesNotMatch(sidebar, /useEditorStore\(\(state\) => state\.fontSize\)/)
   assert.match(app, /const \{\s*[\s\S]*zoom,[\s\S]*\} = useEditorStore\(\)/)
-  assert.match(app, /zoom: `\$\{zoom\}%`/)
+  assert.match(app, /zoom: zoom \/ 100/)
   assert.match(app, /store\.setZoom\(Math\.min\(300, store\.zoom \+ 10\)\)/)
   assert.match(app, /store\.setZoom\(Math\.max\(50, store\.zoom - 10\)\)/)
   assert.match(app, /store\.setZoom\(100\)/)

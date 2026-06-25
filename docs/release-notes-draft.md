@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.26.6`.
+This document is a draft for the next public release after `v0.27.0`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,40 +8,30 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.26.7`
+`No.1 Markdown Editor v0.27.1`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.26.7 focuses on cross-platform reliability on Windows and macOS: it preserves Windows (CRLF) line endings on save, strips a leading UTF-8 byte-order mark when opening files, restores edge/corner window resizing, broadens font fallbacks for Japanese and Chinese text, and fixes Windows file-tree path matching and a split-view scroll-sync jump.
+No.1 Markdown Editor v0.27.1 fixes macOS shortcut handling for users writing with Japanese IME on JIS keyboards, so zoom, undo/redo, and command shortcuts keep working while composition is active.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Windows files keep their CRLF line endings after editing instead of being silently rewritten to LF.
-- Files that start with a UTF-8 byte-order mark open cleanly, with no invisible character breaking front matter or the first heading.
-- The desktop window can again be resized from its edges and corners.
+- macOS zoom shortcuts now work reliably on JIS keyboards, including the physical `+`, `-`, and `0` keys.
+- Undo/redo and command shortcuts no longer get swallowed when a Japanese IME reports active composition.
+- The fix keeps the `0.27.0` macOS zoom rendering improvement intact.
 
 ### Why This Release Matters
 
-These issues mostly affected Windows and macOS users working with files from other tools or version control. Silent CRLF-to-LF rewrites produced noisy diffs, a stray byte-order mark broke front-matter and heading detection, and the custom title bar had lost native edge resizing. This release makes everyday file handling and window behavior match what users expect on each platform.
+JIS keyboard layouts report zoom keys differently from US layouts, and macOS WebKit can mark primary-modifier shortcuts as composing while Japanese IME is active. That combination made common app shortcuts feel randomly broken for Japanese writers. This release routes those shortcuts by physical key where needed and keeps primary-modifier shortcuts available during IME composition.
 
 ### User-Facing Improvements
 
-#### Files and editing
+#### macOS and Japanese input
 
-- Saving a document preserves its original line-ending style; CRLF files stay CRLF.
-- Opening a UTF-8 file with a byte-order mark no longer leaves an invisible character at the top of the document.
-
-#### Windows
-
-- The file tree no longer creates duplicate entries or fails to match an open file when the same path returns with different drive-letter casing or path separators.
-- The window can be resized by dragging any edge or corner again.
-
-#### Preview and typography
-
-- In split view, a large preview jump (such as clicking the preview scrollbar track) scrolls the source editor to the matching line instead of leaving it behind.
-- Interface and preview fonts fall back to platform and CJK typefaces (PingFang, Hiragino, Yu Gothic, Microsoft YaHei, Noto Sans CJK), so Japanese and Chinese text renders with a proper font on every OS.
+- `Cmd` zoom shortcuts are detected from `event.code`, covering JIS-specific key positions that do not map cleanly through `event.key`.
+- `Cmd+Z`, `Cmd+Shift+Z`, command palette, and other primary shortcuts keep working even when Japanese IME composition is active.
 
 ### Suggested Upgrade Notes Section
 
@@ -50,7 +40,7 @@ These issues mostly affected Windows and macOS users working with files from oth
 
 ### Suggested Who Should Update Section
 
-This release is especially relevant for Windows and macOS users, and for anyone writing in Japanese or Chinese.
+This release is especially relevant for macOS users typing Japanese with a JIS keyboard or CJK IME.
 
 ## Packaging Checklist Before Release
 
@@ -58,7 +48,7 @@ This release is especially relevant for Windows and macOS users, and for anyone 
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.26.7` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
-- Run `npm run release:validate -- 0.26.7` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.26.7` to inspect the generated GitHub release body before pushing the tag.
-- After the release is published, run `npm run release:draft:advance -- 0.26.7` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.
+- Run `npm run release:prepare -- 0.27.1` to sync the app version files and roll the current `## Unreleased` notes into a dated changelog section.
+- Run `npm run release:validate -- 0.27.1` after the version bump so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.27.1` to inspect the generated GitHub release body before pushing the tag.
+- After the release is published, run `npm run release:draft:advance -- 0.27.1` to reset this file and refresh `CHANGELOG.md` `## Unreleased` for the next release cycle.

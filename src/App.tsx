@@ -22,7 +22,7 @@ import { useSplitScrollSync } from './hooks/useSplitScrollSync'
 import { openDesktopDocumentPaths, SINGLE_INSTANCE_OPEN_FILES_EVENT } from './lib/desktopFileOpen'
 import { resolveFocusInlinePaddingPx, resolveFocusWidthPx } from './lib/focusWidth'
 import { clampSidebarWidth, SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from './lib/layout'
-import { hasPrimaryModifier, matchesPrimaryShortcut } from './lib/platform'
+import { matchesPrimaryShortcut, matchZoomShortcut } from './lib/platform'
 import { maybeRunAutomaticUpdateCheck } from './lib/updateActions'
 import { KEYBOARD_SHORTCUTS_OPEN_EVENT } from './lib/keyboardShortcuts'
 import { DEFAULT_BROWSER_URL } from './lib/browser/defaults'
@@ -147,8 +147,8 @@ export default function App() {
     background: 'transparent',
     '--focus-column-max-width': `${focusColumnWidth}px`,
     '--focus-column-inline-padding': `${focusColumnPadding}px`,
-    // WebKit (WKWebView/macOS) ignore `zoom` en pourcentage avant Safari 16.4 ;
-    // la valeur numérique sans unité est honorée partout (WebKit + Blink/WebView2).
+    // WebKit (WKWebView/macOS) ignores percentage `zoom` before Safari 16.4;
+    // a unitless numeric value is honored across WebKit and Blink/WebView2.
     zoom: zoom / 100,
   } as CSSProperties
   useDocumentDrop()
@@ -331,15 +331,14 @@ export default function App() {
         return
       }
 
-      if (event.altKey || !hasPrimaryModifier(event)) return
-
-      if (event.code === 'Equal' || event.key === '=' || event.key === '+') {
+      const zoomShortcut = matchZoomShortcut(event)
+      if (zoomShortcut === 'in') {
         event.preventDefault()
         runAppShortcutCommand('view.zoomIn')
-      } else if (event.code === 'Minus' || event.key === '-') {
+      } else if (zoomShortcut === 'out') {
         event.preventDefault()
         runAppShortcutCommand('view.zoomOut')
-      } else if (event.key === '0') {
+      } else if (zoomShortcut === 'reset') {
         event.preventDefault()
         runAppShortcutCommand('view.zoomReset')
       }
