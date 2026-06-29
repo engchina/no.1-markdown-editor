@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.27.3`.
+This document is a draft for the next public release after `v0.27.4`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,40 +8,33 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.27.4`
+`No.1 Markdown Editor v0.27.5`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.27.4 makes screenshot capture feel more immediate and refines the annotation controls for faster visual scanning.
+No.1 Markdown Editor v0.27.5 restores Linux release packaging for the screenshot-enabled desktop build.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Keep the editor visible until the prepared selection overlay is already on screen, removing the remaining desktop flash.
-- Use a compact dark floating toolbar with stronger active-tool contrast.
-- Read crop dimensions and selection handles more clearly over varied screenshot content.
-- Draw cleaner filled arrowheads while ignoring accidental near-zero-length arrows.
+- Restore Ubuntu runner builds by pinning xcap to the PipeWire-compatible 0.8.0 release.
+- Keep the screenshot capture and annotation experience introduced in v0.27.3 and refined in v0.27.4 unchanged.
+- Preserve the existing Windows and macOS release paths.
 
 ### Why This Release Matters
 
-Fast capture is as much about transition quality as raw speed. This release removes the last visible handoff between the editor and selection overlay and makes the most-used annotation controls easier to recognize at a glance.
+The first screenshot-enabled Linux release exposed a PipeWire header mismatch in the GitHub Ubuntu build environment. This patch restores the Linux packages without changing the user-facing capture workflow.
 
 ### User-Facing Improvements
 
-#### Seamless capture handoff
+#### Linux packaging compatibility
 
-- The main editor window is hidden only after the prepared overlay has been shown.
-- Screen pixels are still captured before the overlay appears, so the editor remains part of the selectable desktop image.
-- Cancellation and error paths continue to restore and focus the editor safely.
+- xcap 0.8.0 resolves through pipewire-rs and libspa 0.8.0 instead of the incompatible 0.9.2 bindings.
+- The dependency remains explicitly pinned so future lockfile updates cannot silently reintroduce the Ubuntu build failure.
+- Linux system capture still uses xcap on X11 and the XDG screenshot portal on Wayland.
 
-#### Annotation clarity
-
-- The floating toolbar uses a neutral dark surface, compact icon buttons, and a clear blue active state.
-- Crop handles have stronger separation from the captured background, and the dimension badge is easier to read.
-- Arrow annotations use a solid indented head that remains legible at different line widths.
-
-#### Existing workflow preserved
+#### Existing experience preserved
 
 - `Alt+A`, the camera button, and the command palette continue to open the same capture flow.
 - Crop, arrow, rectangle, text, mosaic, undo, redo, cancel, and insert remain keyboard accessible.
@@ -49,12 +42,12 @@ Fast capture is as much about transition quality as raw speed. This release remo
 
 ### Suggested Upgrade Notes Section
 
-- No migration or settings change is required.
-- Global `Alt+A` remains fixed; the toolbar and command-palette entries remain available if another application owns it.
+- No migration, permission, or settings change is required.
+- Windows and macOS users receive the same application behavior as v0.27.4.
 
 ### Suggested Who Should Update Section
 
-This release is recommended for everyone using the screenshot workflow introduced in v0.27.3.
+This release is especially important for Linux users and for distributors consuming the Linux release assets.
 
 ## Packaging Checklist Before Release
 
@@ -62,7 +55,7 @@ This release is recommended for everyone using the screenshot workflow introduce
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.27.4`.
-- Run `npm run release:validate -- 0.27.4` so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.27.4`.
-- After publication, run `npm run release:draft:advance -- 0.27.4`.
+- Run `npm run release:prepare -- 0.27.5`.
+- Run `npm run release:validate -- 0.27.5` so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.27.5`.
+- After publication, run `npm run release:draft:advance -- 0.27.5`.

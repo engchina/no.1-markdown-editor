@@ -20,6 +20,20 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.5 - 2026-06-29
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Linux release builds use the PipeWire-compatible xcap 0.8.0 dependency, restoring Ubuntu runner packaging for screenshot-enabled releases.
+
+### Internal
+
+- Pinned the Linux capture dependency and added a regression assertion for the release-compatible version.
+
 ## 0.27.4 - 2026-06-29
 
 ### Added

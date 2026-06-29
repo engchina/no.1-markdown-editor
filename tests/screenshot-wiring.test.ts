@@ -56,6 +56,7 @@ test('all supported locales contain the complete screenshot surface', () => {
 
 test('capture backend keeps pixels in memory until explicit release', () => {
   const backend = read('src-tauri/src/screenshot.rs')
+  const cargo = read('src-tauri/Cargo.toml')
   const controller = read('src/components/Screenshot/ScreenshotController.tsx')
   const overlay = read('src/components/Screenshot/ScreenshotOverlay.tsx')
   const capability = read('src-tauri/capabilities/screenshot.json')
@@ -66,6 +67,7 @@ test('capture backend keeps pixels in memory until explicit release', () => {
   assert.match(backend, /pub fn screenshot_hide_main[\s\S]*main\.hide\(\)/)
   assert.match(overlay, /overlay\.show\(\)[\s\S]*invoke\('screenshot_hide_main'\)/)
   assert.match(backend, /screenshot_capture_release/)
+  assert.match(cargo, /xcap = "=0\.8\.0"/)
   assert.doesNotMatch(backend, /tempfile|NamedTempFile/)
   assert.match(controller, /const context = startsInPreview \? null : await requestEditorContext\(\)/)
   assert.match(overlay, /overlay\.show\(\)/)
