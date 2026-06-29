@@ -563,6 +563,11 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
               aria-label={t('screenshot.editor.canvasLabel')}
               role="application"
             >
+              <defs>
+                <filter id="handle-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#000" flood-opacity="0.35"/>
+                </filter>
+              </defs>
               {snapshot.annotations.map((annotation) => {
                 if (annotation.type === 'arrow') {
                   return <line key={annotation.id} x1={annotation.x1} y1={annotation.y1} x2={annotation.x2} y2={annotation.y2} stroke="transparent" strokeWidth={Math.max(annotation.size, 12 / stageScale)} strokeLinecap="round" pointerEvents={canSelectAnnotations ? 'stroke' : 'none'} onPointerDown={(event) => beginAnnotationDrag(event, annotation, 'move')} />
@@ -595,10 +600,11 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
                   key={handle}
                   cx={x}
                   cy={y}
-                  r={5 / stageScale}
+                  r={6 / stageScale}
                   fill="#fff"
                   stroke="#1685ff"
                   strokeWidth={2 / stageScale}
+                  filter="url(#handle-shadow)"
                   style={{ cursor }}
                   onPointerDown={(event) => beginCropDrag(event, 'crop-resize', handle)}
                 />
@@ -615,6 +621,7 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
                     fill="#fff"
                     stroke="#1685ff"
                     strokeWidth={2 / stageScale}
+                    filter="url(#handle-shadow)"
                     className="cursor-nwse-resize"
                     onPointerDown={(event) => beginAnnotationDrag(event, selected, 'resize')}
                   />
@@ -622,7 +629,7 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
               )}
             </svg>
             <div
-              className="pointer-events-none absolute rounded bg-black/80 px-2 py-1 text-xs font-medium tabular-nums text-white shadow"
+              className="pointer-events-none absolute rounded-full border border-white/10 bg-neutral-950/90 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-white/95 shadow-lg backdrop-blur-md"
               style={{
                 left: Math.max(0, crop.x * stageScale),
                 top: Math.max(4, crop.y * stageScale - 28),
@@ -658,7 +665,7 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
                 placeholder={t('screenshot.editor.textPlaceholder')}
                 size={Math.max(12, Math.min(40, Array.from(textDraft.value).length + 1))}
                 autoFocus
-                className="pointer-events-auto absolute z-30 rounded-md border-2 border-[#1685ff] bg-white px-2 py-1 text-slate-950 shadow-xl outline-none focus-visible:ring-2 focus-visible:ring-[#1685ff]/50"
+                className="pointer-events-auto absolute z-30 rounded-lg border border-[#1685ff] bg-white/95 px-2 py-1 text-slate-950 shadow-2xl backdrop-blur-md outline-none ring-4 ring-[#1685ff]/20 transition-all duration-200"
                 style={{
                   left: Math.min(textDraft.x * stageScale, Math.max(4, stageWidth - 140)),
                   top: Math.max(4, (textDraft.y - Math.max(14, size * 5)) * stageScale),
@@ -670,7 +677,7 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
           </div>
 
           <div
-            className="absolute z-20 flex max-w-[calc(100vw-24px)] items-center gap-0.5 overflow-x-auto rounded-xl border border-black/10 bg-white p-1.5 text-slate-700 shadow-[0_12px_36px_rgba(0,0,0,0.36)]"
+            className="absolute z-20 flex max-w-[calc(100vw-24px)] items-center gap-1.5 overflow-x-auto rounded-2xl bg-neutral-900/90 p-1.5 text-neutral-200 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl transition-all duration-300 ease-out"
             role="toolbar"
             aria-label={t('screenshot.editor.toolsLabel')}
             style={{ left: toolbarLeft, top: toolbarTop, transform: 'translateX(-50%)' }}
@@ -684,21 +691,21 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
                 aria-label={t(`screenshot.tools.${item}`)}
                 title={`${t(`screenshot.tools.${item}`)} (${item === 'select' ? 'V' : item[0].toUpperCase()})`}
                 onClick={() => setTool(item)}
-                className={`flex h-9 w-9 flex-none cursor-pointer items-center justify-center rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] ${tool === item ? 'bg-[#e8f3ff] text-[#087be8]' : 'hover:bg-slate-100'}`}
+                className={`flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] ${tool === item ? 'bg-[#1685ff] text-white shadow-md shadow-[#1685ff]/35' : 'hover:bg-neutral-800 hover:text-white'}`}
               >
                 <AppIcon name={TOOL_ICONS[item]} size={19} />
               </button>
             ))}
-            <span className="mx-1 h-6 w-px flex-none bg-slate-200" aria-hidden="true" />
+            <span className="mx-1 h-6 w-px flex-none bg-neutral-800" aria-hidden="true" />
             <input
               type="color"
               value={color}
               onChange={(event) => changeColor(event.target.value)}
               aria-label={t('screenshot.editor.color')}
               title={t('screenshot.editor.color')}
-              className="h-8 w-8 flex-none cursor-pointer rounded-lg border border-slate-200 bg-transparent p-0.5"
+              className="h-9 w-9 flex-none cursor-pointer rounded-lg border border-neutral-700 bg-transparent p-0.5 shadow-sm transition-transform duration-200 hover:scale-110 active:scale-95"
             />
-            <label className="flex h-9 w-20 flex-none items-center px-1" title={t('screenshot.editor.size')}>
+            <label className="flex h-10 w-20 flex-none items-center px-1" title={t('screenshot.editor.size')}>
               <span className="sr-only">{t('screenshot.editor.size')}</span>
               <input
                 type="range"
@@ -710,23 +717,23 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
                 className="w-full cursor-pointer accent-[#1685ff]"
               />
             </label>
-            <span className="mx-1 h-6 w-px flex-none bg-slate-200" aria-hidden="true" />
+            <span className="mx-1 h-6 w-px flex-none bg-neutral-800" aria-hidden="true" />
             {selected?.type === 'text' && (
-              <button type="button" onClick={() => startTextEdit(selected)} aria-label={t('screenshot.actions.editText')} title={t('screenshot.actions.editText')} className="flex h-9 w-9 flex-none cursor-pointer items-center justify-center rounded-lg hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff]">
+              <button type="button" onClick={() => startTextEdit(selected)} aria-label={t('screenshot.actions.editText')} title={t('screenshot.actions.editText')} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-neutral-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff]">
                 <AppIcon name="edit" size={18} />
               </button>
             )}
-            <button type="button" onClick={undo} disabled={historyIndex === 0} aria-label={t('commands.undo')} title={t('commands.undo')} className="flex h-9 w-9 flex-none cursor-pointer items-center justify-center rounded-lg hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:cursor-default disabled:opacity-30">
+            <button type="button" onClick={undo} disabled={historyIndex === 0} aria-label={t('commands.undo')} title={t('commands.undo')} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-neutral-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:cursor-default disabled:opacity-30">
               <AppIcon name="undo" size={18} />
             </button>
-            <button type="button" onClick={redo} disabled={historyIndex >= history.length - 1} aria-label={t('commands.redo')} title={t('commands.redo')} className="flex h-9 w-9 flex-none cursor-pointer items-center justify-center rounded-lg hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:cursor-default disabled:opacity-30">
+            <button type="button" onClick={redo} disabled={historyIndex >= history.length - 1} aria-label={t('commands.redo')} title={t('commands.redo')} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-neutral-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:cursor-default disabled:opacity-30">
               <AppIcon name="redo" size={18} />
             </button>
-            <span className="mx-1 h-6 w-px flex-none bg-slate-200" aria-hidden="true" />
-            <button type="button" onClick={onCancel} disabled={busy} aria-label={t('screenshot.actions.cancel')} title={t('screenshot.actions.cancel')} className="flex h-9 w-9 flex-none cursor-pointer items-center justify-center rounded-lg hover:bg-red-50 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:opacity-40">
+            <span className="mx-1 h-6 w-px flex-none bg-neutral-800" aria-hidden="true" />
+            <button type="button" onClick={onCancel} disabled={busy} aria-label={t('screenshot.actions.cancel')} title={t('screenshot.actions.cancel')} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-red-950/50 hover:text-red-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:opacity-40">
               <AppIcon name="x" size={19} />
             </button>
-            <button type="button" onClick={() => void confirm()} disabled={busy || !image} aria-label={t('screenshot.actions.insert')} title={`${t('screenshot.actions.insert')} (Ctrl/⌘+Enter)`} className="flex h-9 w-9 flex-none cursor-pointer items-center justify-center rounded-lg bg-[#1685ff] text-white hover:bg-[#087be8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1685ff] disabled:opacity-40">
+            <button type="button" onClick={() => void confirm()} disabled={busy || !image} aria-label={t('screenshot.actions.insert')} title={`${t('screenshot.actions.insert')} (Ctrl/⌘+Enter)`} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 bg-[#1685ff] text-white shadow-md shadow-[#1685ff]/30 hover:bg-[#087be8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1685ff] disabled:opacity-40 hover:scale-105 active:scale-95">
               <AppIcon name="checkCircle" size={19} />
             </button>
           </div>

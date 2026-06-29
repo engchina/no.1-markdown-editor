@@ -208,6 +208,7 @@ export default function ScreenshotOverlay() {
               const overlay = getCurrentWindow()
               void overlay.show()
                 .then(() => {
+                  void invoke('screenshot_hide_main').catch(() => undefined)
                   void overlay.setFocus().catch(() => undefined)
                   cancelButtonRef.current?.focus()
                 })
@@ -226,7 +227,7 @@ export default function ScreenshotOverlay() {
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-lg bg-black/70 px-3 py-2 text-xs text-white/80 shadow-xl backdrop-blur">
+      <div className="pointer-events-none absolute bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-black/60 px-4 py-2.5 text-sm font-medium tracking-wide text-white/90 shadow-2xl backdrop-blur-md">
         {t('screenshot.capture.hint')}
       </div>
       <div className="absolute right-4 top-4 z-10">
@@ -237,7 +238,7 @@ export default function ScreenshotOverlay() {
           disabled={busy}
           aria-label={t('screenshot.actions.cancel')}
           title={t('screenshot.actions.cancel')}
-          className="cursor-pointer rounded-lg border border-white/20 bg-black/70 p-2.5 text-white shadow-xl backdrop-blur hover:bg-black/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+          className="cursor-pointer rounded-xl border border-white/20 bg-black/40 p-2.5 text-white shadow-2xl backdrop-blur-xl transition-all duration-200 hover:bg-black/60 hover:scale-105 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
         >
           <AppIcon name="x" size={18} />
         </button>

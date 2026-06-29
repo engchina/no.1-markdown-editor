@@ -20,6 +20,22 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.4 - 2026-06-29
+
+### Added
+
+### Changed
+
+- Screenshot annotation controls now use a compact dark floating toolbar, clearer selection handles, and a cleaner filled arrowhead.
+
+### Fixed
+
+- Screenshot capture now keeps the editor visible until the prepared selection overlay is on screen, removing the remaining desktop flash during startup.
+
+### Internal
+
+- Added regression coverage for delayed main-window hiding and arrow raster rendering.
+
 ## 0.27.3 - 2026-06-29
 
 ### Added

@@ -10,6 +10,7 @@ import {
 import {
   annotationBounds,
   createScreenshotEditSnapshot,
+  drawScreenshotRasterPreview,
   moveAnnotation,
   moveScreenshotCrop,
   removeAnnotation,
@@ -17,6 +18,7 @@ import {
   resizeScreenshotCrop,
   screenshotToolForKey,
   updateAnnotation,
+  type ArrowAnnotation,
   type RectangleAnnotation,
 } from '../src/components/Screenshot/screenshotModel.ts'
 
@@ -117,4 +119,38 @@ test('annotation history operations move, resize, update, and delete objects', (
   const updated = updateAnnotation(withAnnotation, { ...annotation, color: '#00ff00' })
   assert.equal(updated.annotations[0].color, '#00ff00')
   assert.deepEqual(removeAnnotation(updated, annotation.id).annotations, [])
+})
+
+test('arrow raster rendering skips accidental taps and draws a filled head', () => {
+  const operations: string[] = []
+  const context = {
+    clearRect() {},
+    drawImage() {},
+    beginPath() { operations.push('begin') },
+    moveTo() { operations.push('move') },
+    lineTo() { operations.push('line') },
+    stroke() { operations.push('stroke') },
+    closePath() { operations.push('close') },
+    fill() { operations.push('fill') },
+  } as unknown as CanvasRenderingContext2D
+  const base: ArrowAnnotation = {
+    id: 'arrow-1',
+    type: 'arrow',
+    color: '#ff0000',
+    size: 4,
+    x1: 10,
+    y1: 10,
+    x2: 12,
+    y2: 11,
+  }
+  const snapshot = { crop: { x: 0, y: 0, width: 100, height: 80 }, annotations: [base] }
+
+  drawScreenshotRasterPreview(context, {} as CanvasImageSource, 100, 80, snapshot)
+  assert.deepEqual(operations, [])
+
+  drawScreenshotRasterPreview(context, {} as CanvasImageSource, 100, 80, {
+    ...snapshot,
+    annotations: [{ ...base, x2: 80, y2: 50 }],
+  })
+  assert.deepEqual(operations, ['begin', 'move', 'line', 'stroke', 'begin', 'move', 'line', 'line', 'line', 'close', 'fill'])
 })

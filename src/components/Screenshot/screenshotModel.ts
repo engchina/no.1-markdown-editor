@@ -198,22 +198,45 @@ function drawArrow(context: CanvasRenderingContext2D, annotation: ArrowAnnotatio
   const y1 = annotation.y1 - offsetY
   const x2 = annotation.x2 - offsetX
   const y2 = annotation.y2 - offsetY
-  const angle = Math.atan2(y2 - y1, x2 - x1)
-  const head = Math.max(10, annotation.size * 4)
 
+  const angle = Math.atan2(y2 - y1, x2 - x1)
+  const length = Math.hypot(x2 - x1, y2 - y1)
+  if (length < 4) return
+
+  // Size of arrowhead (sleeker ratio)
+  const arrowSize = Math.max(14, annotation.size * 3.5)
+
+  const wingAngle = Math.PI / 6 // 30 degrees
+
+  const leftX = x2 - arrowSize * Math.cos(angle - wingAngle)
+  const leftY = y2 - arrowSize * Math.sin(angle - wingAngle)
+
+  const rightX = x2 - arrowSize * Math.cos(angle + wingAngle)
+  const rightY = y2 - arrowSize * Math.sin(angle + wingAngle)
+
+  // Indented point on the center line
+  const indentLength = arrowSize * 0.78
+  const indentX = x2 - indentLength * Math.cos(angle)
+  const indentY = y2 - indentLength * Math.sin(angle)
+
+  // Draw the shaft of the arrow, stopping at the indent point
   context.strokeStyle = annotation.color
   context.fillStyle = annotation.color
   context.lineWidth = annotation.size
   context.lineCap = 'round'
   context.lineJoin = 'round'
+
   context.beginPath()
   context.moveTo(x1, y1)
-  context.lineTo(x2, y2)
+  context.lineTo(indentX, indentY)
   context.stroke()
+
+  // Draw the arrowhead as a solid indented polygon
   context.beginPath()
   context.moveTo(x2, y2)
-  context.lineTo(x2 - head * Math.cos(angle - Math.PI / 6), y2 - head * Math.sin(angle - Math.PI / 6))
-  context.lineTo(x2 - head * Math.cos(angle + Math.PI / 6), y2 - head * Math.sin(angle + Math.PI / 6))
+  context.lineTo(leftX, leftY)
+  context.lineTo(indentX, indentY) // Indentation to the shaft
+  context.lineTo(rightX, rightY)
   context.closePath()
   context.fill()
 }

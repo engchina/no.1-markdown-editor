@@ -1279,6 +1279,7 @@ pub fn run() {
             screenshot::screenshot_capture_finish,
             screenshot::screenshot_capture_cancel,
             screenshot::screenshot_capture_release,
+            screenshot::screenshot_hide_main,
             read_file,
             write_file,
             copy_file,

@@ -561,9 +561,6 @@ pub async fn screenshot_capture_begin<R: Runtime>(
         return Err("capture_session_stale".to_string());
     }
 
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.hide();
-    }
     let monitors = match tauri::async_runtime::spawn_blocking(|| {
         std::thread::sleep(Duration::from_millis(16));
         capture_monitors()
@@ -804,6 +801,13 @@ pub fn screenshot_capture_release<R: Runtime>(
     close_overlay_windows(&app, &labels);
     show_main_window(&app);
     Ok(())
+}
+
+#[tauri::command]
+pub fn screenshot_hide_main<R: Runtime>(app: AppHandle<R>) {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.hide();
+    }
 }
 
 #[cfg(test)]
