@@ -55,7 +55,12 @@ block2 = "0.6"
 webkit2gtk = "2.0"
 gtk = "0.18"
 glib = "0.18"
-ashpd = { version = "0.13", default-features = false, features = ["tokio", "screenshot"] }
+# `file_chooser` is enabled solely to pull ashpd's optional `serde_repr` dep:
+# ashpd 0.13.12's `screenshot` module uses serde_repr unconditionally but the
+# `screenshot` feature (`screenshot = []`) fails to enable it, breaking the Linux
+# build. `file_chooser = ["dep:serde_repr"]` is the lightest fix (pure DBus, no
+# pipewire). Revisit if a fixed ashpd release lands.
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "screenshot", "file_chooser"] }
 x11rb = { version = "0.13", default-features = false, features = ["image", "randr"] }
 
 [dev-dependencies]
