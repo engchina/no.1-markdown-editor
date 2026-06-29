@@ -103,6 +103,7 @@ test('overlay offers quick output and window-region grabbing', () => {
   const editor = read('src/components/Screenshot/ScreenshotEditor.tsx')
   const overlay = read('src/components/Screenshot/ScreenshotOverlay.tsx')
   const backend = read('src-tauri/src/screenshot.rs')
+  const cargo = read('src-tauri/Cargo.toml')
   // Copy goes through the OS clipboard plugin (navigator.clipboard image writes
   // are blocked in the Tauri webview); save grants fs scope then writes.
   const capability = read('src-tauri/capabilities/screenshot.json')
@@ -119,12 +120,16 @@ test('overlay offers quick output and window-region grabbing', () => {
   assert.match(capability, /clipboard-manager:allow-write-image/)
   assert.match(capability, /dialog:allow-save/)
   assert.match(capability, /fs:allow-write-file/)
-  // Pixel-accurate magnifier + window detection.
+  // Pixel-accurate magnifier + z-ordered window/UI Automation detection.
   assert.match(overlay, /loupeCanvasRef/)
-  assert.match(overlay, /findWindowAt/)
-  assert.match(overlay, /screenshot_window_rects/)
-  assert.match(backend, /fn screenshot_window_rects/)
-  assert.match(backend, /fn enumerate_window_rects/)
+  assert.match(overlay, /findTopmostScreenshotWindow/)
+  assert.match(overlay, /screenshot_window_targets/)
+  assert.match(overlay, /screenshot_element_rect/)
+  assert.match(backend, /fn screenshot_window_targets/)
+  assert.match(backend, /fn enumerate_window_targets/)
+  assert.match(backend, /ControlViewWalker/)
+  assert.match(cargo, /Win32_UI_Accessibility/)
+  assert.doesNotMatch(overlay, /bestArea|bestArea = Infinity/)
   // Copy parks (minimizes) the editor instead of raising it; Enter inserts.
   assert.match(backend, /fn screenshot_capture_dismiss[\s\S]*?park_main_window/)
   assert.match(overlay, /screenshot_capture_dismiss/)

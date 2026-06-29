@@ -1,6 +1,6 @@
 [package]
 name = "no1-markdown-editor"
-version = "0.27.8"
+version = "0.27.9"
 description = "No.1 Markdown Editor — Free Forever"
 authors = []
 edition = "2021"
@@ -41,9 +41,9 @@ xcap = "=0.8.0"
 
 [target."cfg(windows)".dependencies]
 webview2-com = "0.38"
-# Win32_UI_WindowsAndMessaging adds ShowWindow/SW_SHOWMINNOACTIVE for the
-# "park the editor minimized without activating" path (screenshot copy).
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+# WindowsAndMessaging parks the editor without activation; Accessibility powers
+# PixPin-style control detection beneath the screenshot overlay.
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2 = "0.6"

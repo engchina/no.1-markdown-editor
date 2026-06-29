@@ -19,6 +19,17 @@ export interface ScreenshotRect {
   height: number
 }
 
+export interface ScreenshotWindowTarget {
+  id: number
+  rect: ScreenshotRect
+}
+
+export interface SmartScreenshotTarget {
+  windowId: number
+  rect: ScreenshotRect
+  revision: number
+}
+
 export interface ScreenshotMonitorDescriptor {
   id: string
   name: string
@@ -119,6 +130,29 @@ export function normalizeScreenshotRect(
     width: Math.abs(end.x - start.x),
     height: Math.abs(end.y - start.y),
   }
+}
+
+export function findTopmostScreenshotWindow(
+  targets: ScreenshotWindowTarget[],
+  x: number,
+  y: number
+): ScreenshotWindowTarget | null {
+  return targets.find(({ rect }) => screenshotRectContainsPoint(rect, x, y)) ?? null
+}
+
+export function screenshotRectContainsPoint(rect: ScreenshotRect, x: number, y: number): boolean {
+  return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
+}
+
+export function isCurrentScreenshotTarget(
+  target: SmartScreenshotTarget | null,
+  revision: number,
+  windowId: number,
+  x: number,
+  y: number
+): target is SmartScreenshotTarget {
+  return target?.revision === revision && target.windowId === windowId &&
+    screenshotRectContainsPoint(target.rect, x, y)
 }
 
 export function resolveScreenshotInsertionRange(

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   clampScreenshotRect,
+  findTopmostScreenshotWindow,
+  isCurrentScreenshotTarget,
   normalizeScreenshotRect,
   offsetFromLineColumn,
   resolveScreenshotInsertionRange,
@@ -46,6 +48,25 @@ test('screenshot rectangles normalize and clamp to original pixels', () => {
     width: 10,
     height: 5,
   })
+})
+
+test('smart screenshot selection keeps front-to-back order and half-open edges', () => {
+  const front = { id: 1, rect: { x: 0, y: 0, width: 100, height: 100 } }
+  const smallerBackground = { id: 2, rect: { x: 20, y: 20, width: 30, height: 30 } }
+  const adjacent = { id: 3, rect: { x: 100, y: 0, width: 50, height: 100 } }
+
+  assert.equal(findTopmostScreenshotWindow([front, smallerBackground], 25, 25)?.id, 1)
+  assert.equal(findTopmostScreenshotWindow([front, smallerBackground], 50, 50)?.id, 1)
+  assert.equal(findTopmostScreenshotWindow([front, adjacent], 100, 50)?.id, 3)
+  assert.equal(findTopmostScreenshotWindow([front], 50, 100), null)
+})
+
+test('smart screenshot targets reject stale responses and mismatched windows', () => {
+  const target = { windowId: 1, revision: 4, rect: { x: 10, y: 10, width: 20, height: 20 } }
+  assert.equal(isCurrentScreenshotTarget(target, 4, 1, 15, 15), true)
+  assert.equal(isCurrentScreenshotTarget(target, 5, 1, 15, 15), false)
+  assert.equal(isCurrentScreenshotTarget(target, 4, 2, 15, 15), false)
+  assert.equal(isCurrentScreenshotTarget(target, 4, 1, 30, 15), false)
 })
 
 test('crop handles resize from every edge and moving keeps its size at image bounds', () => {

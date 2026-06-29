@@ -20,6 +20,21 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.9 - 2026-06-30
+
+### Added
+
+### Changed
+
+### Fixed
+
+- PDF export now wraps long code lines, paginates large code blocks, removes print-only scrollbars, and keeps syntax text readable instead of clipping content such as manifest paths.
+- Screenshot smart selection now follows the visible front-to-back window order and, on Windows, detects real accessible UI controls before falling back to the foreground window, eliminating phantom blue selection boxes from covered background windows.
+
+### Internal
+
+- Added Windows UI Automation target detection, stale-response guards, print CSS contracts, and screenshot/PDF regression coverage.
+
 ## 0.27.8 - 2026-06-29
 
 ### Fixed

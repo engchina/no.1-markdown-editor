@@ -79,6 +79,67 @@ pub struct ScreenshotRect {
     height: u32,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenshotWindowTarget {
+    id: u32,
+    rect: ScreenshotRect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DesktopRect {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+}
+
+impl DesktopRect {
+    fn from_xywh(x: i32, y: i32, width: u32, height: u32) -> Self {
+        Self {
+            left: x,
+            top: y,
+            right: x.saturating_add(width.min(i32::MAX as u32) as i32),
+            bottom: y.saturating_add(height.min(i32::MAX as u32) as i32),
+        }
+    }
+
+    fn contains(self, x: i32, y: i32) -> bool {
+        x >= self.left && x < self.right && y >= self.top && y < self.bottom
+    }
+
+    fn intersect(self, other: Self) -> Option<Self> {
+        let rect = Self {
+            left: self.left.max(other.left),
+            top: self.top.max(other.top),
+            right: self.right.min(other.right),
+            bottom: self.bottom.min(other.bottom),
+        };
+        (rect.right > rect.left && rect.bottom > rect.top).then_some(rect)
+    }
+}
+
+fn clip_element_rect(
+    element: DesktopRect,
+    window: DesktopRect,
+    monitor: DesktopRect,
+    point: (i32, i32),
+) -> Option<ScreenshotRect> {
+    if !element.contains(point.0, point.1) {
+        return None;
+    }
+    let clipped = element.intersect(window)?.intersect(monitor)?;
+    if !clipped.contains(point.0, point.1) {
+        return None;
+    }
+    Some(ScreenshotRect {
+        x: (clipped.left - monitor.left) as u32,
+        y: (clipped.top - monitor.top) as u32,
+        width: (clipped.right - clipped.left) as u32,
+        height: (clipped.bottom - clipped.top) as u32,
+    })
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ScreenshotCapturedPayload {
@@ -572,7 +633,12 @@ fn overlay_url(monitor_id: &str) -> PathBuf {
 fn layout_signature(monitors: &[ScreenshotMonitorDescriptor]) -> String {
     monitors
         .iter()
-        .map(|m| format!("{}:{}:{}:{}:{}:{}", m.id, m.x, m.y, m.width, m.height, m.scale_factor))
+        .map(|m| {
+            format!(
+                "{}:{}:{}:{}:{}:{}",
+                m.id, m.x, m.y, m.width, m.height, m.scale_factor
+            )
+        })
         .collect::<Vec<_>>()
         .join("|")
 }
@@ -622,22 +688,23 @@ fn ensure_overlay_windows<R: Runtime>(
     for monitor in monitors {
         let label = format!("{OVERLAY_LABEL_PREFIX}{}", monitor.id);
         let scale = f64::from(monitor.scale_factor.max(0.1));
-        let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(overlay_url(&monitor.id)))
-            .title("Screenshot")
-            .visible(false)
-            .decorations(false)
-            .resizable(false)
-            .always_on_top(true)
-            .skip_taskbar(true)
-            .position(
-                overlay_origin(monitor.x, monitor.scale_factor),
-                overlay_origin(monitor.y, monitor.scale_factor),
-            )
-            .inner_size(
-                f64::from(monitor.width) / scale,
-                f64::from(monitor.height) / scale,
-            )
-            .build();
+        let built =
+            WebviewWindowBuilder::new(app, &label, WebviewUrl::App(overlay_url(&monitor.id)))
+                .title("Screenshot")
+                .visible(false)
+                .decorations(false)
+                .resizable(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .position(
+                    overlay_origin(monitor.x, monitor.scale_factor),
+                    overlay_origin(monitor.y, monitor.scale_factor),
+                )
+                .inner_size(
+                    f64::from(monitor.width) / scale,
+                    f64::from(monitor.height) / scale,
+                )
+                .build();
         if let Err(error) = built {
             destroy_overlay_windows(app, &labels);
             return Err(format!("capture_overlay_failed:{error}"));
@@ -1083,11 +1150,11 @@ pub fn screenshot_active_session(
     Ok(session.as_ref().map(|active| active.id.clone()))
 }
 
-/// Visible top-level window rectangles intersected with one monitor, expressed
-/// in that monitor's image-pixel coordinates (origin = monitor top-left). The
-/// overlay uses these to offer PixPin-style "hover a window, click to grab it".
+/// Visible top-level windows intersected with one monitor, expressed in that
+/// monitor's image-pixel coordinates (origin = monitor top-left). xcap keeps
+/// the native front-to-back order; the overlay must preserve that order.
 #[cfg(not(target_os = "linux"))]
-fn enumerate_window_rects(mx: i32, my: i32, mw: u32, mh: u32) -> Vec<ScreenshotRect> {
+fn enumerate_window_targets(mx: i32, my: i32, mw: u32, mh: u32) -> Vec<ScreenshotWindowTarget> {
     let Ok(windows) = xcap::Window::all() else {
         return Vec::new();
     };
@@ -1099,12 +1166,20 @@ fn enumerate_window_rects(mx: i32, my: i32, mw: u32, mh: u32) -> Vec<ScreenshotR
             continue;
         }
         // Skip our own fullscreen overlays (titled "Screenshot").
-        if window.title().map(|title| title == "Screenshot").unwrap_or(false) {
+        if window
+            .title()
+            .map(|title| title == "Screenshot")
+            .unwrap_or(false)
+        {
             continue;
         }
-        let (Ok(wx), Ok(wy), Ok(ww), Ok(wh)) =
-            (window.x(), window.y(), window.width(), window.height())
-        else {
+        let (Ok(id), Ok(wx), Ok(wy), Ok(ww), Ok(wh)) = (
+            window.id(),
+            window.x(),
+            window.y(),
+            window.width(),
+            window.height(),
+        ) else {
             continue;
         };
         if ww == 0 || wh == 0 {
@@ -1117,21 +1192,138 @@ fn enumerate_window_rects(mx: i32, my: i32, mw: u32, mh: u32) -> Vec<ScreenshotR
         if right <= left || bottom <= top {
             continue;
         }
-        rects.push(ScreenshotRect {
-            x: (left - mx) as u32,
-            y: (top - my) as u32,
-            width: (right - left) as u32,
-            height: (bottom - top) as u32,
+        rects.push(ScreenshotWindowTarget {
+            id,
+            rect: ScreenshotRect {
+                x: (left - mx) as u32,
+                y: (top - my) as u32,
+                width: (right - left) as u32,
+                height: (bottom - top) as u32,
+            },
         });
     }
     rects
 }
 
 #[cfg(target_os = "linux")]
-fn enumerate_window_rects(_mx: i32, _my: i32, _mw: u32, _mh: u32) -> Vec<ScreenshotRect> {
+fn enumerate_window_targets(_mx: i32, _my: i32, _mw: u32, _mh: u32) -> Vec<ScreenshotWindowTarget> {
     // Best-effort feature: X11/Wayland window enumeration is skipped for now and
     // the overlay simply falls back to manual drag selection.
     Vec::new()
+}
+
+#[cfg(windows)]
+fn windows_element_rect(window_id: u32, point: (i32, i32)) -> Option<DesktopRect> {
+    use std::ffi::c_void;
+    use windows::Win32::{
+        Foundation::{HWND, RPC_E_CHANGED_MODE},
+        System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+            COINIT_MULTITHREADED,
+        },
+        UI::Accessibility::{
+            CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationTreeWalker,
+        },
+    };
+
+    fn child_at(
+        walker: &IUIAutomationTreeWalker,
+        parent: &IUIAutomationElement,
+        point: (i32, i32),
+    ) -> Option<(IUIAutomationElement, DesktopRect)> {
+        let mut child = unsafe { walker.GetFirstChildElement(parent).ok() };
+        let mut best: Option<(IUIAutomationElement, DesktopRect, i64)> = None;
+        for _ in 0..512 {
+            let Some(element) = child else { break };
+            child = unsafe { walker.GetNextSiblingElement(&element).ok() };
+            let Ok(is_offscreen) = (unsafe { element.CurrentIsOffscreen() }) else {
+                continue;
+            };
+            if is_offscreen.as_bool() {
+                continue;
+            }
+            let Ok(rect) = (unsafe { element.CurrentBoundingRectangle() }) else {
+                continue;
+            };
+            let rect = DesktopRect {
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+            };
+            if !rect.contains(point.0, point.1) {
+                continue;
+            }
+            let area = (i64::from(rect.right) - i64::from(rect.left))
+                * (i64::from(rect.bottom) - i64::from(rect.top));
+            if area > 0 && best.as_ref().map_or(true, |candidate| area < candidate.2) {
+                best = Some((element, rect, area));
+            }
+        }
+        best.map(|(element, rect, _)| (element, rect))
+    }
+
+    let initialized = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+    if initialized.is_err() && initialized != RPC_E_CHANGED_MODE {
+        return None;
+    }
+    let result = (|| {
+        let automation: IUIAutomation =
+            unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).ok()? };
+        let root = unsafe {
+            automation
+                .ElementFromHandle(HWND(window_id as usize as *mut c_void))
+                .ok()?
+        };
+        let walker = unsafe { automation.ControlViewWalker().ok()? };
+        let mut current = root;
+        let mut best = None;
+        for _ in 0..32 {
+            let Some((child, rect)) = child_at(&walker, &current, point) else {
+                break;
+            };
+            current = child;
+            best = Some(rect);
+        }
+        best
+    })();
+    if initialized.is_ok() {
+        unsafe { CoUninitialize() };
+    }
+    result
+}
+
+#[cfg(windows)]
+fn detect_windows_element_rect(
+    window_id: u32,
+    monitor: DesktopRect,
+    point: (i32, i32),
+) -> Option<ScreenshotRect> {
+    let windows = xcap::Window::all().ok()?;
+    for window in windows {
+        if window.is_minimized().unwrap_or(true) {
+            continue;
+        }
+        let (Ok(id), Ok(x), Ok(y), Ok(width), Ok(height)) = (
+            window.id(),
+            window.x(),
+            window.y(),
+            window.width(),
+            window.height(),
+        ) else {
+            continue;
+        };
+        let window_rect = DesktopRect::from_xywh(x, y, width, height);
+        if !window_rect.contains(point.0, point.1) {
+            continue;
+        }
+        if id != window_id {
+            return None;
+        }
+        let element = windows_element_rect(window_id, point)?;
+        return clip_element_rect(element, window_rect, monitor, point);
+    }
+    None
 }
 
 /// Copy an annotated screenshot to the OS clipboard. The RGBA is sent as the
@@ -1157,9 +1349,8 @@ pub fn screenshot_copy_image<R: Runtime>(
         _ => return Err("capture_copy_invalid_body".to_string()),
     };
 
-    let header = |name: &str| -> Option<u32> {
-        request.headers().get(name)?.to_str().ok()?.parse().ok()
-    };
+    let header =
+        |name: &str| -> Option<u32> { request.headers().get(name)?.to_str().ok()?.parse().ok() };
     let width = header("width").ok_or_else(|| "capture_copy_missing_size".to_string())?;
     let height = header("height").ok_or_else(|| "capture_copy_missing_size".to_string())?;
     let expected = (width as usize)
@@ -1176,11 +1367,11 @@ pub fn screenshot_copy_image<R: Runtime>(
 }
 
 #[tauri::command]
-pub fn screenshot_window_rects(
+pub fn screenshot_window_targets(
     state: tauri::State<'_, ScreenshotState>,
     session_id: String,
     monitor_id: String,
-) -> Result<Vec<ScreenshotRect>, String> {
+) -> Result<Vec<ScreenshotWindowTarget>, String> {
     let geometry = {
         let session = state
             .0
@@ -1200,7 +1391,60 @@ pub fn screenshot_window_rects(
         (monitor.x, monitor.y, monitor.width, monitor.height)
     };
     // Enumerate outside the lock — xcap window queries are comparatively slow.
-    Ok(enumerate_window_rects(geometry.0, geometry.1, geometry.2, geometry.3))
+    Ok(enumerate_window_targets(
+        geometry.0, geometry.1, geometry.2, geometry.3,
+    ))
+}
+
+#[tauri::command]
+pub async fn screenshot_element_rect(
+    state: tauri::State<'_, ScreenshotState>,
+    session_id: String,
+    monitor_id: String,
+    window_id: u32,
+    x: u32,
+    y: u32,
+) -> Result<Option<ScreenshotRect>, String> {
+    let monitor = {
+        let session = state
+            .0
+            .lock()
+            .map_err(|_| "capture_state_failed".to_string())?;
+        let session = session
+            .as_ref()
+            .ok_or_else(|| "capture_session_missing".to_string())?;
+        if session.id != session_id {
+            return Err("capture_session_stale".to_string());
+        }
+        let monitor = session
+            .monitors
+            .iter()
+            .find(|monitor| monitor.id == monitor_id)
+            .ok_or_else(|| "capture_monitor_missing".to_string())?;
+        if x >= monitor.width || y >= monitor.height {
+            return Ok(None);
+        }
+        DesktopRect::from_xywh(monitor.x, monitor.y, monitor.width, monitor.height)
+    };
+
+    #[cfg(windows)]
+    {
+        let point = (
+            monitor.left.saturating_add(x as i32),
+            monitor.top.saturating_add(y as i32),
+        );
+        return tauri::async_runtime::spawn_blocking(move || {
+            detect_windows_element_rect(window_id, monitor, point)
+        })
+        .await
+        .map_err(|error| format!("capture_element_query_failed:{error}"));
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = (monitor, window_id, x, y);
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
@@ -1312,7 +1556,10 @@ mod tests {
         // Same layout → identical signature (warm pool reused).
         assert_eq!(base, layout_signature(&[one.clone(), two.clone()]));
         // A resolution change → different signature (pool rebuilt).
-        let resized = ScreenshotMonitorDescriptor { width: 3840, ..one.clone() };
+        let resized = ScreenshotMonitorDescriptor {
+            width: 3840,
+            ..one.clone()
+        };
         assert_ne!(base, layout_signature(&[resized, two]));
         // Fewer monitors → different signature.
         assert_ne!(base, layout_signature(&[one]));
@@ -1324,6 +1571,46 @@ mod tests {
         let descriptor = descriptor(&monitor);
         assert_eq!(descriptor.x, -1920);
         assert_eq!(descriptor.y, 0);
+    }
+
+    #[test]
+    fn smart_element_rect_is_clipped_to_window_and_monitor_pixels() {
+        let monitor = DesktopRect::from_xywh(-1920, 0, 1920, 1080);
+        let window = DesktopRect::from_xywh(-1900, 20, 1000, 780);
+        let element = DesktopRect::from_xywh(-1950, -10, 1200, 900);
+        assert_eq!(
+            clip_element_rect(element, window, monitor, (-1000, 100)),
+            Some(ScreenshotRect {
+                x: 20,
+                y: 20,
+                width: 1000,
+                height: 780,
+            })
+        );
+    }
+
+    #[test]
+    fn smart_element_rect_rejects_empty_or_mismatched_targets() {
+        let monitor = DesktopRect::from_xywh(0, 0, 100, 100);
+        let window = DesktopRect::from_xywh(0, 0, 100, 100);
+        assert_eq!(
+            clip_element_rect(
+                DesktopRect::from_xywh(10, 10, 20, 20),
+                window,
+                monitor,
+                (50, 50)
+            ),
+            None
+        );
+        assert_eq!(
+            clip_element_rect(
+                DesktopRect::from_xywh(100, 100, 0, 0),
+                window,
+                monitor,
+                (100, 100)
+            ),
+            None
+        );
     }
 
     #[test]

@@ -6,9 +6,15 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
   TAURI_SCREENSHOT_OVERLAY_BEGIN_EVENT,
   clampScreenshotRect,
+  findTopmostScreenshotWindow,
+  isCurrentScreenshotTarget,
   normalizeScreenshotRect,
+  screenshotRectContainsPoint,
+  type SmartScreenshotTarget,
   type ScreenshotRect,
+  type ScreenshotWindowTarget,
 } from '../../lib/screenshot.ts'
+import { isWindowsPlatform } from '../../lib/platform.ts'
 import AppIcon from '../Icons/AppIcon.tsx'
 import ScreenshotEditor from './ScreenshotEditor.tsx'
 import type { ScreenshotEditSnapshot } from './screenshotModel.ts'
@@ -33,6 +39,13 @@ interface CursorInfo {
   imgY: number
   clientX: number
   clientY: number
+}
+
+interface ElementQuery extends SmartScreenshotTarget {
+  sessionId: string
+  monitorId: string
+  x: number
+  y: number
 }
 
 // L-shaped accent marks at the four selection corners (decorative, not handles —
@@ -76,12 +89,18 @@ export default function ScreenshotOverlay() {
   const [editing, setEditing] = useState(false)
   const [cursor, setCursor] = useState<CursorInfo | null>(null)
   const [colorHex, setColorHex] = useState<string | null>(null)
-  const [windowRects, setWindowRects] = useState<ScreenshotRect[]>([])
+  const [windowTargets, setWindowTargets] = useState<ScreenshotWindowTarget[]>([])
+  const [smartTarget, setSmartTarget] = useState<SmartScreenshotTarget | null>(null)
   const claimedRef = useRef(false)
   const sessionIdRef = useRef<string | null>(null)
   const moveRafRef = useRef<number | null>(null)
   const pendingSelectionRef = useRef<ScreenshotRect | null>(null)
   const pendingCursorRef = useRef<CursorInfo | null>(null)
+  const smartTargetRef = useRef<SmartScreenshotTarget | null>(null)
+  const pressedTargetRef = useRef<SmartScreenshotTarget | null>(null)
+  const aimRevisionRef = useRef(0)
+  const elementQueryRunningRef = useRef(false)
+  const pendingElementQueryRef = useRef<ElementQuery | null>(null)
   const imageCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const loupeCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -100,7 +119,12 @@ export default function ScreenshotOverlay() {
     setBusy(false)
     setCursor(null)
     setColorHex(null)
-    setWindowRects([])
+    setWindowTargets([])
+    setSmartTarget(null)
+    smartTargetRef.current = null
+    pressedTargetRef.current = null
+    aimRevisionRef.current += 1
+    pendingElementQueryRef.current = null
     imageCanvasRef.current = null
     claimedRef.current = false
     setSessionId(nextSessionId)
@@ -181,20 +205,71 @@ export default function ScreenshotOverlay() {
     }
   }, [imageSize.height, imageSize.width])
 
-  // Smallest visible window enclosing a point — the most specific grab target.
-  const findWindowAt = useCallback((x: number, y: number): ScreenshotRect | null => {
-    let best: ScreenshotRect | null = null
-    let bestArea = Infinity
-    for (const rect of windowRects) {
-      if (x < rect.x || x > rect.x + rect.width || y < rect.y || y > rect.y + rect.height) continue
-      const area = rect.width * rect.height
-      if (area < bestArea) {
-        best = rect
-        bestArea = area
+  // xcap returns native z-order, so the first containing window is the visible one.
+  const findWindowTargetAt = useCallback((x: number, y: number) => (
+    findTopmostScreenshotWindow(windowTargets, x, y)
+  ), [windowTargets])
+
+  const updateSmartTarget = useCallback((target: SmartScreenshotTarget | null) => {
+    smartTargetRef.current = target
+    setSmartTarget(target)
+  }, [])
+
+  const queueElementQuery = useCallback((query: ElementQuery) => {
+    pendingElementQueryRef.current = query
+    if (elementQueryRunningRef.current) return
+    elementQueryRunningRef.current = true
+    void (async () => {
+      try {
+        while (pendingElementQueryRef.current) {
+          const current = pendingElementQueryRef.current
+          pendingElementQueryRef.current = null
+          const rect = await invoke<ScreenshotRect | null>('screenshot_element_rect', {
+            sessionId: current.sessionId,
+            monitorId: current.monitorId,
+            windowId: current.windowId,
+            x: current.x,
+            y: current.y,
+          }).catch(() => null)
+          const target = rect
+            ? { windowId: current.windowId, rect, revision: current.revision }
+            : null
+          if (isCurrentScreenshotTarget(
+            target,
+            aimRevisionRef.current,
+            current.windowId,
+            current.x,
+            current.y
+          )) {
+            updateSmartTarget(target)
+          }
+        }
+      } finally {
+        elementQueryRunningRef.current = false
       }
+    })()
+  }, [updateSmartTarget])
+
+  const aimAt = useCallback((nextCursor: CursorInfo) => {
+    const revision = ++aimRevisionRef.current
+    const windowTarget = findWindowTargetAt(nextCursor.imgX, nextCursor.imgY)
+    if (!windowTarget || !sessionId) {
+      pendingElementQueryRef.current = null
+      updateSmartTarget(null)
+      return
     }
-    return best
-  }, [windowRects])
+    const fallback = { windowId: windowTarget.id, rect: windowTarget.rect, revision }
+    updateSmartTarget(fallback)
+    if (isWindowsPlatform()) {
+      queueElementQuery({
+        ...fallback,
+        sessionId,
+        monitorId,
+        x: Math.floor(nextCursor.imgX),
+        y: Math.floor(nextCursor.imgY),
+      })
+    }
+  }, [findWindowTargetAt, monitorId, queueElementQuery, sessionId, updateSmartTarget])
 
   const claim = useCallback(async (): Promise<boolean> => {
     if (claimedRef.current) return true
@@ -262,18 +337,28 @@ export default function ScreenshotOverlay() {
       moveRafRef.current = null
       const nextCursor = pendingCursorRef.current
       pendingCursorRef.current = null
-      if (nextCursor) setCursor(nextCursor)
+      if (nextCursor) {
+        setCursor(nextCursor)
+        if (!dragStart) aimAt(nextCursor)
+      }
       const nextSelection = pendingSelectionRef.current
       pendingSelectionRef.current = null
       if (nextSelection) setSelection(nextSelection)
     })
-  }, [])
+  }, [aimAt, dragStart])
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (busy || event.button !== 0) return
     event.currentTarget.setPointerCapture(event.pointerId)
     void claim()
     const point = pointFromEvent(event)
+    const target = smartTargetRef.current
+    pressedTargetRef.current = target && screenshotRectContainsPoint(target.rect, point.x, point.y)
+      ? target
+      : null
+    aimRevisionRef.current += 1
+    pendingElementQueryRef.current = null
+    updateSmartTarget(null)
     setCursor({ imgX: point.x, imgY: point.y, clientX: event.clientX, clientY: event.clientY })
     setDragStart(point)
     setSelection({ x: point.x, y: point.y, width: 1, height: 1 })
@@ -309,16 +394,27 @@ export default function ScreenshotOverlay() {
     event.currentTarget.releasePointerCapture(event.pointerId)
     setDragStart(null)
     if (nextSelection.width >= 2 && nextSelection.height >= 2) {
+      pressedTargetRef.current = null
       void enterEditing(nextSelection)
       return
     }
-    // A click without a drag: snap to the window under the cursor, if any.
-    const windowRect = findWindowAt(upPoint.x, upPoint.y)
-    if (windowRect) void enterEditing(windowRect)
+    // A click without a drag uses the exact highlighted element when it is still
+    // valid, otherwise it safely falls back to the visible top-level window.
+    const windowTarget = findWindowTargetAt(upPoint.x, upPoint.y)
+    const pressedTarget = pressedTargetRef.current
+    pressedTargetRef.current = null
+    const targetRect = pressedTarget && windowTarget?.id === pressedTarget.windowId &&
+      screenshotRectContainsPoint(pressedTarget.rect, upPoint.x, upPoint.y)
+      ? pressedTarget.rect
+      : windowTarget?.rect
+    if (targetRect) void enterEditing(targetRect)
   }
 
   const onPointerLeave = () => {
     if (dragStart) return
+    aimRevisionRef.current += 1
+    pendingElementQueryRef.current = null
+    updateSmartTarget(null)
     pendingCursorRef.current = null
     setCursor(null)
   }
@@ -348,7 +444,10 @@ export default function ScreenshotOverlay() {
     if (top + panelH > vh - 8) top = cursor.clientY - margin - panelH
     return { left: Math.max(8, left), top: Math.max(8, top) }
   })()
-  const hoveredWindow = !dragStart && cursor ? findWindowAt(cursor.imgX, cursor.imgY) : null
+  const hoveredWindow = !dragStart && cursor && smartTarget &&
+    screenshotRectContainsPoint(smartTarget.rect, cursor.imgX, cursor.imgY)
+    ? smartTarget.rect
+    : null
 
   if (editing && imageUrl) {
     return (
@@ -408,9 +507,9 @@ export default function ScreenshotOverlay() {
                   cancelButtonRef.current?.focus()
                   // Fetch window rects after the editor is hidden so it isn't listed.
                   if (activeSession) {
-                    void invoke<ScreenshotRect[]>('screenshot_window_rects', { sessionId: activeSession, monitorId })
-                      .then(setWindowRects)
-                      .catch(() => setWindowRects([]))
+                    void invoke<ScreenshotWindowTarget[]>('screenshot_window_targets', { sessionId: activeSession, monitorId })
+                      .then(setWindowTargets)
+                      .catch(() => setWindowTargets([]))
                   }
                 })
                 .catch(() => invoke('screenshot_capture_cancel', { sessionId }))

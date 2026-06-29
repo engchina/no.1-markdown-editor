@@ -16,6 +16,10 @@ export function isMacPlatform(): boolean {
   return /mac/i.test(navigator.userAgent)
 }
 
+export function isWindowsPlatform(): boolean {
+  return typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent)
+}
+
 export function hasPrimaryModifier(event: PrimaryModifierEvent, mac = isMacPlatform()): boolean {
   return mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey
 }
