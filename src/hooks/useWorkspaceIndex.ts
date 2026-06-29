@@ -71,7 +71,7 @@ export function useWorkspaceIndex(activeDocument?: {
     const activePath = activeDocument?.path?.replace(/\\/gu, '/') ?? null
     if (!activePath || !root || !isPathWithinRoot(activePath, root)) return baseSnapshot
 
-    const nextDocument = buildWorkspaceIndexDocument(activePath, activeDocument?.content ?? '')
+    const nextDocument = buildWorkspaceIndexDocument(activePath, activeDocument?.content ?? '', root)
     const nextDocuments: WorkspaceIndexDocument[] = [
       ...baseSnapshot.documents.filter((document) => document.path !== activePath),
       nextDocument,

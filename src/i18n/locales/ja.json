@@ -86,6 +86,48 @@
     "alignRight": "右揃え",
     "alignDefault": "列の整列をクリア"
   },
+  "frontMatter": {
+    "edit": "YAML Front Matter を編集"
+  },
+  "okf": {
+    "panelTitle": "OKF ワークスペース",
+    "modeLabel": "OKF ワークスペースモード",
+    "mode": { "auto": "自動", "enabled": "有効", "disabled": "無効" },
+    "source": {
+      "declaration": "ルートの index.md により有効",
+      "manual": "手動で有効化",
+      "disabled": "このワークスペースでは無効",
+      "none": "OKF 宣言が見つかりません"
+    },
+    "statusTitle": "{{source}} · エラー {{errors}} 件 · 提案 {{suggestions}} 件",
+    "summary": "エラー {{errors}} 件 · 提案 {{suggestions}} 件",
+    "issueCount": "OKF の問題 {{count}} 件",
+    "disabledHint": "宣言のない OKF bundle を検証するには「有効」を選択してください。",
+    "noIssues": "OKF の問題は見つかりませんでした。",
+    "issue": {
+      "unsupported-version": "未認識のバージョンです。v0.1 の規則で可能な範囲を検証します。",
+      "frontmatter-absent": "概念ドキュメントには YAML Front Matter が必要です。",
+      "frontmatter-unclosed": "YAML Front Matter が閉じられていません。",
+      "frontmatter-empty": "概念ドキュメントの Front Matter は空にできません。",
+      "frontmatter-invalid": "概念ドキュメントの Front Matter は有効な YAML mapping である必要があります。",
+      "frontmatter-closing-marker": "OKF Front Matter は --- で閉じる必要があります。",
+      "type-required": "type は空でない文字列である必要があります。",
+      "title-recommended": "title の指定を推奨します。",
+      "description-recommended": "description の指定を推奨します。",
+      "timestamp-recommended": "timestamp の指定を推奨します。",
+      "description-format": "description は1行の文字列である必要があります。",
+      "resource-format": "resource は絶対 URI である必要があります。",
+      "tags-format": "tags は文字列の配列である必要があります。",
+      "timestamp-format": "timestamp は ISO 8601 日時である必要があります。",
+      "nested-index-frontmatter": "Front Matter を含められるのはルートの index.md だけです。",
+      "index-frontmatter-invalid": "index.md の Front Matter は有効な YAML mapping である必要があります。",
+      "index-heading-level": "索引グループにはレベル2の見出しを使用してください。",
+      "index-link-list": "索引のドキュメントリンクは Markdown リスト項目にしてください。",
+      "log-frontmatter": "log.md に Front Matter は使用できません。",
+      "log-date-heading": "ログ項目には ## YYYY-MM-DD 見出しを使用してください。",
+      "log-date-order": "ログの日付は降順に並べてください。"
+    }
+  },
   "layout": {
     "sidebarResizeHandle": "サイドバーのサイズ変更ハンドル",
     "splitResizeHandle": "エディターとプレビューのサイズ変更ハンドル",
@@ -941,6 +983,8 @@
     "externalImageLoadErrorMessage": "プレビューで {{host}} の画像を読み込めませんでした。",
     "openExternalErrorTitle": "外部リンクを開けませんでした",
     "openExternalErrorMessage": "{{target}} をシステム既定のアプリで開けませんでした。",
+    "workspaceLinkUnavailableTitle": "ワークスペースリンクを開けません",
+    "workspaceLinkUnavailableMessage": "{{target}} をこのワークスペース内で解決できませんでした。",
     "externalFileReloadedTitle": "ファイルを再読み込みしました",
     "externalFileReloadedMessage": "「{{name}}」がディスク上で変更されたため再読み込みしました。",
     "externalFileMergedTitle": "マージ結果をエディターに保持しました",

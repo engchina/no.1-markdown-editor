@@ -7,7 +7,8 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeStringify from 'rehype-stringify'
 import rehypeKatex from 'rehype-katex'
-import { finalizeRenderedMarkdownHtml, normalizeSelfClosingRawHtmlBlocks, sanitizeSchema, stripFrontMatter } from './markdownShared.ts'
+import { finalizeRenderedMarkdownHtml, normalizeSelfClosingRawHtmlBlocks, sanitizeSchema } from './markdownShared.ts'
+import { parseFrontMatter } from './frontMatter.ts'
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
 import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
 import { rehypeNormalizeImageSources } from './rehypeNormalizeImageSources.ts'
@@ -65,12 +66,13 @@ export async function renderMarkdownWithMathAndHtml(
   markdown: string,
   syntaxHighlightEngine: MarkdownSyntaxHighlightEngine = 'highlightjs'
 ): Promise<string> {
-  const { meta, body, bodyLineOffset } = stripFrontMatter(markdown)
+  const frontMatter = parseFrontMatter(markdown)
+  const { body, bodyLineOffset } = frontMatter
   const normalizedBody = normalizeSelfClosingRawHtmlBlocks(body)
   const processor = await getProcessorWithMathAndHtml(syntaxHighlightEngine)
   const rendered = await processor.process({
     value: normalizedBody,
     data: { markdownSource: normalizedBody, sourceLineOffset: bodyLineOffset },
   })
-  return finalizeRenderedMarkdownHtml(meta, String(rendered))
+  return finalizeRenderedMarkdownHtml(frontMatter, String(rendered))
 }

@@ -18,6 +18,11 @@ import {
   type DetectedEditorLink,
 } from '../../lib/editorLinkAtPosition.ts'
 import { openWebUrlInNewBrowserTab } from '../../lib/browser/openLinkInBrowserTab.ts'
+import { getWorkspaceIndexSnapshot } from '../../lib/workspaceIndex/index.ts'
+import { buildWorkspaceIndexDocument } from '../../lib/workspaceIndex/analysis.ts'
+import { isExternalWorkspaceLink } from '../../lib/workspaceLinks.ts'
+import { useEditorStore } from '../../store/editor.ts'
+import { useFileTreeStore } from '../../store/fileTree.ts'
 
 const isTauriEnv = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -101,11 +106,37 @@ function resolveLinkFromEvent(event: MouseEvent, view: EditorView): DetectedEdit
 }
 
 async function openEditorLink(link: DetectedEditorLink): Promise<void> {
-  if (openWebUrlInNewBrowserTab(link.url) !== null) {
-    return
-  }
-
   try {
+    if (!isExternalWorkspaceLink(link.url)) {
+      const activeTab = useEditorStore.getState().tabs.find(
+        (tab) => tab.id === useEditorStore.getState().activeTabId
+      )
+      const rootPath = useFileTreeStore.getState().rootPath
+      if (activeTab?.path && rootPath) {
+        const baseSnapshot = await getWorkspaceIndexSnapshot(rootPath)
+        const activeDocument = buildWorkspaceIndexDocument(activeTab.path, activeTab.content, rootPath)
+        const snapshot = {
+          ...baseSnapshot,
+          documents: [
+            ...baseSnapshot.documents.filter((document) => document.path !== activeTab.path),
+            activeDocument,
+          ],
+        }
+        const { openWorkspaceDocumentHref } = await import('../../lib/workspaceNavigation.ts')
+        await openWorkspaceDocumentHref({
+          href: link.url,
+          rootPath,
+          documentPath: activeTab.path,
+          snapshot,
+        })
+        return
+      }
+    }
+
+    if (openWebUrlInNewBrowserTab(link.url) !== null) {
+      return
+    }
+
     if (isTauriEnv) {
       const { openUrl } = await import('@tauri-apps/plugin-opener')
       await openUrl(link.url)

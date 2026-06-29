@@ -2,8 +2,15 @@ import { defaultSchema } from 'rehype-sanitize'
 import type { Schema } from 'hast-util-sanitize'
 import { containsLikelyMath } from './markdownMath.ts'
 import { rewriteRenderedHtmlImageSources } from './renderedImageSources.ts'
+import {
+  formatFrontMatterValue,
+  parseFrontMatter,
+  type FrontMatterMap,
+  type FrontMatterParseResult,
+  type FrontMatterValue,
+} from './frontMatter.ts'
 
-export type FrontMatterMeta = Record<string, string>
+export type FrontMatterMeta = FrontMatterMap
 type PropertyDefinition = NonNullable<NonNullable<Schema['attributes']>[string]>[number]
 
 function unique<T>(values: readonly T[]): T[] {
@@ -116,37 +123,34 @@ export function stripFrontMatter(markdown: string): {
   // markers always reference full-document line numbers.
   bodyLineOffset: number
 } {
-  const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
-  if (!match) return { meta: {}, body: markdown, bodyLineOffset: 0 }
-
-  const meta: FrontMatterMeta = {}
-  for (const line of match[1].split(/\r?\n/)) {
-    const dividerIndex = line.indexOf(':')
-    if (dividerIndex <= 0) continue
-
-    const key = line.slice(0, dividerIndex).trim()
-    const value = line.slice(dividerIndex + 1).trim().replace(/^['"]|['"]$/g, '')
-    if (key) meta[key] = value
-  }
-
-  const body = markdown.slice(match[0].length).replace(/^\r?\n/, '')
-  const strippedPrefix = markdown.slice(0, markdown.length - body.length)
-  const bodyLineOffset = strippedPrefix.match(/\n/g)?.length ?? 0
-
-  return { meta, body, bodyLineOffset }
+  const result = parseFrontMatter(markdown)
+  return { meta: result.data, body: result.body, bodyLineOffset: result.bodyLineOffset }
 }
 
-export function buildFrontMatterHtml(meta: FrontMatterMeta): string {
-  if (Object.keys(meta).length === 0) return ''
+export function buildFrontMatterHtml(input: FrontMatterMeta | FrontMatterParseResult): string {
+  const result = isFrontMatterParseResult(input) ? input : null
+  const meta = result?.data ?? input as FrontMatterMeta
+  if (result?.status === 'absent' || result?.status === 'unclosed') return ''
+
+  if (result?.status === 'invalid') {
+    const error = result.diagnostics[0]?.message ?? 'Invalid YAML'
+    return `<div class="front-matter front-matter--invalid" data-front-matter-status="invalid"><div class="front-matter__label">YAML</div><pre title="${escapeHtml(error)}"><code>${escapeHtml(result.yaml ?? '')}</code></pre></div>`
+  }
+
+  if (Object.keys(meta).length === 0) {
+    return result?.status === 'empty'
+      ? '<div class="front-matter front-matter--empty" data-front-matter-status="empty"><div class="front-matter__label">YAML</div></div>'
+      : ''
+  }
 
   const rows = Object.entries(meta)
     .map(
       ([key, value]) =>
-        `<tr><td class="fm-key">${escapeHtml(key)}</td><td class="fm-val">${escapeHtml(value)}</td></tr>`
+        `<tr><td class="fm-key">${escapeHtml(key)}</td><td class="fm-val">${buildFrontMatterValueHtml(key, value)}</td></tr>`
     )
     .join('')
 
-  return `<div class="front-matter"><table>${rows}</table></div>`
+  return `<div class="front-matter" data-front-matter-status="valid"><table>${rows}</table></div>`
 }
 
 export { containsLikelyMath }
@@ -183,8 +187,46 @@ export function normalizeSelfClosingRawHtmlBlocks(markdown: string): string {
   return parts.join('')
 }
 
-export function finalizeRenderedMarkdownHtml(meta: FrontMatterMeta, bodyHtml: string): string {
-  return buildFrontMatterHtml(meta) + rewriteRenderedHtmlImageSources(bodyHtml, { frontMatter: meta })
+export function finalizeRenderedMarkdownHtml(
+  frontMatter: FrontMatterMeta | FrontMatterParseResult,
+  bodyHtml: string
+): string {
+  const meta = isFrontMatterParseResult(frontMatter) ? frontMatter.data : frontMatter
+  return buildFrontMatterHtml(frontMatter) + rewriteRenderedHtmlImageSources(bodyHtml, { frontMatter: meta })
+}
+
+function buildFrontMatterValueHtml(key: string, value: FrontMatterValue): string {
+  const normalizedKey = key.trim().toLowerCase()
+  if (normalizedKey === 'tags' && Array.isArray(value) && value.every((entry) => typeof entry === 'string')) {
+    return `<span class="fm-tags">${value.map((entry) => `<span class="fm-tag">${escapeHtml(entry as string)}</span>`).join('')}</span>`
+  }
+
+  const displayValue = formatFrontMatterValue(value)
+  if (normalizedKey === 'type' && typeof value === 'string') {
+    return `<span class="fm-type">${escapeHtml(displayValue)}</span>`
+  }
+
+  if (normalizedKey === 'resource' && isSafeFrontMatterLink(displayValue)) {
+    return `<a class="fm-resource" href="${escapeHtml(displayValue)}">${escapeHtml(displayValue)}</a>`
+  }
+
+  return typeof value === 'object' && value !== null
+    ? `<pre><code>${escapeHtml(displayValue)}</code></pre>`
+    : escapeHtml(displayValue)
+}
+
+function isSafeFrontMatterLink(value: string): boolean {
+  try {
+    return ['http:', 'https:', 'mailto:', 'tel:'].includes(new URL(value).protocol)
+  } catch {
+    return false
+  }
+}
+
+function isFrontMatterParseResult(
+  value: FrontMatterMeta | FrontMatterParseResult
+): value is FrontMatterParseResult {
+  return 'status' in value && 'body' in value && 'diagnostics' in value
 }
 
 export function buildStandaloneHtml(

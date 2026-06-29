@@ -2249,6 +2249,46 @@ a:focus-visible {
   color: var(--text-secondary);
 }
 
+.fm-type,
+.fm-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.08em 0.55em;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
+  color: var(--accent);
+  font-size: 0.92em;
+  font-weight: 600;
+}
+
+.fm-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+}
+
+.fm-resource {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.front-matter pre {
+  margin: 0.45em 0 0;
+  white-space: pre-wrap;
+}
+
+.front-matter--invalid {
+  border-color: color-mix(in srgb, var(--danger, #dc2626) 52%, var(--border));
+}
+
+.front-matter__label {
+  color: var(--text-muted);
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 /* ── Footnotes ── */
 .markdown-preview .footnotes {
   margin-top: 2em;

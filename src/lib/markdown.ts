@@ -10,8 +10,8 @@ import {
   finalizeRenderedMarkdownHtml,
   normalizeSelfClosingRawHtmlBlocks,
   sanitizeSchema,
-  stripFrontMatter,
 } from './markdownShared.ts'
+import { parseFrontMatter } from './frontMatter.ts'
 import { containsLikelyRawHtml } from './markdownHtml.ts'
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
 import { rehypeHighlightMarkers } from './rehypeHighlightMarkers.ts'
@@ -65,23 +65,25 @@ async function renderBaseMarkdown(
   markdown: string,
   syntaxHighlightEngine: MarkdownSyntaxHighlightEngine = 'highlightjs'
 ): Promise<string> {
-  const { meta, body, bodyLineOffset } = stripFrontMatter(markdown)
+  const frontMatter = parseFrontMatter(markdown)
+  const { body, bodyLineOffset } = frontMatter
   const normalizedBody = normalizeSelfClosingRawHtmlBlocks(body)
   const processor = await getProcessorWithoutMath(syntaxHighlightEngine)
   const rendered = await processor.process({
     value: normalizedBody,
     data: { markdownSource: normalizedBody, sourceLineOffset: bodyLineOffset },
   })
-  return finalizeRenderedMarkdownHtml(meta, String(rendered))
+  return finalizeRenderedMarkdownHtml(frontMatter, String(rendered))
 }
 
-export { buildStandaloneHtml, containsLikelyMath, normalizeSelfClosingRawHtmlBlocks, stripFrontMatter }
+export { buildStandaloneHtml, containsLikelyMath, normalizeSelfClosingRawHtmlBlocks, parseFrontMatter }
+export { stripFrontMatter } from './markdownShared.ts'
 
 export async function renderMarkdown(
   markdown: string,
   syntaxHighlightEngine: MarkdownSyntaxHighlightEngine = 'highlightjs'
 ): Promise<string> {
-  const { body } = stripFrontMatter(markdown)
+  const { body } = parseFrontMatter(markdown)
   const hasMath = containsLikelyMath(body)
   const hasRawHtml = containsLikelyRawHtml(body)
 

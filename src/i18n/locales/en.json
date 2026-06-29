@@ -86,6 +86,48 @@
     "alignRight": "Align column right",
     "alignDefault": "Clear column alignment"
   },
+  "frontMatter": {
+    "edit": "Edit YAML front matter"
+  },
+  "okf": {
+    "panelTitle": "OKF workspace",
+    "modeLabel": "OKF workspace mode",
+    "mode": { "auto": "Auto", "enabled": "Enabled", "disabled": "Disabled" },
+    "source": {
+      "declaration": "Enabled by root index.md",
+      "manual": "Enabled manually",
+      "disabled": "Disabled for this workspace",
+      "none": "No OKF declaration detected"
+    },
+    "statusTitle": "{{source}} · {{errors}} errors · {{suggestions}} suggestions",
+    "summary": "{{errors}} errors · {{suggestions}} suggestions",
+    "issueCount": "{{count}} OKF issues",
+    "disabledHint": "Choose Enabled to validate an undeclared OKF bundle.",
+    "noIssues": "No OKF issues found.",
+    "issue": {
+      "unsupported-version": "Unrecognized version; v0.1 rules are used as a best effort.",
+      "frontmatter-absent": "Concept documents require YAML front matter.",
+      "frontmatter-unclosed": "YAML front matter is not closed.",
+      "frontmatter-empty": "Concept front matter cannot be empty.",
+      "frontmatter-invalid": "Concept front matter must be a valid YAML mapping.",
+      "frontmatter-closing-marker": "OKF front matter must close with ---.",
+      "type-required": "type must be a non-empty string.",
+      "title-recommended": "title is recommended.",
+      "description-recommended": "description is recommended.",
+      "timestamp-recommended": "timestamp is recommended.",
+      "description-format": "description must be a single-line string.",
+      "resource-format": "resource must be an absolute URI.",
+      "tags-format": "tags must be an array of strings.",
+      "timestamp-format": "timestamp must be an ISO 8601 datetime.",
+      "nested-index-frontmatter": "Only the root index.md may contain front matter.",
+      "index-frontmatter-invalid": "index.md front matter must be a valid YAML mapping.",
+      "index-heading-level": "Index groups must use level-two headings.",
+      "index-link-list": "Index document links must be Markdown list items.",
+      "log-frontmatter": "log.md must not contain front matter.",
+      "log-date-heading": "Log entries must use ## YYYY-MM-DD headings.",
+      "log-date-order": "Log dates must be in descending order."
+    }
+  },
   "layout": {
     "sidebarResizeHandle": "Sidebar resize handle",
     "splitResizeHandle": "Editor and preview resize handle",
@@ -947,6 +989,8 @@
     "externalImageLoadErrorMessage": "The preview could not load the remote image from {{host}}.",
     "openExternalErrorTitle": "Couldn't open external link",
     "openExternalErrorMessage": "The system default app could not open {{target}}.",
+    "workspaceLinkUnavailableTitle": "Workspace link unavailable",
+    "workspaceLinkUnavailableMessage": "{{target}} could not be resolved inside this workspace.",
     "externalFileReloadedTitle": "File reloaded from disk",
     "externalFileReloadedMessage": "\"{{name}}\" changed on disk and was reloaded.",
     "externalFileMergedTitle": "Merged changes kept in the editor",

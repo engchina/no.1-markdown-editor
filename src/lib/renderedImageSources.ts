@@ -1,10 +1,11 @@
 import { resolveTyporaRootUrlAsset } from './imageRoots.ts'
+import { getFrontMatterScalar, type FrontMatterMap } from './frontMatter.ts'
 
 const IMG_TAG_PATTERN = /<img\b((?:[^>"']+|"[^"]*"|'[^']*')*?)(\s*\/?)>/gi
 const SOURCE_TAG_PATTERN = /<source\b((?:[^>"']+|"[^"]*"|'[^']*')*?)(\s*\/?)>/gi
 
 interface RewriteRenderedHtmlImageSourcesOptions {
-  frontMatter?: Record<string, string> | null
+  frontMatter?: FrontMatterMap | null
 }
 
 export function rewriteRenderedHtmlImageSources(
@@ -13,7 +14,7 @@ export function rewriteRenderedHtmlImageSources(
 ): string {
   if (!html.includes('<img') && !html.includes('<source')) return html
 
-  const rootUrl = getFrontMatterValue(options.frontMatter, 'typora-root-url')
+  const rootUrl = getFrontMatterScalar(options.frontMatter, 'typora-root-url')
   if (!rootUrl) return html
 
   const htmlWithResolvedSourceSets = html.replace(
@@ -90,17 +91,6 @@ function collectSrcSetCandidates(value: string): { source: string; descriptor: s
   }
 
   return candidates
-}
-
-function getFrontMatterValue(frontMatter: Record<string, string> | null | undefined, key: string): string {
-  if (!frontMatter) return ''
-  const normalizedKey = key.trim().toLowerCase()
-  for (const [entryKey, entryValue] of Object.entries(frontMatter)) {
-    if (entryKey.trim().toLowerCase() === normalizedKey) {
-      return entryValue
-    }
-  }
-  return ''
 }
 
 function buildImageTag(attributes: string, selfClosingSlash: string): string {

@@ -144,7 +144,7 @@ export function createWorkspaceIndexStore(runtime: WorkspaceIndexRuntime): Works
 
       entry.documentsByPath.set(
         dirtyPath,
-        buildWorkspaceIndexDocument(dirtyPath, content)
+        buildWorkspaceIndexDocument(dirtyPath, content, entry.rootPath)
       )
     }
 

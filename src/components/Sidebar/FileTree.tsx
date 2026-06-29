@@ -22,7 +22,11 @@ import {
 } from '../../lib/fileTreeNavigation'
 import { pushErrorNotice } from '../../lib/notices'
 import { useEditorStore } from '../../store/editor'
+import { getOkfWorkspaceMode, useFileTreeStore } from '../../store/fileTree'
+import { buildOkfBundleProfile, type OkfIssue, type OkfWorkspaceMode } from '../../lib/okf.ts'
+import { useWorkspaceIndex } from '../../hooks/useWorkspaceIndex.ts'
 import AppIcon from '../Icons/AppIcon'
+import { useSidebarDocumentNavigation } from './sidebarShared.tsx'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 type FileTreeActionMode = 'newFile' | 'newFolder' | 'rename' | 'delete'
@@ -44,7 +48,21 @@ export default function FileTree() {
     moveNode,
   } = useFileTree()
   const { tabs, activeTabId } = useEditorStore()
+  const okfWorkspaceModes = useFileTreeStore((state) => state.okfWorkspaceModes)
+  const setOkfWorkspaceMode = useFileTreeStore((state) => state.setOkfWorkspaceMode)
+  const { openDocumentLocation } = useSidebarDocumentNavigation()
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null
+  const { snapshot: workspaceSnapshot } = useWorkspaceIndex({
+    path: activeTab?.path ?? null,
+    content: activeTab?.content ?? '',
+  })
+  const okfMode = getOkfWorkspaceMode(okfWorkspaceModes, rootPath)
+  const okfProfile = useMemo(
+    () => buildOkfBundleProfile(workspaceSnapshot, okfMode),
+    [okfMode, workspaceSnapshot]
+  )
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [okfOpen, setOkfOpen] = useState(false)
   const [actionMode, setActionMode] = useState<FileTreeActionMode | null>(null)
   const [actionValue, setActionValue] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
@@ -54,10 +72,12 @@ export default function FileTree() {
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null)
   const [rootDropActive, setRootDropActive] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const okfPanelRef = useRef<HTMLDivElement>(null)
+  const okfButtonRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>())
   const dragExpandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const activeFilePath = tabs.find((t) => t.id === activeTabId)?.path ?? null
+  const activeFilePath = activeTab?.path ?? null
   const selectedNode = useMemo(() => findTreeNodeByPath(tree, selectedPath), [selectedPath, tree])
   const selectedPathInTree = useMemo(() => findTreePathInTree(tree, selectedPath), [selectedPath, tree])
   const visibleNodes = useMemo(() => flattenVisibleFileTree(tree), [tree])
@@ -67,6 +87,17 @@ export default function FileTree() {
     [contextMenu?.targetPath, tree]
   )
   const focusablePath = selectedPath ?? activeFilePath ?? visibleNodes[0]?.path ?? null
+  const okfIssueCounts = useMemo(() => {
+    const counts = new Map<string, { errors: number; suggestions: number }>()
+    for (const issue of okfProfile.issues) {
+      const key = normalizeFileTreePath(issue.path)
+      const current = counts.get(key) ?? { errors: 0, suggestions: 0 }
+      if (issue.severity === 'error') current.errors += 1
+      else current.suggestions += 1
+      counts.set(key, current)
+    }
+    return counts
+  }, [okfProfile.issues])
 
   useEffect(() => {
     if (selectedPath && !selectedNode) {
@@ -76,6 +107,7 @@ export default function FileTree() {
 
   useEffect(() => {
     setSelectedPath(null)
+    setOkfOpen(false)
     setActionMode(null)
     setActionError(null)
     setContextMenu(null)
@@ -83,6 +115,26 @@ export default function FileTree() {
     setDropTargetPath(null)
     setRootDropActive(false)
   }, [rootPath])
+
+  useEffect(() => {
+    if (!okfOpen) return
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node | null
+      if (target && (okfPanelRef.current?.contains(target) || okfButtonRef.current?.contains(target))) return
+      setOkfOpen(false)
+    }
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOkfOpen(false)
+      okfButtonRef.current?.focus()
+    }
+    window.addEventListener('mousedown', close, true)
+    window.addEventListener('keydown', closeWithEscape)
+    return () => {
+      window.removeEventListener('mousedown', close, true)
+      window.removeEventListener('keydown', closeWithEscape)
+    }
+  }, [okfOpen])
 
   useEffect(() => {
     if (!actionMode || actionMode === 'delete') return
@@ -355,9 +407,39 @@ export default function FileTree() {
         className="flex items-center justify-between px-3 py-1.5 flex-shrink-0"
         style={{ borderBottom: '1px solid var(--border)' }}
       >
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-          {rootPath ? rootPath.split(/[\\/]/).pop() : t('sidebar.files')}
-        </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+            {rootPath ? rootPath.split(/[\\/]/).pop() : t('sidebar.files')}
+          </span>
+          {rootPath && (
+            <button
+              ref={okfButtonRef}
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={okfOpen}
+              onClick={() => setOkfOpen((open) => !open)}
+              title={t('okf.statusTitle', {
+                source: t(`okf.source.${okfProfile.source}`),
+                errors: okfProfile.errorCount,
+                suggestions: okfProfile.suggestionCount,
+              })}
+              className="inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2"
+              style={{
+                color: okfProfile.enabled ? 'var(--accent)' : 'var(--text-muted)',
+                background: okfProfile.enabled
+                  ? 'color-mix(in srgb, var(--accent) 12%, var(--bg-primary))'
+                  : 'var(--bg-tertiary)',
+              }}
+            >
+              <span>{okfProfile.enabled ? `OKF ${okfProfile.version ?? '0.1'}` : 'OKF'}</span>
+              {okfProfile.enabled && okfProfile.issues.length > 0 && (
+                <span aria-label={t('okf.issueCount', { count: okfProfile.issues.length })}>
+                  {okfProfile.issues.length}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => { void openFolder() }}
@@ -368,6 +450,75 @@ export default function FileTree() {
           {t('sidebar.openFolder')}
         </button>
       </div>
+
+      {okfOpen && rootPath && (
+        <div
+          ref={okfPanelRef}
+          role="dialog"
+          aria-label={t('okf.panelTitle')}
+          className="absolute left-2 right-2 top-9 z-50 overflow-hidden rounded-lg border shadow-xl"
+          style={{ background: 'var(--bg-primary)', borderColor: 'var(--border)' }}
+        >
+          <div className="border-b px-3 py-2" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{t('okf.panelTitle')}</p>
+                <p className="mt-0.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {t(`okf.source.${okfProfile.source}`)}
+                </p>
+              </div>
+              {okfProfile.enabled && (
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {t('okf.summary', { errors: okfProfile.errorCount, suggestions: okfProfile.suggestionCount })}
+                </span>
+              )}
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-1" role="radiogroup" aria-label={t('okf.modeLabel')}>
+              {(['auto', 'enabled', 'disabled'] as OkfWorkspaceMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={okfMode === mode}
+                  onClick={() => setOkfWorkspaceMode(rootPath, mode)}
+                  className="rounded px-2 py-1 text-[10px] font-medium focus-visible:outline-none focus-visible:ring-2"
+                  style={{
+                    color: okfMode === mode ? 'var(--accent)' : 'var(--text-secondary)',
+                    background: okfMode === mode
+                      ? 'color-mix(in srgb, var(--accent) 13%, var(--bg-secondary))'
+                      : 'var(--bg-secondary)',
+                  }}
+                >
+                  {t(`okf.mode.${mode}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="max-h-72 overflow-y-auto p-2">
+            {!okfProfile.enabled && (
+              <p className="px-1 py-3 text-center text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                {t('okf.disabledHint')}
+              </p>
+            )}
+            {okfProfile.enabled && okfProfile.issues.length === 0 && (
+              <p className="px-1 py-3 text-center text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                {t('okf.noIssues')}
+              </p>
+            )}
+            {okfProfile.enabled && okfProfile.issues.map((issue) => (
+              <OkfIssueButton
+                key={`${issue.path}:${issue.line}:${issue.code}`}
+                issue={issue}
+                label={t(`okf.issue.${issue.code}`, { defaultValue: issue.message })}
+                onClick={() => {
+                  setOkfOpen(false)
+                  void openDocumentLocation(issue.path, issue.line, 1)
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div
         className="flex items-center gap-1 px-2 py-2"
@@ -492,6 +643,7 @@ export default function FileTree() {
               setRootDropActive(false)
             }}
             dragExpandTimerRef={dragExpandTimerRef}
+            okfIssueCounts={okfIssueCounts}
           />
         ))}
       </div>
@@ -557,6 +709,43 @@ export default function FileTree() {
   )
 }
 
+function OkfIssueButton({
+  issue,
+  label,
+  onClick,
+}: {
+  issue: OkfIssue
+  label: string
+  onClick: () => void
+}) {
+  const isError = issue.severity === 'error'
+  const fileName = issue.path.split(/[\\/]/u).pop() ?? issue.path
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mb-1 flex w-full gap-2 rounded-md px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2"
+      style={{ background: 'var(--bg-secondary)' }}
+    >
+      <span
+        className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full"
+        style={{ background: isError ? 'var(--danger, #ef4444)' : 'var(--warning, #d97706)' }}
+      />
+      <span className="min-w-0">
+        <span className="block truncate text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+          {fileName}:{issue.line}
+        </span>
+        <span className="block text-[10px] leading-4" style={{ color: 'var(--text-muted)' }}>{label}</span>
+      </span>
+    </button>
+  )
+}
+
+function normalizeFileTreePath(path: string): string {
+  const normalized = path.replace(/\\/gu, '/').replace(/\/+$/u, '')
+  return /^[A-Za-z]:\//u.test(normalized) ? normalized.toLowerCase() : normalized
+}
+
 function FileTreeActionButton({
   icon,
   label,
@@ -609,6 +798,7 @@ interface TreeNodeProps {
   onMoveToDirectory: (targetDirectoryPath: string) => Promise<void>
   onDropTargetChange: (path: string | null) => void
   dragExpandTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>
+  okfIssueCounts: Map<string, { errors: number; suggestions: number }>
 }
 
 function TreeNode({
@@ -631,6 +821,7 @@ function TreeNode({
   onMoveToDirectory,
   onDropTargetChange,
   dragExpandTimerRef,
+  okfIssueCounts,
 }: TreeNodeProps) {
   const { t } = useTranslation()
   const isActive = node.type === 'file' && node.path === activeFilePath
@@ -638,6 +829,8 @@ function TreeNode({
   const isDragged = node.path === draggedPath
   const isDropTarget = node.path === dropTargetPath
   const indentPx = 12 + depth * 14
+  const okfCounts = okfIssueCounts.get(normalizeFileTreePath(node.path))
+  const okfCount = okfCounts ? okfCounts.errors + okfCounts.suggestions : 0
 
   return (
     <>
@@ -759,11 +952,24 @@ function TreeNode({
           />
         </span>
         <span
-          className="text-xs truncate"
+          className="min-w-0 flex-1 truncate text-xs"
           style={{ fontWeight: node.type === 'dir' ? 500 : 400 }}
         >
           {node.name}
         </span>
+        {node.type === 'file' && okfCount > 0 && (
+          <span
+            className="ml-auto rounded-full px-1.5 text-[9px] font-semibold"
+            style={{
+              color: okfCounts?.errors ? 'var(--danger, #ef4444)' : 'var(--warning, #d97706)',
+              background: okfCounts?.errors
+                ? 'color-mix(in srgb, var(--danger, #ef4444) 12%, transparent)'
+                : 'color-mix(in srgb, var(--warning, #d97706) 12%, transparent)',
+            }}
+          >
+            {okfCount}
+          </span>
+        )}
       </button>
 
       {/* Children */}
@@ -799,6 +1005,7 @@ function TreeNode({
               onMoveToDirectory={onMoveToDirectory}
               onDropTargetChange={onDropTargetChange}
               dragExpandTimerRef={dragExpandTimerRef}
+              okfIssueCounts={okfIssueCounts}
             />
           ))}
         </>

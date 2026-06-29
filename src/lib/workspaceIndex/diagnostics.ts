@@ -1,12 +1,10 @@
 import type { OutlineHeading } from '../outline.ts'
+import { getFrontMatterValue, type FrontMatterParseResult } from '../frontMatter.ts'
 import type {
   WorkspaceIndexAsset,
   WorkspaceIndexDiagnostic,
-  WorkspaceIndexFrontMatterSummary,
 } from './types.ts'
 
-const FRONT_MATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u
-const UNCLOSED_FRONT_MATTER_PATTERN = /^---\r?\n[\s\S]*$/u
 const FOOTNOTE_REFERENCE_PATTERN = /\[\^([^\]\r\n]+)\]/gu
 const FOOTNOTE_DEFINITION_PATTERN = /^[ \t]{0,3}\[\^([^\]\r\n]+)\]:/u
 
@@ -14,15 +12,15 @@ export function buildWorkspaceDiagnostics(
   content: string,
   headings: OutlineHeading[],
   assets: WorkspaceIndexAsset[],
-  frontMatter: WorkspaceIndexFrontMatterSummary | null
+  frontMatter: FrontMatterParseResult
 ): WorkspaceIndexDiagnostic[] {
   const diagnostics: WorkspaceIndexDiagnostic[] = []
 
   diagnostics.push(...buildWorkspaceHeadingDiagnostics(headings))
   diagnostics.push(...buildWorkspaceAssetDiagnostics(assets))
   diagnostics.push(...buildWorkspaceFootnoteDiagnostics(content))
-  diagnostics.push(...buildWorkspaceFrontMatterDiagnostics(content, frontMatter))
-  diagnostics.push(...buildWorkspacePublishDiagnostics(content, headings, assets, frontMatter))
+  diagnostics.push(...buildWorkspaceFrontMatterDiagnostics(frontMatter))
+  diagnostics.push(...buildWorkspacePublishDiagnostics(headings, assets, frontMatter))
 
   return diagnostics
 }
@@ -145,77 +143,59 @@ function buildWorkspaceFootnoteDiagnostics(content: string): WorkspaceIndexDiagn
 }
 
 function buildWorkspaceFrontMatterDiagnostics(
-  content: string,
-  frontMatter: WorkspaceIndexFrontMatterSummary | null
+  frontMatter: FrontMatterParseResult
 ): WorkspaceIndexDiagnostic[] {
-  const diagnostics: WorkspaceIndexDiagnostic[] = []
-
-  if (content.startsWith('---') && !FRONT_MATTER_PATTERN.test(content) && UNCLOSED_FRONT_MATTER_PATTERN.test(content)) {
-    diagnostics.push({
+  if (frontMatter.status === 'unclosed') {
+    return [{
       kind: 'frontmatter-warning',
       message: 'Front matter block is not closed.',
       line: 1,
       detail: 'frontmatter-unclosed',
-    })
-    return diagnostics
+    }]
   }
 
-  if (!frontMatter) return diagnostics
-
-  if (frontMatter.raw.trim().length === 0) {
-    diagnostics.push({
+  if (frontMatter.status === 'empty') {
+    return [{
       kind: 'frontmatter-warning',
       message: 'Front matter block is empty.',
       line: 1,
       detail: 'frontmatter-empty',
-    })
+    }]
   }
 
-  const match = content.match(FRONT_MATTER_PATTERN)
-  if (!match?.[1]) return diagnostics
-
-  const seenKeys = new Map<string, number>()
-  const frontMatterLines = match[1].split(/\r?\n/u)
-  for (let index = 0; index < frontMatterLines.length; index += 1) {
-    const line = frontMatterLines[index]
-    const keyMatch = /^\s*([A-Za-z0-9_-]+)\s*:/u.exec(line)
-    const key = keyMatch?.[1]
-    if (!key) continue
-
-    const normalizedKey = key.toLowerCase()
-    const lineNumber = index + 2
-    const firstLine = seenKeys.get(normalizedKey)
-    if (firstLine !== undefined) {
-      diagnostics.push({
+  if (frontMatter.status !== 'invalid') return []
+  return frontMatter.diagnostics.map((diagnostic) => {
+    const duplicate = diagnostic.code === 'DUPLICATE_KEY'
+    const nonMapping = diagnostic.code === 'frontmatter-non-mapping-root'
+    return {
         kind: 'frontmatter-warning',
-        message: `Front matter key "${key}" is duplicated; it first appears on line ${firstLine}.`,
-        line: lineNumber,
-        subject: key,
-        relatedLine: firstLine,
-        detail: 'frontmatter-duplicate-key',
-      })
-      continue
-    }
-
-    seenKeys.set(normalizedKey, lineNumber)
-  }
-
-  return diagnostics
+        message: diagnostic.message,
+        line: diagnostic.line,
+        detail: duplicate
+          ? 'frontmatter-duplicate-key'
+          : nonMapping
+            ? 'frontmatter-non-mapping-root'
+            : 'frontmatter-invalid-yaml',
+      } satisfies WorkspaceIndexDiagnostic
+  })
 }
 
 function buildWorkspacePublishDiagnostics(
-  content: string,
   headings: OutlineHeading[],
   assets: WorkspaceIndexAsset[],
-  frontMatter: WorkspaceIndexFrontMatterSummary | null
+  frontMatter: FrontMatterParseResult
 ): WorkspaceIndexDiagnostic[] {
   const diagnostics: WorkspaceIndexDiagnostic[] = []
-  if (content.startsWith('---') && !frontMatter && UNCLOSED_FRONT_MATTER_PATTERN.test(content)) {
-    return diagnostics
-  }
+  if (frontMatter.status === 'unclosed') return diagnostics
 
   const firstH1 = headings.find((heading) => heading.level === 1) ?? null
-  const frontMatterTitle = frontMatter ? extractFrontMatterScalarValue(frontMatter.raw, 'title') : null
+  const titleValue = getFrontMatterValue(frontMatter.data, 'title')
+  const rawTitle = typeof titleValue === 'string'
+    ? titleValue
+    : findFrontMatterScalar(frontMatter.yaml, 'title')
+  const frontMatterTitle = rawTitle?.trim()
+    ? { value: rawTitle.trim(), line: findFrontMatterKeyLine(frontMatter.yaml, 'title') }
+    : null
 
   if (!firstH1 && !frontMatterTitle) {
     diagnostics.push({
@@ -257,12 +237,10 @@ function buildWorkspacePublishDiagnostics(
   return diagnostics
 }
 
-function extractFrontMatterScalarValue(
-  raw: string,
-  key: string
-): { value: string; line: number } | null {
+function findFrontMatterKeyLine(raw: string | null, key: string): number {
+  if (!raw) return 1
   const normalizedKey = key.trim().toLowerCase()
-  if (!normalizedKey) return null
+  if (!normalizedKey) return 1
 
   const lines = raw.split(/\r?\n/u)
   for (let index = 0; index < lines.length; index += 1) {
@@ -273,15 +251,20 @@ function extractFrontMatterScalarValue(
     const candidateKey = match[1]?.trim().toLowerCase()
     if (!candidateKey || candidateKey !== normalizedKey) continue
 
-    const value = normalizeFrontMatterScalar(match[2] ?? '')
-    if (!value) continue
-
-    return {
-      value,
-      line: index + 2,
-    }
+    return index + 2
   }
 
+  return 1
+}
+
+function findFrontMatterScalar(raw: string | null, key: string): string | null {
+  if (!raw) return null
+  const normalizedKey = key.trim().toLowerCase()
+  for (const line of raw.split(/\r?\n/u)) {
+    const match = /^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/u.exec(line)
+    if (match?.[1]?.trim().toLowerCase() !== normalizedKey) continue
+    return match[2] ?? null
+  }
   return null
 }
 

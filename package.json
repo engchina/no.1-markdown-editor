@@ -1,6 +1,6 @@
 {
   "name": "no1-markdown-editor",
-  "version": "0.27.1",
+  "version": "0.27.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -64,6 +64,7 @@
     "remark-rehype": "^11",
     "shiki": "^4.0.2",
     "unified": "^11",
+    "yaml": "^2.9.0",
     "zustand": "^4"
   },
   "devDependencies": {

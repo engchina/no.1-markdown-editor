@@ -9,9 +9,9 @@ import type {
   AISelectedTextRole,
 } from './types.ts'
 import { normalizeAISlashCommandContext } from './slashCommands.ts'
+import { parseFrontMatter } from '../frontMatter.ts'
 
 const DEFAULT_CONTEXT_WINDOW_CHARS = 400
-const FRONT_MATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u
 
 export interface AIBuildContextOptions {
   tabId: string
@@ -174,8 +174,8 @@ function applyAIComposerContextAdditions(
 }
 
 export function extractFrontMatter(content: string): string | null {
-  const match = content.match(FRONT_MATTER_PATTERN)
-  return match?.[1]?.trim() ? match[0].trim() : null
+  const result = parseFrontMatter(content)
+  return result.yaml?.trim() ? result.raw : null
 }
 
 export function resolveHeadingPath(content: string, offset: number): string[] {

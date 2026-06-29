@@ -32,8 +32,12 @@ import { wasDynamicImportRecoveryTriggered } from '../../lib/vitePreloadRecovery
 import { resolveActiveHeadingId, updateVisibleHeadingIds } from '../../lib/previewScrollSpy'
 import { openWebUrlInNewBrowserTab } from '../../lib/browser/openLinkInBrowserTab'
 import { useMarkdown } from '../../hooks/useMarkdown'
+import { useWorkspaceIndex } from '../../hooks/useWorkspaceIndex'
 import { useActiveTab, useEditorStore } from '../../store/editor'
+import { useFileTreeStore } from '../../store/fileTree'
 import { useScrollSyncStore } from '../../store/scrollSync'
+import { openWorkspaceDocumentHref } from '../../lib/workspaceNavigation.ts'
+import { isExternalWorkspaceLink } from '../../lib/workspaceLinks.ts'
 
 const MERMAID_AUTO_RENDER_DELAY_MS = 650
 const MERMAID_AUTO_RENDER_ROOT_MARGIN = '240px 0px'
@@ -41,12 +45,16 @@ const MERMAID_AUTO_RENDER_ROOT_MARGIN = '240px 0px'
 export default function MarkdownPreview() {
   const { t, i18n } = useTranslation()
   const activeTab = useActiveTab()
+  const rootPath = useFileTreeStore((state) => state.rootPath)
   const activeThemeId = useEditorStore((state) => state.activeThemeId)
   const fontSize = useEditorStore((state) => state.fontSize)
   const previewLineBreakMode = useEditorStore((state) => state.previewLineBreakMode)
   const previewAutoRenderMermaid = useEditorStore((state) => state.previewAutoRenderMermaid)
   const content = activeTab?.content ?? ''
   const documentPath = activeTab?.path ?? null
+  const { snapshot: workspaceSnapshot } = useWorkspaceIndex({ path: documentPath, content })
+  const pendingNavigation = useEditorStore((state) => state.pendingNavigation)
+  const setPendingNavigation = useEditorStore((state) => state.setPendingNavigation)
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
   const deferredContent = useDeferredValue(content)
   const html = useMarkdown(deferredContent)
@@ -212,6 +220,35 @@ export default function MarkdownPreview() {
     },
     [previewLocationHref]
   )
+
+  const navigateWorkspaceDocumentAnchor = useCallback(
+    (anchor: HTMLAnchorElement) => {
+      const href = anchor.getAttribute('href')?.trim() ?? ''
+      if (!href || href.startsWith('#') || isExternalWorkspaceLink(href)) return false
+      if (!rootPath || !documentPath || !workspaceSnapshot) return false
+
+      void openWorkspaceDocumentHref({
+        href,
+        rootPath,
+        documentPath,
+        snapshot: workspaceSnapshot,
+      })
+      return true
+    },
+    [documentPath, rootPath, workspaceSnapshot]
+  )
+
+  useEffect(() => {
+    if (!pendingNavigation || pendingNavigation.tabId !== activeTab?.id) return
+    const preview = previewRef.current
+    if (!preview) return
+    const target = preview.querySelector<HTMLElement>(`[data-source-line="${pendingNavigation.line}"]`)
+    if (!target) return
+
+    scrollPreviewToTarget(preview, target)
+    flashPreviewTarget(target)
+    setPendingNavigation(null)
+  }, [activeTab?.id, pendingNavigation, previewHtml, setPendingNavigation])
 
   const activateExternalImage = (image: HTMLImageElement) => {
     const externalSource = image.dataset.externalSrc
@@ -557,6 +594,12 @@ export default function MarkdownPreview() {
           event.stopPropagation()
           return
         }
+
+        if (navigateWorkspaceDocumentAnchor(anchor)) {
+          event.preventDefault()
+          event.stopPropagation()
+          return
+        }
       }
 
       const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>('[data-mermaid-action="render"]')
@@ -576,7 +619,7 @@ export default function MarkdownPreview() {
 
     preview.addEventListener('click', onClick)
     return () => preview.removeEventListener('click', onClick)
-  }, [navigateInternalPreviewAnchor, openExternalPreviewLink, previewLocationHref])
+  }, [navigateInternalPreviewAnchor, navigateWorkspaceDocumentAnchor, openExternalPreviewLink, previewLocationHref])
 
   useEffect(() => {
     if (!isTauri) return
@@ -674,15 +717,14 @@ export default function MarkdownPreview() {
         return
       }
 
-      if (!navigateInternalPreviewAnchor(anchor)) return
-
+      if (!navigateInternalPreviewAnchor(anchor) && !navigateWorkspaceDocumentAnchor(anchor)) return
       event.preventDefault()
       event.stopPropagation()
     }
 
     preview.addEventListener('keydown', onKeyDown)
     return () => preview.removeEventListener('keydown', onKeyDown)
-  }, [navigateInternalPreviewAnchor, openExternalPreviewLink, previewLocationHref])
+  }, [navigateInternalPreviewAnchor, navigateWorkspaceDocumentAnchor, openExternalPreviewLink, previewLocationHref])
 
   useEffect(() => {
     const preview = previewRef.current

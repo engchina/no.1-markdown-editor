@@ -86,6 +86,48 @@
     "alignRight": "列右对齐",
     "alignDefault": "清除列对齐"
   },
+  "frontMatter": {
+    "edit": "编辑 YAML Front Matter"
+  },
+  "okf": {
+    "panelTitle": "OKF 工作区",
+    "modeLabel": "OKF 工作区模式",
+    "mode": { "auto": "自动", "enabled": "启用", "disabled": "禁用" },
+    "source": {
+      "declaration": "由根目录 index.md 启用",
+      "manual": "已手动启用",
+      "disabled": "此工作区已禁用",
+      "none": "未检测到 OKF 声明"
+    },
+    "statusTitle": "{{source}} · {{errors}} 个错误 · {{suggestions}} 个建议",
+    "summary": "{{errors}} 个错误 · {{suggestions}} 个建议",
+    "issueCount": "{{count}} 个 OKF 问题",
+    "disabledHint": "可选择“启用”来校验未声明版本的 OKF bundle。",
+    "noIssues": "未发现 OKF 问题。",
+    "issue": {
+      "unsupported-version": "版本无法识别，当前按 v0.1 规则尽力校验。",
+      "frontmatter-absent": "概念文档必须包含 YAML Front Matter。",
+      "frontmatter-unclosed": "YAML Front Matter 没有闭合。",
+      "frontmatter-empty": "概念文档的 Front Matter 不能为空。",
+      "frontmatter-invalid": "概念文档的 Front Matter 必须是合法的 YAML mapping。",
+      "frontmatter-closing-marker": "OKF Front Matter 必须使用 --- 闭合。",
+      "type-required": "type 必须是非空字符串。",
+      "title-recommended": "建议提供 title。",
+      "description-recommended": "建议提供 description。",
+      "timestamp-recommended": "建议提供 timestamp。",
+      "description-format": "description 必须是单行字符串。",
+      "resource-format": "resource 必须是绝对 URI。",
+      "tags-format": "tags 必须是字符串数组。",
+      "timestamp-format": "timestamp 必须是 ISO 8601 日期时间。",
+      "nested-index-frontmatter": "只有根目录 index.md 可以包含 Front Matter。",
+      "index-frontmatter-invalid": "index.md 的 Front Matter 必须是合法的 YAML mapping。",
+      "index-heading-level": "索引分组必须使用二级标题。",
+      "index-link-list": "索引中的文档链接必须使用 Markdown 列表项。",
+      "log-frontmatter": "log.md 不能包含 Front Matter。",
+      "log-date-heading": "日志条目必须使用 ## YYYY-MM-DD 标题。",
+      "log-date-order": "日志日期必须按倒序排列。"
+    }
+  },
   "layout": {
     "sidebarResizeHandle": "侧边栏宽度调节滑块",
     "splitResizeHandle": "编辑区和预览区宽度调节滑块",
@@ -941,6 +983,8 @@
     "externalImageLoadErrorMessage": "预览无法加载来自 {{host}} 的远程图片。",
     "openExternalErrorTitle": "无法打开外部链接",
     "openExternalErrorMessage": "系统默认应用无法打开「{{target}}」。",
+    "workspaceLinkUnavailableTitle": "工作区链接不可用",
+    "workspaceLinkUnavailableMessage": "无法在当前工作区内解析「{{target}}」。",
     "externalFileReloadedTitle": "已从磁盘重新加载文件",
     "externalFileReloadedMessage": "「{{name}}」在磁盘上发生变化，已重新加载。",
     "externalFileMergedTitle": "合并结果已保留在编辑器中",

@@ -20,6 +20,24 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.2 - 2026-06-29
+
+### Added
+
+- YAML Front Matter now supports lossless editing, nested values, arrays, multiline values, CRLF files, validation diagnostics, and compact metadata cards shared by Preview and WYSIWYG mode.
+- Workspaces can opt into OKF v0.1 validation with automatic root `index.md` detection, a compact status popover, per-file issue counts, and direct issue navigation.
+- Internal Markdown links now resolve consistently from the workspace root or current document, including directory indexes and cross-document heading anchors.
+
+### Changed
+
+- Front Matter parsing is shared by rendering, AI context, outline, image paths, workspace indexing, and navigation without rewriting unknown YAML fields during save.
+
+### Fixed
+
+### Internal
+
+- Added regression coverage for YAML parsing, OKF validation, workspace links, WYSIWYG metadata switching, localization, and OKF UI wiring.
+
 ## 0.27.1 - 2026-06-25
 
 ### Fixed
