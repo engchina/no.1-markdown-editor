@@ -192,6 +192,7 @@ fn encode_bmp(image: image::RgbaImage) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+#[cfg(not(target_os = "linux"))]
 fn list_monitors() -> Result<Vec<MonitorCapture>, String> {
     let monitors = xcap::Monitor::all().map_err(|error| format!("capture_failed:{error}"))?;
     if monitors.is_empty() {
@@ -221,6 +222,12 @@ fn list_monitors() -> Result<Vec<MonitorCapture>, String> {
         .collect()
 }
 
+#[cfg(target_os = "linux")]
+fn list_monitors() -> Result<Vec<MonitorCapture>, String> {
+    x11_capture::monitors(false)
+}
+
+#[cfg(not(target_os = "linux"))]
 fn capture_monitors() -> Result<Vec<MonitorCapture>, String> {
     let monitors = xcap::Monitor::all().map_err(|error| format!("capture_failed:{error}"))?;
     if monitors.is_empty() {
@@ -269,6 +276,145 @@ fn capture_monitors() -> Result<Vec<MonitorCapture>, String> {
             Err(_) => Err("capture_encode_failed".to_string()),
         })
         .collect()
+}
+
+#[cfg(target_os = "linux")]
+fn capture_monitors() -> Result<Vec<MonitorCapture>, String> {
+    x11_capture::monitors(true)
+}
+
+#[cfg(any(target_os = "linux", test))]
+#[cfg_attr(test, allow(dead_code))]
+mod x11_capture {
+    use super::{encode_bmp, MonitorCapture};
+    use x11rb::{
+        connection::Connection,
+        image::{Image, PixelLayout},
+        protocol::{randr, xproto},
+    };
+
+    fn error(error: impl std::fmt::Display) -> String {
+        format!("capture_failed:{error}")
+    }
+
+    fn monitor_name<C: Connection>(connection: &C, atom: u32, index: usize) -> String {
+        if atom != x11rb::NONE {
+            if let Some(name) = xproto::get_atom_name(connection, atom)
+                .ok()
+                .and_then(|cookie| cookie.reply().ok())
+                .and_then(|reply| String::from_utf8(reply.name).ok())
+                .filter(|name| !name.is_empty())
+            {
+                return name;
+            }
+        }
+        format!("Display {}", index + 1)
+    }
+
+    fn pixel_rgba(layout: PixelLayout, pixel: u32) -> [u8; 4] {
+        let (red, green, blue) = layout.decode(pixel);
+        [(red >> 8) as u8, (green >> 8) as u8, (blue >> 8) as u8, 255]
+    }
+
+    fn capture_bmp<C: Connection>(
+        connection: &C,
+        root: xproto::Window,
+        x: i16,
+        y: i16,
+        width: u16,
+        height: u16,
+    ) -> Result<Vec<u8>, String> {
+        let (ximage, visual_id) =
+            Image::get(connection, root, x, y, width, height).map_err(error)?;
+        let visual = connection
+            .setup()
+            .roots
+            .iter()
+            .flat_map(|screen| screen.allowed_depths.iter())
+            .flat_map(|depth| depth.visuals.iter())
+            .find(|visual| visual.visual_id == visual_id)
+            .cloned()
+            .ok_or_else(|| "capture_failed:x11_visual_missing".to_string())?;
+        let layout = PixelLayout::from_visual_type(visual).map_err(error)?;
+        let rgba = image::RgbaImage::from_fn(u32::from(width), u32::from(height), |x, y| {
+            image::Rgba(pixel_rgba(layout, ximage.get_pixel(x as u16, y as u16)))
+        });
+        encode_bmp(rgba)
+    }
+
+    pub(super) fn monitors(capture_pixels: bool) -> Result<Vec<MonitorCapture>, String> {
+        let (connection, screen_number) = x11rb::connect(None).map_err(error)?;
+        let screen = connection
+            .setup()
+            .roots
+            .get(screen_number)
+            .ok_or_else(|| "capture_no_monitor".to_string())?;
+        let root = screen.root;
+        let fallback_width = screen.width_in_pixels;
+        let fallback_height = screen.height_in_pixels;
+        let monitor_infos = randr::get_monitors(&connection, root, true)
+            .ok()
+            .and_then(|cookie| cookie.reply().ok())
+            .map(|reply| reply.monitors)
+            .unwrap_or_default();
+
+        if monitor_infos.is_empty() {
+            return Ok(vec![MonitorCapture {
+                id: "0".to_string(),
+                name: "Display 1".to_string(),
+                x: 0,
+                y: 0,
+                width: u32::from(fallback_width),
+                height: u32::from(fallback_height),
+                scale_factor: 1.0,
+                image_bytes: if capture_pixels {
+                    capture_bmp(&connection, root, 0, 0, fallback_width, fallback_height)?
+                } else {
+                    Vec::new()
+                },
+            }]);
+        }
+
+        monitor_infos
+            .into_iter()
+            .enumerate()
+            .map(|(index, monitor)| {
+                Ok(MonitorCapture {
+                    id: index.to_string(),
+                    name: monitor_name(&connection, monitor.name, index),
+                    x: i32::from(monitor.x),
+                    y: i32::from(monitor.y),
+                    width: u32::from(monitor.width),
+                    height: u32::from(monitor.height),
+                    scale_factor: 1.0,
+                    image_bytes: if capture_pixels {
+                        capture_bmp(
+                            &connection,
+                            root,
+                            monitor.x,
+                            monitor.y,
+                            monitor.width,
+                            monitor.height,
+                        )?
+                    } else {
+                        Vec::new()
+                    },
+                })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn pixel_conversion_uses_x11_visual_masks() {
+        use x11rb::image::ColorComponent;
+
+        let layout = PixelLayout::new(
+            ColorComponent::new(8, 16).unwrap(),
+            ColorComponent::new(8, 8).unwrap(),
+            ColorComponent::new(8, 0).unwrap(),
+        );
+        assert_eq!(pixel_rgba(layout, 0x0011_2233), [0x11, 0x22, 0x33, 255]);
+    }
 }
 
 #[cfg(target_os = "linux")]

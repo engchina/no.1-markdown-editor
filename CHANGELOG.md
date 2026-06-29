@@ -20,6 +20,22 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.6 - 2026-06-29
+
+### Added
+
+### Changed
+
+- Pressing `Enter` now confirms and inserts a screenshot from the annotation canvas; `Space` creates or edits the active annotation while toolbar controls keep their native keyboard activation.
+
+### Fixed
+
+- Linux X11 screenshot capture now uses the pure-Rust x11rb backend, removing xcap's unused PipeWire recording dependency that prevented Linux release packages from building.
+
+### Internal
+
+- Added keyboard-flow, Linux dependency-tree, X11 pixel-conversion, and screenshot smoke regression coverage.
+
 ## 0.27.5 - 2026-06-29
 
 ### Added

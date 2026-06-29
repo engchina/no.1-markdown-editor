@@ -2766,7 +2766,7 @@ dependencies = [
 
 [[package]]
 name = "no1-markdown-editor"
-version = "0.27.5"
+version = "0.27.6"
 dependencies = [
  "ashpd",
  "base64 0.22.1",
@@ -2796,6 +2796,7 @@ dependencies = [
  "webkit2gtk",
  "webview2-com",
  "windows",
+ "x11rb",
  "xcap",
 ]
 

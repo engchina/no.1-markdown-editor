@@ -153,7 +153,7 @@ try {
   await page.screenshot({ path: ANNOTATION_PATH, fullPage: true })
   for (const key of ['A', 'R', 'M']) {
     await page.keyboard.press(key)
-    await page.keyboard.press('Enter')
+    await page.keyboard.press('Space')
   }
   await annotationToolbar.getByRole('button', { name: 'Text' }).click()
   await page.getByRole('application', { name: 'Screenshot annotation canvas' }).click({ position: { x: 160, y: 90 } })
@@ -164,9 +164,10 @@ try {
   await textInput.press('Enter')
   await page.keyboard.press('V')
   await page.getByRole('button', { name: 'Edit text' }).waitFor()
-  await page.keyboard.press('Enter')
+  await page.keyboard.press('Space')
   await page.getByRole('textbox', { name: 'Annotation text' }).fill('Edited smoke')
-  await page.keyboard.press('Control+Enter')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
 
   await page.getByRole('dialog', { name: 'Annotate screenshot' }).waitFor({ state: 'detached' })
   const markdown = await page.locator('.cm-content').innerText()
@@ -194,7 +195,7 @@ try {
   await openFixture()
   await page.getByRole('dialog', { name: 'Annotate screenshot' }).waitFor()
   await page.keyboard.press('R')
-  await page.keyboard.press('Enter')
+  await page.keyboard.press('Space')
   await page.keyboard.press('Escape')
   await page.getByRole('dialog', { name: 'Annotate screenshot' }).waitFor({ state: 'detached' })
   await page.waitForTimeout(350)

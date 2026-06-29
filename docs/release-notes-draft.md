@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.27.4`.
+This document is a draft for the next public release after `v0.27.5`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,46 +8,47 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.27.5`
+`No.1 Markdown Editor v0.27.6`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.27.5 restores Linux release packaging for the screenshot-enabled desktop build.
+No.1 Markdown Editor v0.27.6 streamlines keyboard confirmation and restores Linux release packaging with a native X11 capture backend.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Restore Ubuntu runner builds by pinning xcap to the PipeWire-compatible 0.8.0 release.
-- Keep the screenshot capture and annotation experience introduced in v0.27.3 and refined in v0.27.4 unchanged.
-- Preserve the existing Windows and macOS release paths.
+- Press `Enter` on the annotation canvas to confirm and insert immediately.
+- Press `Space` to create or edit the active annotation while toolbar buttons retain normal keyboard activation.
+- Capture Linux X11 screens through x11rb without compiling unused PipeWire recording dependencies.
+- Keep Linux Wayland capture on the XDG Screenshot Portal and Windows/macOS capture on xcap.
 
 ### Why This Release Matters
 
-The first screenshot-enabled Linux release exposed a PipeWire header mismatch in the GitHub Ubuntu build environment. This patch restores the Linux packages without changing the user-facing capture workflow.
+Screenshot confirmation should be quick without sacrificing complete keyboard access. This release provides the direct `Enter` action, preserves accessible toolbar navigation, and removes the dependency conflict that blocked Linux release assets.
 
 ### User-Facing Improvements
 
-#### Linux packaging compatibility
+#### Faster keyboard confirmation
 
-- xcap 0.8.0 resolves through pipewire-rs and libspa 0.8.0 instead of the incompatible 0.9.2 bindings.
-- The dependency remains explicitly pinned so future lockfile updates cannot silently reintroduce the Ubuntu build failure.
-- Linux system capture still uses xcap on X11 and the XDG screenshot portal on Wayland.
+- `Enter` confirms only when focus is on the annotation canvas or dialog surface.
+- Buttons, color controls, and the size slider keep their native `Enter` and `Space` behavior.
+- `Space` creates an annotation for the active tool or reopens the selected text annotation, preserving the full keyboard workflow.
 
-#### Existing experience preserved
+#### Linux capture backend
 
-- `Alt+A`, the camera button, and the command palette continue to open the same capture flow.
-- Crop, arrow, rectangle, text, mosaic, undo, redo, cancel, and insert remain keyboard accessible.
-- Final images continue to use the existing saved-document and draft-image persistence paths.
+- Linux X11 uses x11rb for monitor discovery and pixel capture.
+- Linux Wayland continues to use the system screenshot portal.
+- Windows and macOS continue to use xcap, with no capture behavior change.
 
 ### Suggested Upgrade Notes Section
 
 - No migration, permission, or settings change is required.
-- Windows and macOS users receive the same application behavior as v0.27.4.
+- The insert-button shortcut shown in the toolbar is now `Enter`.
 
 ### Suggested Who Should Update Section
 
-This release is especially important for Linux users and for distributors consuming the Linux release assets.
+This release is recommended for keyboard-focused screenshot users and everyone consuming Linux release assets.
 
 ## Packaging Checklist Before Release
 
@@ -55,7 +56,7 @@ This release is especially important for Linux users and for distributors consum
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.27.5`.
-- Run `npm run release:validate -- 0.27.5` so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.27.5`.
-- After publication, run `npm run release:draft:advance -- 0.27.5`.
+- Run `npm run release:prepare -- 0.27.6`.
+- Run `npm run release:validate -- 0.27.6` so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.27.6`.
+- After publication, run `npm run release:draft:advance -- 0.27.6`.

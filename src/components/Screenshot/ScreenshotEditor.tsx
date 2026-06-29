@@ -241,11 +241,13 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
       }
       const target = event.target
       const editingText = target instanceof HTMLInputElement && target.type !== 'color' && target.type !== 'range'
+      const interactiveControl = target instanceof Element && Boolean(target.closest('button, input, select, textarea'))
       const primary = event.metaKey || event.ctrlKey
 
       if (editingText || event.isComposing) return
 
-      if (primary && event.key === 'Enter') {
+      if (event.key === 'Enter' && interactiveControl) return
+      if (event.key === 'Enter') {
         event.preventDefault()
         void confirm()
         return
@@ -268,7 +270,7 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
         setStatus(t(`screenshot.tools.${nextTool}`))
         return
       }
-      if (event.key === 'Enter' && !primary) {
+      if (event.key === ' ' && !primary && !interactiveControl) {
         event.preventDefault()
         if (selected?.type === 'text') {
           startTextEdit(selected)
@@ -733,7 +735,7 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
             <button type="button" onClick={onCancel} disabled={busy} aria-label={t('screenshot.actions.cancel')} title={t('screenshot.actions.cancel')} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-red-950/50 hover:text-red-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:opacity-40">
               <AppIcon name="x" size={19} />
             </button>
-            <button type="button" onClick={() => void confirm()} disabled={busy || !image} aria-label={t('screenshot.actions.insert')} title={`${t('screenshot.actions.insert')} (Ctrl/⌘+Enter)`} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 bg-[#1685ff] text-white shadow-md shadow-[#1685ff]/30 hover:bg-[#087be8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1685ff] disabled:opacity-40 hover:scale-105 active:scale-95">
+            <button type="button" onClick={() => void confirm()} disabled={busy || !image} aria-label={t('screenshot.actions.insert')} aria-keyshortcuts="Enter" title={`${t('screenshot.actions.insert')} (Enter)`} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 bg-[#1685ff] text-white shadow-md shadow-[#1685ff]/30 hover:bg-[#087be8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1685ff] disabled:opacity-40 hover:scale-105 active:scale-95">
               <AppIcon name="checkCircle" size={19} />
             </button>
           </div>
