@@ -442,7 +442,20 @@ export function buildStandaloneHtml(
         line-height: 1.6;
       }
       a { color: inherit; text-decoration: underline; }
-      pre, blockquote, table, img { break-inside: avoid; page-break-inside: avoid; }
+      pre {
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        color: #0f172a;
+        overflow: visible;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        break-inside: auto;
+        page-break-inside: auto;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      pre code span { color: inherit !important; }
+      blockquote, table, img { break-inside: avoid; page-break-inside: avoid; }
       h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; }
     }
   </style>

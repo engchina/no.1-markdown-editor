@@ -1187,7 +1187,14 @@ test('buildStandaloneHtml ships @page rules and print-safe overrides for PDF exp
   const html = buildStandaloneHtml('Print', '<p>Body</p>')
 
   assert.match(html, /@page \{ size: A4; margin: 18mm 16mm; \}/)
-  assert.match(html, /@media print \{[\s\S]*break-inside: avoid/)
+  assert.match(html, /@media print \{[\s\S]*pre \{[\s\S]*background: #f8fafc;/)
+  assert.match(html, /pre \{[\s\S]*color: #0f172a;[\s\S]*overflow: visible;/)
+  assert.match(html, /pre \{[\s\S]*white-space: pre-wrap;[\s\S]*overflow-wrap: anywhere;/)
+  assert.match(html, /pre \{[\s\S]*break-inside: auto;[\s\S]*page-break-inside: auto;/)
+  assert.match(html, /pre \{[\s\S]*print-color-adjust: exact;[\s\S]*-webkit-print-color-adjust: exact;/)
+  assert.match(html, /pre code span \{ color: inherit !important; \}/)
+  assert.match(html, /blockquote, table, img \{ break-inside: avoid; page-break-inside: avoid; \}/)
+  assert.doesNotMatch(html, /pre, blockquote, table, img/)
 })
 
 test('buildStandaloneHtml inlines highlight.js token colors for exported code blocks', () => {
