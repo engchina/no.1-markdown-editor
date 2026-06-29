@@ -20,6 +20,12 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.8 - 2026-06-29
+
+### Fixed
+
+- The screenshot annotation editor no longer momentarily shrinks the captured frame after you finish selecting a region — it now fills the screen edge-to-edge like the selection overlay, so there is no size jump.
+
 ## 0.27.7 - 2026-06-29
 
 ### Added

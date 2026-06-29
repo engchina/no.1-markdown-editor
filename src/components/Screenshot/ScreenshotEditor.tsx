@@ -161,8 +161,11 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
 
   useLayoutEffect(() => {
     const updateScale = () => {
-      const maxWidth = Math.max(320, window.innerWidth - 24)
-      const maxHeight = Math.max(240, window.innerHeight - 24)
+      // Full-bleed, exactly matching the overlay's `h-full w-full` capture, so
+      // entering the editor doesn't visibly shrink the (full-screen) frame. The
+      // capture always fills the monitor, so no edge inset is wanted here.
+      const maxWidth = Math.max(320, window.innerWidth)
+      const maxHeight = Math.max(240, window.innerHeight)
       setStageScale(Math.min(1, maxWidth / width, maxHeight / height))
     }
     updateScale()
@@ -643,7 +646,7 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
         role="dialog"
         aria-modal="true"
         aria-labelledby="screenshot-editor-title"
-        className="flex h-full w-full items-center justify-center overflow-hidden p-3"
+        className="flex h-full w-full items-center justify-center overflow-hidden"
       >
         <h2 id="screenshot-editor-title" className="sr-only">{t('screenshot.editor.title')}</h2>
         <div
