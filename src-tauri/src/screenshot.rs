@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
     sync::Mutex,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{
     ipc::Response, AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder,
@@ -12,12 +12,25 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 pub const SCREENSHOT_REQUEST_EVENT: &str = "screenshot-requested";
 pub const SCREENSHOT_CAPTURED_EVENT: &str = "screenshot-captured";
 pub const SCREENSHOT_CANCELLED_EVENT: &str = "screenshot-cancelled";
+pub const SCREENSHOT_OVERLAY_BEGIN_EVENT: &str = "screenshot-overlay-begin";
 
 const GLOBAL_SHORTCUT: &str = "Alt+A";
 const OVERLAY_LABEL_PREFIX: &str = "screenshot-overlay-";
 
 #[derive(Default)]
 pub struct ScreenshotState(Mutex<Option<ScreenshotSession>>);
+
+/// Warm pool of reusable overlay windows. Built once per monitor layout and
+/// shown/hidden across captures, so we never pay WebView cold-boot per
+/// screenshot — that cold boot was the dominant "Alt+A feels dead" latency.
+#[derive(Default)]
+pub struct OverlayPoolState(Mutex<OverlayPool>);
+
+#[derive(Default)]
+struct OverlayPool {
+    signature: Option<String>,
+    labels: Vec<String>,
+}
 
 struct ScreenshotSession {
     id: String,
@@ -92,10 +105,48 @@ fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-fn close_overlay_windows<R: Runtime>(app: &AppHandle<R>, labels: &[String]) {
+/// Park the editor out of the way after "copy to clipboard": keep it reachable
+/// (a hidden window loses its taskbar button) but don't yank it to the
+/// foreground — the user copied to paste somewhere else.
+#[cfg(windows)]
+fn park_main_window<R: Runtime>(app: &AppHandle<R>) {
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWMINNOACTIVE};
+    if let Some(window) = app.get_webview_window("main") {
+        // Show minimized WITHOUT activating — no foreground flash, taskbar stays.
+        if let Ok(hwnd) = window.hwnd() {
+            unsafe {
+                let _ = ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
+            }
+            return;
+        }
+        let _ = window.show();
+        let _ = window.minimize();
+    }
+}
+
+#[cfg(not(windows))]
+fn park_main_window<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.minimize();
+    }
+}
+
+/// Permanently tear down overlay windows. Used only when the monitor layout
+/// changed and the warm pool must be rebuilt.
+fn destroy_overlay_windows<R: Runtime>(app: &AppHandle<R>, labels: &[String]) {
     for label in labels {
         if let Some(window) = app.get_webview_window(label) {
             let _ = window.destroy();
+        }
+    }
+}
+
+/// Hide overlay windows but keep them warm for the next capture.
+fn hide_overlay_windows<R: Runtime>(app: &AppHandle<R>, labels: &[String]) {
+    for label in labels {
+        if let Some(window) = app.get_webview_window(label) {
+            let _ = window.hide();
         }
     }
 }
@@ -141,7 +192,7 @@ fn claim_monitor(active: &mut ScreenshotSession, monitor_id: &str) -> Result<Vec
         Some(_) => Ok(Vec::new()),
         None => {
             active.claimed_monitor_id = Some(monitor_id.to_string());
-            let current_label = format!("{OVERLAY_LABEL_PREFIX}{}-{monitor_id}", active.id);
+            let current_label = format!("{OVERLAY_LABEL_PREFIX}{monitor_id}");
             Ok(active
                 .overlay_labels
                 .iter()
@@ -511,8 +562,19 @@ fn validate_edit_payload(
     Ok((selection, edit))
 }
 
-fn overlay_url(session_id: &str, monitor_id: &str) -> PathBuf {
-    format!("index.html?screenshotOverlay=1&sessionId={session_id}&monitorId={monitor_id}").into()
+fn overlay_url(monitor_id: &str) -> PathBuf {
+    format!("index.html?screenshotOverlay=1&monitorId={monitor_id}").into()
+}
+
+/// Stable fingerprint of the current monitor layout. While it stays constant we
+/// can reuse the warm overlay windows verbatim; when it changes (resolution,
+/// plug/unplug, rearrange) we rebuild the pool.
+fn layout_signature(monitors: &[ScreenshotMonitorDescriptor]) -> String {
+    monitors
+        .iter()
+        .map(|m| format!("{}:{}:{}:{}:{}:{}", m.id, m.x, m.y, m.width, m.height, m.scale_factor))
+        .collect::<Vec<_>>()
+        .join("|")
 }
 
 fn overlay_origin(coordinate: i32, scale_factor: f32) -> f64 {
@@ -527,44 +589,64 @@ fn overlay_origin(coordinate: i32, scale_factor: f32) -> f64 {
     }
 }
 
-fn open_overlay_windows<R: Runtime>(
+/// Return the warm overlay windows for the current layout, building them once
+/// and reusing them on every subsequent capture. Reuse is the whole point: a
+/// fresh WebView per capture cost 100-500ms of cold boot per monitor.
+fn ensure_overlay_windows<R: Runtime>(
     app: &AppHandle<R>,
-    session_id: &str,
+    pool: &OverlayPoolState,
     monitors: &[ScreenshotMonitorDescriptor],
 ) -> Result<Vec<String>, String> {
+    let signature = layout_signature(monitors);
+    let mut guard = pool
+        .0
+        .lock()
+        .map_err(|_| "capture_state_failed".to_string())?;
+
+    let reusable = guard.signature.as_deref() == Some(signature.as_str())
+        && guard.labels.len() == monitors.len()
+        && guard
+            .labels
+            .iter()
+            .all(|label| app.get_webview_window(label).is_some());
+    if reusable {
+        return Ok(guard.labels.clone());
+    }
+
+    // Layout changed (or first run / a window went missing): rebuild the pool.
+    destroy_overlay_windows(app, &guard.labels);
+    guard.signature = None;
+    guard.labels = Vec::new();
+
     let mut labels = Vec::with_capacity(monitors.len());
     for monitor in monitors {
-        let label = format!("{OVERLAY_LABEL_PREFIX}{session_id}-{}", monitor.id);
+        let label = format!("{OVERLAY_LABEL_PREFIX}{}", monitor.id);
         let scale = f64::from(monitor.scale_factor.max(0.1));
-        let _window = match WebviewWindowBuilder::new(
-            app,
-            &label,
-            WebviewUrl::App(overlay_url(session_id, &monitor.id)),
-        )
-        .title("Screenshot")
-        .visible(false)
-        .decorations(false)
-        .resizable(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .position(
-            overlay_origin(monitor.x, monitor.scale_factor),
-            overlay_origin(monitor.y, monitor.scale_factor),
-        )
-        .inner_size(
-            f64::from(monitor.width) / scale,
-            f64::from(monitor.height) / scale,
-        )
-        .build()
-        {
-            Ok(window) => window,
-            Err(error) => {
-                close_overlay_windows(app, &labels);
-                return Err(format!("capture_overlay_failed:{error}"));
-            }
-        };
+        let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(overlay_url(&monitor.id)))
+            .title("Screenshot")
+            .visible(false)
+            .decorations(false)
+            .resizable(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .position(
+                overlay_origin(monitor.x, monitor.scale_factor),
+                overlay_origin(monitor.y, monitor.scale_factor),
+            )
+            .inner_size(
+                f64::from(monitor.width) / scale,
+                f64::from(monitor.height) / scale,
+            )
+            .build();
+        if let Err(error) = built {
+            destroy_overlay_windows(app, &labels);
+            return Err(format!("capture_overlay_failed:{error}"));
+        }
         labels.push(label);
     }
+
+    guard.signature = Some(signature);
+    guard.labels = labels.clone();
     Ok(labels)
 }
 
@@ -588,6 +670,7 @@ pub fn screenshot_register_global_shortcut<R: Runtime>(app: AppHandle<R>) -> Res
 pub async fn screenshot_capture_begin<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, ScreenshotState>,
+    pool: tauri::State<'_, OverlayPoolState>,
 ) -> Result<ScreenshotBeginResult, String> {
     let id = session_id();
     reserve_session_slot(&state, &id)?;
@@ -683,7 +766,7 @@ pub async fn screenshot_capture_begin<R: Runtime>(
     if !prepared {
         return Err("capture_session_stale".to_string());
     }
-    let overlay_labels = match open_overlay_windows(&app, &id, &descriptors) {
+    let overlay_labels = match ensure_overlay_windows(&app, &pool, &descriptors) {
         Ok(labels) => labels,
         Err(error) => {
             clear_session_slot(&state, &id);
@@ -703,25 +786,28 @@ pub async fn screenshot_capture_begin<R: Runtime>(
         })
         .unwrap_or(false);
     if !assigned {
-        close_overlay_windows(&app, &overlay_labels);
+        hide_overlay_windows(&app, &overlay_labels);
         return Err("capture_session_stale".to_string());
     }
 
-    let monitors = match tauri::async_runtime::spawn_blocking(|| {
-        std::thread::sleep(Duration::from_millis(16));
-        capture_monitors()
-    })
-    .await
-    {
+    // Hand the session id to the (warm) overlays now, before capture, so they
+    // begin polling for pixels during the capture instead of after it. Cold
+    // overlays that mount mid-capture catch up via `screenshot_active_session`.
+    let _ = app.emit(
+        SCREENSHOT_OVERLAY_BEGIN_EVENT,
+        serde_json::json!({ "sessionId": id }),
+    );
+
+    let monitors = match tauri::async_runtime::spawn_blocking(capture_monitors).await {
         Ok(Ok(monitors)) => monitors,
         Ok(Err(error)) => {
-            close_overlay_windows(&app, &overlay_labels);
+            hide_overlay_windows(&app, &overlay_labels);
             clear_session_slot(&state, &id);
             show_main_window(&app);
             return Err(error);
         }
         Err(error) => {
-            close_overlay_windows(&app, &overlay_labels);
+            hide_overlay_windows(&app, &overlay_labels);
             clear_session_slot(&state, &id);
             show_main_window(&app);
             return Err(format!("capture_failed:{error}"));
@@ -740,7 +826,7 @@ pub async fn screenshot_capture_begin<R: Runtime>(
         })
         .unwrap_or(false);
     if !stored {
-        close_overlay_windows(&app, &overlay_labels);
+        hide_overlay_windows(&app, &overlay_labels);
         show_main_window(&app);
         return Err("capture_session_stale".to_string());
     }
@@ -772,7 +858,7 @@ pub fn screenshot_capture_claim<R: Runtime>(
         }
         claim_monitor(active, &monitor_id)?
     };
-    close_overlay_windows(&app, &labels_to_close);
+    hide_overlay_windows(&app, &labels_to_close);
     Ok(())
 }
 
@@ -840,7 +926,7 @@ pub fn screenshot_capture_select<R: Runtime>(
         )
     };
 
-    close_overlay_windows(&app, &labels);
+    hide_overlay_windows(&app, &labels);
     show_main_window(&app);
     if let Err(error) = app.emit(
         SCREENSHOT_CAPTURED_EVENT,
@@ -918,8 +1004,35 @@ pub fn screenshot_capture_cancel<R: Runtime>(
         *session = None;
         labels
     };
-    close_overlay_windows(&app, &labels);
+    hide_overlay_windows(&app, &labels);
     show_main_window(&app);
+    let _ = app.emit(SCREENSHOT_CANCELLED_EVENT, ());
+    Ok(())
+}
+
+/// Close the capture after "copy to clipboard": like cancel, but parks (does not
+/// raise) the editor so focus stays where the user will paste.
+#[tauri::command]
+pub fn screenshot_capture_dismiss<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, ScreenshotState>,
+    session_id: String,
+) -> Result<(), String> {
+    let labels = {
+        let mut session = state
+            .0
+            .lock()
+            .map_err(|_| "capture_state_failed".to_string())?;
+        let labels = match session.as_ref() {
+            Some(active) if active.id == session_id => active.overlay_labels.clone(),
+            Some(_) => return Err("capture_session_stale".to_string()),
+            None => return Ok(()),
+        };
+        *session = None;
+        labels
+    };
+    hide_overlay_windows(&app, &labels);
+    park_main_window(&app);
     let _ = app.emit(SCREENSHOT_CANCELLED_EVENT, ());
     Ok(())
 }
@@ -944,7 +1057,7 @@ pub fn screenshot_capture_release<R: Runtime>(
         None => Vec::new(),
     };
     drop(session);
-    close_overlay_windows(&app, &labels);
+    hide_overlay_windows(&app, &labels);
     show_main_window(&app);
     Ok(())
 }
@@ -954,6 +1067,140 @@ pub fn screenshot_hide_main<R: Runtime>(app: AppHandle<R>) {
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.hide();
     }
+}
+
+/// Current active session id, if any. A warm overlay window that boots mid
+/// capture (first run or after a layout rebuild) may miss the broadcast
+/// `screenshot-overlay-begin` event, so it queries this on mount to catch up.
+#[tauri::command]
+pub fn screenshot_active_session(
+    state: tauri::State<'_, ScreenshotState>,
+) -> Result<Option<String>, String> {
+    let session = state
+        .0
+        .lock()
+        .map_err(|_| "capture_state_failed".to_string())?;
+    Ok(session.as_ref().map(|active| active.id.clone()))
+}
+
+/// Visible top-level window rectangles intersected with one monitor, expressed
+/// in that monitor's image-pixel coordinates (origin = monitor top-left). The
+/// overlay uses these to offer PixPin-style "hover a window, click to grab it".
+#[cfg(not(target_os = "linux"))]
+fn enumerate_window_rects(mx: i32, my: i32, mw: u32, mh: u32) -> Vec<ScreenshotRect> {
+    let Ok(windows) = xcap::Window::all() else {
+        return Vec::new();
+    };
+    let mon_right = mx.saturating_add(mw as i32);
+    let mon_bottom = my.saturating_add(mh as i32);
+    let mut rects = Vec::new();
+    for window in windows {
+        if window.is_minimized().unwrap_or(true) {
+            continue;
+        }
+        // Skip our own fullscreen overlays (titled "Screenshot").
+        if window.title().map(|title| title == "Screenshot").unwrap_or(false) {
+            continue;
+        }
+        let (Ok(wx), Ok(wy), Ok(ww), Ok(wh)) =
+            (window.x(), window.y(), window.width(), window.height())
+        else {
+            continue;
+        };
+        if ww == 0 || wh == 0 {
+            continue;
+        }
+        let left = wx.max(mx);
+        let top = wy.max(my);
+        let right = wx.saturating_add(ww as i32).min(mon_right);
+        let bottom = wy.saturating_add(wh as i32).min(mon_bottom);
+        if right <= left || bottom <= top {
+            continue;
+        }
+        rects.push(ScreenshotRect {
+            x: (left - mx) as u32,
+            y: (top - my) as u32,
+            width: (right - left) as u32,
+            height: (bottom - top) as u32,
+        });
+    }
+    rects
+}
+
+#[cfg(target_os = "linux")]
+fn enumerate_window_rects(_mx: i32, _my: i32, _mw: u32, _mh: u32) -> Vec<ScreenshotRect> {
+    // Best-effort feature: X11/Wayland window enumeration is skipped for now and
+    // the overlay simply falls back to manual drag selection.
+    Vec::new()
+}
+
+/// Copy an annotated screenshot to the OS clipboard. The RGBA is sent as the
+/// whole IPC payload (octet-stream fast path) — wrapping bytes in a JSON object
+/// makes Tauri serialize them to a number array, which is seconds-slow for big
+/// images. Width/height ride along in headers, mirroring the fs plugin.
+#[tauri::command]
+pub fn screenshot_copy_image<R: Runtime>(
+    app: AppHandle<R>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), String> {
+    use std::borrow::Cow;
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+
+    let rgba: Cow<[u8]> = match request.body() {
+        tauri::ipc::InvokeBody::Raw(data) => Cow::Borrowed(data),
+        // Fallback for the postMessage IPC path (custom protocol unavailable).
+        tauri::ipc::InvokeBody::Json(serde_json::Value::Array(data)) => Cow::Owned(
+            data.iter()
+                .map(|value| value.as_u64().unwrap_or(0) as u8)
+                .collect(),
+        ),
+        _ => return Err("capture_copy_invalid_body".to_string()),
+    };
+
+    let header = |name: &str| -> Option<u32> {
+        request.headers().get(name)?.to_str().ok()?.parse().ok()
+    };
+    let width = header("width").ok_or_else(|| "capture_copy_missing_size".to_string())?;
+    let height = header("height").ok_or_else(|| "capture_copy_missing_size".to_string())?;
+    let expected = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|pixels| pixels.checked_mul(4));
+    if expected != Some(rgba.len()) {
+        return Err("capture_copy_size_mismatch".to_string());
+    }
+
+    let image = tauri::image::Image::new(&rgba, width, height);
+    app.clipboard()
+        .write_image(&image)
+        .map_err(|error| format!("capture_copy_failed:{error}"))
+}
+
+#[tauri::command]
+pub fn screenshot_window_rects(
+    state: tauri::State<'_, ScreenshotState>,
+    session_id: String,
+    monitor_id: String,
+) -> Result<Vec<ScreenshotRect>, String> {
+    let geometry = {
+        let session = state
+            .0
+            .lock()
+            .map_err(|_| "capture_state_failed".to_string())?;
+        let session = session
+            .as_ref()
+            .ok_or_else(|| "capture_session_missing".to_string())?;
+        if session.id != session_id {
+            return Err("capture_session_stale".to_string());
+        }
+        let monitor = session
+            .monitors
+            .iter()
+            .find(|monitor| monitor.id == monitor_id)
+            .ok_or_else(|| "capture_monitor_missing".to_string())?;
+        (monitor.x, monitor.y, monitor.width, monitor.height)
+    };
+    // Enumerate outside the lock — xcap window queries are comparatively slow.
+    Ok(enumerate_window_rects(geometry.0, geometry.1, geometry.2, geometry.3))
 }
 
 #[cfg(test)]
@@ -1038,20 +1285,37 @@ mod tests {
                 },
             ],
             overlay_labels: vec![
-                "screenshot-overlay-session-0".to_string(),
-                "screenshot-overlay-session-1".to_string(),
+                "screenshot-overlay-0".to_string(),
+                "screenshot-overlay-1".to_string(),
             ],
             claimed_monitor_id: None,
         };
         assert_eq!(
             claim_monitor(&mut session, "0").unwrap(),
-            vec!["screenshot-overlay-session-1"]
+            vec!["screenshot-overlay-1"]
         );
         assert!(claim_monitor(&mut session, "0").unwrap().is_empty());
         assert_eq!(
             claim_monitor(&mut session, "1").unwrap_err(),
             "capture_session_claimed"
         );
+    }
+
+    #[test]
+    fn layout_signature_is_stable_and_layout_sensitive() {
+        let one = descriptor(&monitor(1920, 1080));
+        let two = ScreenshotMonitorDescriptor {
+            id: "1".to_string(),
+            ..descriptor(&monitor(2560, 1440))
+        };
+        let base = layout_signature(&[one.clone(), two.clone()]);
+        // Same layout → identical signature (warm pool reused).
+        assert_eq!(base, layout_signature(&[one.clone(), two.clone()]));
+        // A resolution change → different signature (pool rebuilt).
+        let resized = ScreenshotMonitorDescriptor { width: 3840, ..one.clone() };
+        assert_ne!(base, layout_signature(&[resized, two]));
+        // Fewer monitors → different signature.
+        assert_ne!(base, layout_signature(&[one]));
     }
 
     #[test]

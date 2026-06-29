@@ -294,17 +294,19 @@ export function drawScreenshotRasterPreview(
   }
 }
 
-export async function renderScreenshotPng(
+export function renderScreenshotCanvas(
   image: CanvasImageSource,
   imageWidth: number,
   imageHeight: number,
   snapshot: ScreenshotEditSnapshot
-): Promise<Blob> {
+): HTMLCanvasElement {
   const crop = clampScreenshotRect(snapshot.crop, imageWidth, imageHeight)
   const canvas = document.createElement('canvas')
   canvas.width = crop.width
   canvas.height = crop.height
-  const context = canvas.getContext('2d')
+  // Draw-once, read-once canvas: willReadFrequently keeps it CPU-backed so the
+  // copy path's getImageData readback is a fast memcpy, not a GPU→CPU sync.
+  const context = canvas.getContext('2d', { willReadFrequently: true })
   if (!context) throw new Error('Canvas is unavailable')
 
   context.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height)
@@ -336,6 +338,16 @@ export async function renderScreenshotPng(
     context.fillText(annotation.text, annotation.x - crop.x, annotation.y - crop.y)
   }
 
+  return canvas
+}
+
+export async function renderScreenshotPng(
+  image: CanvasImageSource,
+  imageWidth: number,
+  imageHeight: number,
+  snapshot: ScreenshotEditSnapshot
+): Promise<Blob> {
+  const canvas = renderScreenshotCanvas(image, imageWidth, imageHeight, snapshot)
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('PNG export failed')), 'image/png')
   })

@@ -1212,7 +1212,11 @@
     "actions": {
       "cancel": "キャンセル",
       "editText": "文字を編集",
-      "insert": "スクリーンショットを挿入"
+      "insert": "スクリーンショットを挿入",
+      "copy": "コピー",
+      "save": "名前を付けて保存…",
+      "copied": "クリップボードにコピーしました",
+      "saved": "保存しました"
     },
     "editor": {
       "title": "スクリーンショットに注釈",
@@ -1245,7 +1249,9 @@
       "insertFailedTitle": "スクリーンショットを挿入できませんでした",
       "insertFailedMessage": "Markdown は変更されていません。{{reason}}",
       "documentChangedTitle": "元のカーソル位置に挿入しました",
-      "documentChangedMessage": "撮影中に文書が変更されたため、既存の文字を残し、元のカーソルに最も近い位置へ画像を挿入しました。"
+      "documentChangedMessage": "撮影中に文書が変更されたため、既存の文字を残し、元のカーソルに最も近い位置へ画像を挿入しました。",
+      "copyFailed": "画像をコピーできませんでした",
+      "saveFailed": "画像を保存できませんでした"
     }
   },
   "runtimeError": {

@@ -76,6 +76,61 @@ test('capture backend keeps pixels in memory until explicit release', () => {
   assert.match(capability, /core:window:allow-show/)
 })
 
+test('overlay windows are pooled and reused across captures, not rebuilt per shot', () => {
+  const backend = read('src-tauri/src/screenshot.rs')
+  const overlay = read('src/components/Screenshot/ScreenshotOverlay.tsx')
+  const capability = read('src-tauri/capabilities/screenshot.json')
+  const lib = read('src-tauri/src/lib.rs')
+  // Warm pool: build once per layout, hide (not destroy) between captures.
+  assert.match(backend, /struct OverlayPool/)
+  assert.match(backend, /fn ensure_overlay_windows/)
+  assert.match(backend, /fn hide_overlay_windows/)
+  assert.match(backend, /fn layout_signature/)
+  assert.match(lib, /OverlayPoolState::default\(\)/)
+  // The unconditional 16ms pre-capture sleep that gated every screenshot is gone.
+  assert.doesNotMatch(backend, /thread::sleep/)
+  // Session id travels per-capture via an event + a mount query, not the URL.
+  assert.match(backend, /SCREENSHOT_OVERLAY_BEGIN_EVENT/)
+  assert.match(backend, /fn screenshot_active_session/)
+  assert.doesNotMatch(backend, /screenshotOverlay=1&sessionId=/)
+  assert.match(overlay, /TAURI_SCREENSHOT_OVERLAY_BEGIN_EVENT/)
+  assert.match(overlay, /screenshot_active_session/)
+  // Hiding warm windows requires the hide permission.
+  assert.match(capability, /core:window:allow-hide/)
+})
+
+test('overlay offers quick output and window-region grabbing', () => {
+  const editor = read('src/components/Screenshot/ScreenshotEditor.tsx')
+  const overlay = read('src/components/Screenshot/ScreenshotOverlay.tsx')
+  const backend = read('src-tauri/src/screenshot.rs')
+  // Copy goes through the OS clipboard plugin (navigator.clipboard image writes
+  // are blocked in the Tauri webview); save grants fs scope then writes.
+  const capability = read('src-tauri/capabilities/screenshot.json')
+  assert.match(editor, /renderScreenshotCanvas/)
+  // Copy sends raw RGBA as the whole payload (octet-stream fast path), not via a
+  // JSON-wrapped object which is seconds-slow for large images.
+  assert.match(editor, /screenshot_copy_image/)
+  assert.match(editor, /new Uint8Array\(rgba\.buffer/)
+  assert.match(backend, /fn screenshot_copy_image[\s\S]*?InvokeBody::Raw/)
+  assert.match(editor, /ensureFsPathAccess/)
+  assert.match(editor, /writeFile/)
+  assert.match(editor, /screenshot\.actions\.copy/)
+  assert.match(editor, /screenshot\.actions\.save/)
+  assert.match(capability, /clipboard-manager:allow-write-image/)
+  assert.match(capability, /dialog:allow-save/)
+  assert.match(capability, /fs:allow-write-file/)
+  // Pixel-accurate magnifier + window detection.
+  assert.match(overlay, /loupeCanvasRef/)
+  assert.match(overlay, /findWindowAt/)
+  assert.match(overlay, /screenshot_window_rects/)
+  assert.match(backend, /fn screenshot_window_rects/)
+  assert.match(backend, /fn enumerate_window_rects/)
+  // Copy parks (minimizes) the editor instead of raising it; Enter inserts.
+  assert.match(backend, /fn screenshot_capture_dismiss[\s\S]*?park_main_window/)
+  assert.match(overlay, /screenshot_capture_dismiss/)
+  assert.match(editor, /onCopyDismiss/)
+})
+
 test('selection opens the icon annotation toolbar directly without an Annotate step', () => {
   const overlay = read('src/components/Screenshot/ScreenshotOverlay.tsx')
   const editor = read('src/components/Screenshot/ScreenshotEditor.tsx')

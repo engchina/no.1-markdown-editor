@@ -1218,7 +1218,11 @@
     "actions": {
       "cancel": "Cancel",
       "editText": "Edit text",
-      "insert": "Insert screenshot"
+      "insert": "Insert screenshot",
+      "copy": "Copy",
+      "save": "Save as…",
+      "copied": "Copied to clipboard",
+      "saved": "Saved"
     },
     "editor": {
       "title": "Annotate screenshot",
@@ -1251,7 +1255,9 @@
       "insertFailedTitle": "Could not insert the screenshot",
       "insertFailedMessage": "No Markdown was changed. {{reason}}",
       "documentChangedTitle": "Screenshot inserted at the original cursor",
-      "documentChangedMessage": "The document changed during capture, so existing text was preserved and the image was inserted near the original cursor."
+      "documentChangedMessage": "The document changed during capture, so existing text was preserved and the image was inserted near the original cursor.",
+      "copyFailed": "Couldn't copy the image",
+      "saveFailed": "Couldn't save the image"
     }
   },
   "runtimeError": {

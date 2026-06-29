@@ -20,6 +20,30 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.7 - 2026-06-29
+
+### Added
+
+- Screenshot region selection now shows a pixel-accurate magnifier loupe with live coordinate and RGB/HEX readout, plus full-screen crosshair guides for precise aiming.
+- Hover a window during capture to highlight it and click to grab exactly that window's region.
+- The annotation toolbar can now copy the finished screenshot to the system clipboard or save it to a PNG file, in addition to inserting it into the note.
+
+### Changed
+
+- Triggering a screenshot is now near-instant: the selection overlay is pre-warmed and reused across captures instead of cold-booting a webview every time, and the artificial pre-capture delay was removed.
+- `Enter` inserts the screenshot into the note; copying places it on the clipboard and dismisses the capture without pulling the editor back to the foreground.
+- Refreshed the selection and annotation visuals — softer dim mask, accent selection frame with corner marks, glass toolbar, and one-click colour swatches.
+
+### Fixed
+
+- Copying large screenshots is no longer seconds-slow: image bytes now travel over Tauri's raw IPC channel instead of being JSON-serialised into a number array.
+- The annotation toolbar no longer clips its icons when the selection sits near the left or right edge of the screen.
+- On Windows, dismissing the capture after copying no longer flashes the editor window before it minimises.
+
+### Internal
+
+- Reusable per-monitor overlay window pool, new screenshot copy/dismiss/window-rect commands, and expanded screenshot wiring coverage.
+
 ## 0.27.6 - 2026-06-29
 
 ### Added

@@ -1232,6 +1232,7 @@ pub fn run() {
         .manage(ai_oauth_token_cache)
         .manage(BrowserTitleChannels::default())
         .manage(screenshot::ScreenshotState::default())
+        .manage(screenshot::OverlayPoolState::default())
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("editor-navigation-guard")
                 .on_navigation(|webview, url| {
@@ -1249,6 +1250,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
@@ -1278,8 +1280,12 @@ pub fn run() {
             screenshot::screenshot_capture_select,
             screenshot::screenshot_capture_finish,
             screenshot::screenshot_capture_cancel,
+            screenshot::screenshot_capture_dismiss,
             screenshot::screenshot_capture_release,
             screenshot::screenshot_hide_main,
+            screenshot::screenshot_active_session,
+            screenshot::screenshot_window_rects,
+            screenshot::screenshot_copy_image,
             read_file,
             write_file,
             copy_file,

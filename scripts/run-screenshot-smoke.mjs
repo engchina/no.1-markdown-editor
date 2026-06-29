@@ -167,6 +167,7 @@ try {
   await page.keyboard.press('Space')
   await page.getByRole('textbox', { name: 'Annotation text' }).fill('Edited smoke')
   await page.keyboard.press('Enter')
+  // Enter inserts the screenshot into the note (copy is button/Ctrl+C only).
   await page.keyboard.press('Enter')
 
   await page.getByRole('dialog', { name: 'Annotate screenshot' }).waitFor({ state: 'detached' })

@@ -10,8 +10,12 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { invoke } from '@tauri-apps/api/core'
+import { save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { writeFile } from '@tauri-apps/plugin-fs'
 import AppIcon from '../Icons/AppIcon.tsx'
 import { clampScreenshotRect, normalizeScreenshotRect, type ScreenshotRect } from '../../lib/screenshot.ts'
+import { ensureFsPathAccess } from '../../lib/fsAccess.ts'
 import {
   annotationBounds,
   createScreenshotEditSnapshot,
@@ -21,6 +25,8 @@ import {
   removeAnnotation,
   resizeAnnotation,
   resizeScreenshotCrop,
+  renderScreenshotCanvas,
+  renderScreenshotPng,
   screenshotToolForKey,
   updateAnnotation,
   type ScreenshotAnnotation,
@@ -29,6 +35,11 @@ import {
   type ScreenshotTool,
 } from './screenshotModel.ts'
 
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
+// Quick palette for one-click color changes; the custom picker stays for the rest.
+const COLOR_SWATCHES = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#1685ff', '#ffffff'] as const
+
 interface Props {
   imageUrl: string
   width: number
@@ -36,6 +47,9 @@ interface Props {
   initialCrop: ScreenshotRect
   onCancel: () => void
   onConfirm: (snapshot: ScreenshotEditSnapshot, image: HTMLImageElement) => Promise<void>
+  // Close after "copy to clipboard" without raising the editor. Falls back to
+  // onCancel when not provided (e.g. the in-window controller path).
+  onCopyDismiss?: () => void
 }
 
 interface Point {
@@ -78,7 +92,7 @@ function replaceAnnotation(snapshot: ScreenshotEditSnapshot, annotation: Screens
   return updateAnnotation(snapshot, annotation)
 }
 
-export default function ScreenshotEditor({ imageUrl, width, height, initialCrop, onCancel, onConfirm }: Props) {
+export default function ScreenshotEditor({ imageUrl, width, height, initialCrop, onCancel, onConfirm, onCopyDismiss }: Props) {
   const { t } = useTranslation()
   const initial = useMemo(() => createScreenshotEditSnapshot(width, height, initialCrop), [height, initialCrop, width])
   const [history, setHistory] = useState<ScreenshotEditSnapshot[]>([initial])
@@ -95,9 +109,11 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
   const [stageScale, setStageScale] = useState(1)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
+  const [toolbarWidth, setToolbarWidth] = useState(0)
   const dialogRef = useRef<HTMLDivElement>(null)
   const firstToolRef = useRef<HTMLButtonElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
   const textInputRef = useRef<HTMLInputElement>(null)
 
   const updateTextDraft = (next: TextDraft | null) => {
@@ -153,6 +169,18 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
     window.addEventListener('resize', updateScale)
     return () => window.removeEventListener('resize', updateScale)
   }, [height, width])
+
+  // Measure the toolbar's real width so we can keep it fully on-screen near edges
+  // (the button set, hence width, changes when a text annotation is selected).
+  useLayoutEffect(() => {
+    const el = toolbarRef.current
+    if (!el) return
+    const measure = () => setToolbarWidth(el.offsetWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     firstToolRef.current?.focus()
@@ -232,6 +260,56 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
     }
   }, [busy, committed, image, onConfirm, t])
 
+  const copyToClipboard = useCallback(async (): Promise<boolean> => {
+    if (busy || !image) return false
+    setBusy(true)
+    try {
+      const canvas = renderScreenshotCanvas(image, width, height, committed)
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Canvas is unavailable')
+      const rgba = context.getImageData(0, 0, canvas.width, canvas.height).data
+      // Send raw RGBA as the WHOLE payload so Tauri uses the octet-stream fast
+      // path. Wrapping bytes in an object JSON-serializes them to a number array
+      // — seconds for large images. Dimensions ride in headers (like plugin-fs).
+      await invoke('screenshot_copy_image', new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength), {
+        headers: { width: String(canvas.width), height: String(canvas.height) },
+      })
+      return true
+    } catch {
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, committed, height, image, width])
+
+  // Copy icon / Ctrl+C: copy to the clipboard, then dismiss without raising the
+  // editor. Silent — no toast on success or failure, by request.
+  const copyAndDismiss = useCallback(async () => {
+    if (await copyToClipboard()) (onCopyDismiss ?? onCancel)()
+  }, [copyToClipboard, onCancel, onCopyDismiss])
+
+  const saveToFile = useCallback(async () => {
+    if (busy || !image || !isTauri) return
+    setBusy(true)
+    try {
+      const blob = await renderScreenshotPng(image, width, height, committed)
+      const path = await saveDialog({
+        defaultPath: 'screenshot.png',
+        filters: [{ name: 'PNG', extensions: ['png'] }],
+      })
+      if (path) {
+        // Grant fs scope for the chosen path before writing (same path the rest
+        // of the app uses for ad-hoc file writes).
+        await ensureFsPathAccess(path)
+        await writeFile(path, new Uint8Array(await blob.arrayBuffer()))
+      }
+    } catch {
+      // Silent by request — no toast on success or failure.
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, committed, height, image, width])
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -261,6 +339,16 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
       if (primary && event.key.toLowerCase() === 'y') {
         event.preventDefault()
         redo()
+        return
+      }
+      if (primary && event.key.toLowerCase() === 'c') {
+        event.preventDefault()
+        void copyAndDismiss()
+        return
+      }
+      if (primary && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        void saveToFile()
         return
       }
       const nextTool = screenshotToolForKey(event.key)
@@ -295,7 +383,7 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [applyKeyboardTransform, commit, committed, confirm, createDefaultAnnotation, onCancel, redo, selected, selectedId, t, tool, undo])
+  }, [applyKeyboardTransform, commit, committed, confirm, copyAndDismiss, createDefaultAnnotation, onCancel, redo, saveToFile, selected, selectedId, t, tool, undo])
 
   useEffect(() => {
     const trapFocus = (event: KeyboardEvent) => {
@@ -527,11 +615,19 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
   ]
   const stageWidth = width * stageScale
   const stageHeight = height * stageScale
-  const toolbarWidth = Math.min(560, Math.max(300, window.innerWidth - 24))
+  // Center the toolbar under the crop, but clamp by its REAL measured width in
+  // viewport coordinates so no icons get clipped off the left/right edge.
+  const stageLeft = (window.innerWidth - stageWidth) / 2
+  const effectiveToolbarWidth = toolbarWidth || Math.min(560, Math.max(300, window.innerWidth - 24))
+  const toolbarHalf = effectiveToolbarWidth / 2
   const cropCenter = (crop.x + crop.width / 2) * stageScale
-  const toolbarLeft = stageWidth <= toolbarWidth
-    ? stageWidth / 2
-    : Math.max(toolbarWidth / 2, Math.min(cropCenter, stageWidth - toolbarWidth / 2))
+  const desiredCenter = stageLeft + cropCenter
+  const minCenter = 8 + toolbarHalf
+  const maxCenter = window.innerWidth - 8 - toolbarHalf
+  const clampedCenter = minCenter > maxCenter
+    ? window.innerWidth / 2
+    : Math.min(Math.max(desiredCenter, minCenter), maxCenter)
+  const toolbarLeft = clampedCenter - stageLeft
   const cropBottom = (crop.y + crop.height) * stageScale
   const stageTop = (window.innerHeight - stageHeight) / 2
   const toolbarTop = stageTop + cropBottom + 58 <= window.innerHeight - 8
@@ -679,6 +775,7 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
           </div>
 
           <div
+            ref={toolbarRef}
             className="absolute z-20 flex max-w-[calc(100vw-24px)] items-center gap-1.5 overflow-x-auto rounded-2xl bg-neutral-900/90 p-1.5 text-neutral-200 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl transition-all duration-300 ease-out"
             role="toolbar"
             aria-label={t('screenshot.editor.toolsLabel')}
@@ -699,15 +796,34 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
               </button>
             ))}
             <span className="mx-1 h-6 w-px flex-none bg-neutral-800" aria-hidden="true" />
-            <input
-              type="color"
-              value={color}
-              onChange={(event) => changeColor(event.target.value)}
-              aria-label={t('screenshot.editor.color')}
-              title={t('screenshot.editor.color')}
-              className="h-9 w-9 flex-none cursor-pointer rounded-lg border border-neutral-700 bg-transparent p-0.5 shadow-sm transition-transform duration-200 hover:scale-110 active:scale-95"
-            />
-            <label className="flex h-10 w-20 flex-none items-center px-1" title={t('screenshot.editor.size')}>
+            <div className="flex flex-none items-center gap-1" role="group" aria-label={t('screenshot.editor.color')}>
+              {COLOR_SWATCHES.map((swatch) => (
+                <button
+                  key={swatch}
+                  type="button"
+                  aria-label={swatch}
+                  aria-pressed={color.toLowerCase() === swatch}
+                  title={swatch}
+                  onClick={() => changeColor(swatch)}
+                  className={`h-6 w-6 flex-none cursor-pointer rounded-full border transition-transform duration-150 hover:scale-110 active:scale-95 ${color.toLowerCase() === swatch ? 'border-white ring-2 ring-[#1685ff] ring-offset-1 ring-offset-neutral-900' : 'border-white/20'}`}
+                  style={{ backgroundColor: swatch }}
+                />
+              ))}
+              <label className="relative h-6 w-6 flex-none cursor-pointer" title={t('screenshot.editor.color')}>
+                <span
+                  className="block h-full w-full rounded-full border border-white/20"
+                  style={{ background: 'conic-gradient(from 0deg, #ff3b30, #ffcc00, #34c759, #1685ff, #5856d6, #ff3b30)' }}
+                />
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(event) => changeColor(event.target.value)}
+                  aria-label={t('screenshot.editor.color')}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+            </div>
+            <label className="flex h-10 flex-none items-center gap-2 px-1" title={t('screenshot.editor.size')}>
               <span className="sr-only">{t('screenshot.editor.size')}</span>
               <input
                 type="range"
@@ -716,8 +832,11 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
                 value={size}
                 onChange={(event) => changeSize(Number(event.target.value))}
                 aria-label={t('screenshot.editor.size')}
-                className="w-full cursor-pointer accent-[#1685ff]"
+                className="w-16 cursor-pointer accent-[#1685ff]"
               />
+              <span className="flex h-6 w-6 flex-none items-center justify-center" aria-hidden="true">
+                <span className="rounded-full" style={{ width: Math.max(3, size), height: Math.max(3, size), backgroundColor: color }} />
+              </span>
             </label>
             <span className="mx-1 h-6 w-px flex-none bg-neutral-800" aria-hidden="true" />
             {selected?.type === 'text' && (
@@ -731,9 +850,17 @@ export default function ScreenshotEditor({ imageUrl, width, height, initialCrop,
             <button type="button" onClick={redo} disabled={historyIndex >= history.length - 1} aria-label={t('commands.redo')} title={t('commands.redo')} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-neutral-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:cursor-default disabled:opacity-30">
               <AppIcon name="redo" size={18} />
             </button>
+            {isTauri && (
+              <button type="button" onClick={() => void saveToFile()} disabled={busy || !image} aria-label={t('screenshot.actions.save')} aria-keyshortcuts="Control+S" title={`${t('screenshot.actions.save')} (Ctrl/Cmd+S)`} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-neutral-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:opacity-40">
+                <AppIcon name="download" size={18} />
+              </button>
+            )}
             <span className="mx-1 h-6 w-px flex-none bg-neutral-800" aria-hidden="true" />
             <button type="button" onClick={onCancel} disabled={busy} aria-label={t('screenshot.actions.cancel')} title={t('screenshot.actions.cancel')} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-red-950/50 hover:text-red-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:opacity-40">
               <AppIcon name="x" size={19} />
+            </button>
+            <button type="button" onClick={() => void copyAndDismiss()} disabled={busy || !image} aria-label={t('screenshot.actions.copy')} aria-keyshortcuts="Control+C" title={`${t('screenshot.actions.copy')} (Ctrl/Cmd+C)`} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 hover:bg-neutral-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1685ff] disabled:opacity-40">
+              <AppIcon name="copy" size={18} />
             </button>
             <button type="button" onClick={() => void confirm()} disabled={busy || !image} aria-label={t('screenshot.actions.insert')} aria-keyshortcuts="Enter" title={`${t('screenshot.actions.insert')} (Enter)`} className="flex h-10 w-10 p-0 flex-none cursor-pointer items-center justify-center rounded-xl transition-all duration-200 bg-[#1685ff] text-white shadow-md shadow-[#1685ff]/30 hover:bg-[#087be8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1685ff] disabled:opacity-40 hover:scale-105 active:scale-95">
               <AppIcon name="checkCircle" size={19} />

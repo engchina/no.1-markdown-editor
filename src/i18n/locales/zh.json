@@ -1212,7 +1212,11 @@
     "actions": {
       "cancel": "取消",
       "editText": "编辑文字",
-      "insert": "插入截图"
+      "insert": "插入截图",
+      "copy": "复制",
+      "save": "另存为…",
+      "copied": "已复制到剪贴板",
+      "saved": "已保存"
     },
     "editor": {
       "title": "截图标注",
@@ -1245,7 +1249,9 @@
       "insertFailedTitle": "无法插入截图",
       "insertFailedMessage": "Markdown 内容没有发生变化。{{reason}}",
       "documentChangedTitle": "截图已插入原光标附近",
-      "documentChangedMessage": "截屏期间文档发生了变化，因此保留了现有文字，并将图片插入最接近原光标的合法位置。"
+      "documentChangedMessage": "截屏期间文档发生了变化，因此保留了现有文字，并将图片插入最接近原光标的合法位置。",
+      "copyFailed": "无法复制图片",
+      "saveFailed": "无法保存图片"
     }
   },
   "runtimeError": {

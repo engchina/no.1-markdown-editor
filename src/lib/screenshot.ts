@@ -10,6 +10,7 @@ export const SCREENSHOT_FIXTURE_EVENT = 'app:screenshot-fixture'
 export const TAURI_SCREENSHOT_REQUEST_EVENT = 'screenshot-requested'
 export const TAURI_SCREENSHOT_CAPTURED_EVENT = 'screenshot-captured'
 export const TAURI_SCREENSHOT_CANCELLED_EVENT = 'screenshot-cancelled'
+export const TAURI_SCREENSHOT_OVERLAY_BEGIN_EVENT = 'screenshot-overlay-begin'
 
 export interface ScreenshotRect {
   x: number
