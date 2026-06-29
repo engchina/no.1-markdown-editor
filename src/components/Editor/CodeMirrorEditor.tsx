@@ -113,6 +113,15 @@ import {
   matchesEditorUndoShortcut,
 } from '../../lib/editorHistory.ts'
 import { EDITOR_RETURN_TO_WRITING_EVENT } from '../../lib/editorFocus.ts'
+import {
+  SCREENSHOT_CONTEXT_REQUEST_EVENT,
+  SCREENSHOT_CONTEXT_RESPONSE_EVENT,
+  SCREENSHOT_INSERT_EVENT,
+  SCREENSHOT_RETURN_FOCUS_EVENT,
+  resolveScreenshotInsertionRange,
+  type ScreenshotContextRequestDetail,
+  type ScreenshotInsertDetail,
+} from '../../lib/screenshot.ts'
 import { useAIStore } from '../../store/ai'
 import { selectEffectiveWysiwygMode, useActiveTab, useEditorStore } from '../../store/editor'
 import { useScrollSyncStore } from '../../store/scrollSync'
@@ -1220,6 +1229,69 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   }, [activeTab?.id, activeTab?.path])
 
   useEffect(() => {
+    const handleScreenshotContextRequest = (event: Event) => {
+      const view = viewRef.current
+      if (!view || !activeTab || activeTab.type === 'browser') return
+      const detail = (event as CustomEvent<ScreenshotContextRequestDetail>).detail
+      const selection = view.state.selection.main
+      document.dispatchEvent(new CustomEvent(SCREENSHOT_CONTEXT_RESPONSE_EVENT, {
+        detail: {
+          requestId: detail.requestId,
+          target: {
+            tabId: activeTab.id,
+            tabPath: activeTab.path,
+            docText: view.state.doc.toString(),
+            selectionFrom: selection.from,
+            selectionTo: selection.to,
+            anchorOffset: selection.head,
+            scrollTop: view.scrollDOM.scrollTop,
+            scrollLeft: view.scrollDOM.scrollLeft,
+          },
+        },
+      }))
+    }
+
+    const handleScreenshotInsert = (event: Event) => {
+      const view = viewRef.current
+      if (!view || !activeTab || activeTab.id !== (event as CustomEvent<ScreenshotInsertDetail>).detail.target.tabId) return
+      const detail = (event as CustomEvent<ScreenshotInsertDetail>).detail
+
+      void (async () => {
+        try {
+          const markdownText = await buildImageMarkdown([detail.file], activeTab.path, activeTab.id)
+          if (!markdownText) throw new Error('capture_image_markdown_empty')
+          const currentView = viewRef.current
+          if (!currentView || currentView !== view || !currentView.dom.isConnected) {
+            throw new Error('capture_editor_unavailable')
+          }
+          const currentDoc = currentView.state.doc.toString()
+          const range = resolveScreenshotInsertionRange(detail.target, currentDoc)
+          insertImageMarkdown(currentView, markdownText, range, { scrollIntoView: false })
+          window.requestAnimationFrame(() => {
+            currentView.scrollDOM.scrollTop = detail.target.scrollTop
+            currentView.scrollDOM.scrollLeft = detail.target.scrollLeft
+            currentView.focus()
+          })
+          detail.resolve({ stale: range.stale })
+        } catch (error) {
+          detail.reject(error)
+        }
+      })()
+    }
+
+    const handleScreenshotReturnFocus = () => viewRef.current?.focus()
+
+    document.addEventListener(SCREENSHOT_CONTEXT_REQUEST_EVENT, handleScreenshotContextRequest)
+    document.addEventListener(SCREENSHOT_INSERT_EVENT, handleScreenshotInsert)
+    document.addEventListener(SCREENSHOT_RETURN_FOCUS_EVENT, handleScreenshotReturnFocus)
+    return () => {
+      document.removeEventListener(SCREENSHOT_CONTEXT_REQUEST_EVENT, handleScreenshotContextRequest)
+      document.removeEventListener(SCREENSHOT_INSERT_EVENT, handleScreenshotInsert)
+      document.removeEventListener(SCREENSHOT_RETURN_FOCUS_EVENT, handleScreenshotReturnFocus)
+    }
+  }, [activeTab])
+
+  useEffect(() => {
     const handleAIOpen = (event: Event) => {
       const view = viewRef.current
       if (!view || !activeTab) return
@@ -1721,10 +1793,16 @@ function replaceSelectionWithImageMarkdown(view: EditorView, markdownText: strin
   })
 }
 
-function insertImageMarkdown(view: EditorView, markdownText: string, range: { from: number; to: number }): void {
+function insertImageMarkdown(
+  view: EditorView,
+  markdownText: string,
+  range: { from: number; to: number },
+  options: { scrollIntoView?: boolean } = {}
+): void {
   const insertion = prepareImageMarkdownInsertion(markdownText, view.state.sliceDoc(range.to))
   insertMarkdown(view, insertion.text, range, {
     selectionAnchor: range.from + insertion.selectionOffset,
+    scrollIntoView: options.scrollIntoView,
   })
 }
 

@@ -1201,6 +1201,53 @@
       "message": "原生 Webview 只会在桌面应用中渲染。请运行 Tauri 版本来浏览外部网站。"
     }
   },
+  "screenshot": {
+    "capture": {
+      "command": "截屏",
+      "commandDescription": "选择区域、添加标注并插入 Markdown",
+      "title": "选择截屏区域",
+      "hint": "拖动选择 · 松手直接标注 · Esc 取消",
+      "continue": "添加标注"
+    },
+    "actions": {
+      "cancel": "取消",
+      "editText": "编辑文字",
+      "insert": "插入截图"
+    },
+    "editor": {
+      "title": "截图标注",
+      "toolsLabel": "截图工具",
+      "color": "标注颜色",
+      "size": "尺寸",
+      "canvasLabel": "截图标注画布",
+      "textInput": "标注文字",
+      "textPlaceholder": "输入文字，按 Enter 完成",
+      "keyboardHint": "C/A/R/T/M/V 切换工具 · 方向键移动 · Shift + 方向键缩放 · Ctrl/Command + Enter 插入",
+      "exporting": "正在生成截图"
+    },
+    "tools": {
+      "select": "选择",
+      "crop": "裁剪",
+      "arrow": "箭头",
+      "rectangle": "矩形",
+      "text": "文字",
+      "mosaic": "马赛克"
+    },
+    "notices": {
+      "desktopOnlyTitle": "截屏功能仅支持桌面端",
+      "desktopOnlyMessage": "请使用桌面应用截取屏幕；当前环境仍可正常插入图片。",
+      "shortcutConflictTitle": "Alt+A 已被其他程序占用",
+      "shortcutConflictMessage": "全局快捷键注册失败，你仍可通过工具栏或命令面板启动截屏。",
+      "permissionDeniedTitle": "需要屏幕录制权限",
+      "permissionDeniedMessage": "请在系统设置中允许 No.1 Markdown Editor 截取屏幕，然后重试。",
+      "captureFailedTitle": "无法截取屏幕",
+      "captureFailedMessage": "编辑器已安全恢复，且没有创建文件。{{reason}}",
+      "insertFailedTitle": "无法插入截图",
+      "insertFailedMessage": "Markdown 内容没有发生变化。{{reason}}",
+      "documentChangedTitle": "截图已插入原光标附近",
+      "documentChangedMessage": "截屏期间文档发生了变化，因此保留了现有文字，并将图片插入最接近原光标的合法位置。"
+    }
+  },
   "runtimeError": {
     "appEyebrow": "运行时错误",
     "appTitle": "编辑器遇到了意外错误",

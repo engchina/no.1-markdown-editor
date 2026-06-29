@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "screenshot-overlays",
+  "description": "Minimal capability for screenshot selection overlay windows",
+  "windows": ["screenshot-overlay-*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-destroy",
+    "core:window:allow-show",
+    "core:window:allow-set-focus"
+  ]
+}

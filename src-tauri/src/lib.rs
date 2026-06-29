@@ -1,6 +1,7 @@
 mod ai;
 mod image_hosting;
 mod pdf_export;
+mod screenshot;
 mod update;
 
 use base64::Engine as _;
@@ -594,12 +595,13 @@ fn resolve_browser_accelerator_shortcut(
     alt: bool,
 ) -> Option<&'static str> {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        VK_0, VK_ADD, VK_F11, VK_H, VK_J, VK_N, VK_NUMPAD0, VK_O, VK_OEM_2, VK_OEM_5, VK_OEM_COMMA,
-        VK_OEM_MINUS, VK_OEM_PLUS, VK_P, VK_S, VK_SUBTRACT, VK_T, VK_W,
+        VK_0, VK_A, VK_ADD, VK_F11, VK_H, VK_J, VK_N, VK_NUMPAD0, VK_O, VK_OEM_2, VK_OEM_5,
+        VK_OEM_COMMA, VK_OEM_MINUS, VK_OEM_PLUS, VK_P, VK_S, VK_SUBTRACT, VK_T, VK_W,
     };
 
     if alt {
-        return None;
+        return (virtual_key == VK_A.0 as u32 && !ctrl && !shift)
+            .then_some("edit.captureScreenshot");
     }
 
     if virtual_key == VK_F11.0 as u32 && !ctrl && !shift {
@@ -1229,6 +1231,7 @@ pub fn run() {
         .manage(ai_in_flight_requests)
         .manage(ai_oauth_token_cache)
         .manage(BrowserTitleChannels::default())
+        .manage(screenshot::ScreenshotState::default())
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("editor-navigation-guard")
                 .on_navigation(|webview, url| {
@@ -1247,6 +1250,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             ai::commands::ai_load_provider_state,
             ai::commands::ai_save_provider_config,
@@ -1267,6 +1271,14 @@ pub fn run() {
             image_hosting::image_hosting_clear_pat,
             image_hosting::image_hosting_verify,
             image_hosting::image_hosting_upload,
+            screenshot::screenshot_register_global_shortcut,
+            screenshot::screenshot_capture_begin,
+            screenshot::screenshot_capture_read,
+            screenshot::screenshot_capture_claim,
+            screenshot::screenshot_capture_select,
+            screenshot::screenshot_capture_finish,
+            screenshot::screenshot_capture_cancel,
+            screenshot::screenshot_capture_release,
             read_file,
             write_file,
             copy_file,
@@ -1340,7 +1352,7 @@ mod tests {
     #[test]
     fn browser_accelerator_shortcuts_match_app_commands() {
         use windows::Win32::UI::Input::KeyboardAndMouse::{
-            VK_0, VK_ADD, VK_F11, VK_H, VK_J, VK_N, VK_NUMPAD0, VK_O, VK_OEM_2, VK_OEM_5,
+            VK_0, VK_A, VK_ADD, VK_F11, VK_H, VK_J, VK_N, VK_NUMPAD0, VK_O, VK_OEM_2, VK_OEM_5,
             VK_OEM_COMMA, VK_OEM_MINUS, VK_OEM_PLUS, VK_P, VK_S, VK_SUBTRACT, VK_T, VK_W,
         };
 
@@ -1387,6 +1399,10 @@ mod tests {
         assert_eq!(
             resolve_browser_accelerator_shortcut(VK_H.0 as u32, true, true, false),
             Some("edit.imageHosting")
+        );
+        assert_eq!(
+            resolve_browser_accelerator_shortcut(VK_A.0 as u32, false, false, true),
+            Some("edit.captureScreenshot")
         );
         assert_eq!(
             resolve_browser_accelerator_shortcut(VK_OEM_2.0 as u32, true, false, false),

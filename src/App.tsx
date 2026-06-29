@@ -8,6 +8,7 @@ import ResizableDivider from './components/Layout/ResizableDivider'
 import TitleBar from './components/TitleBar/TitleBar'
 import WindowResizeHandles from './components/TitleBar/WindowResizeHandles'
 import NotificationCenter from './components/Notifications/NotificationCenter'
+import ScreenshotController from './components/Screenshot/ScreenshotController'
 import RecoverableErrorBoundary from './components/ErrorBoundary/RecoverableErrorBoundary'
 import ErrorFallback from './components/ErrorBoundary/ErrorFallback'
 import { buildAIContextPacket, resolveCurrentBlockRange } from './lib/ai/context'
@@ -32,6 +33,7 @@ import {
   type AppBrowserShortcutPayload,
 } from './lib/browser/shortcuts'
 import { hideInactiveBrowserWebviews } from './lib/browser/webviewVisibility'
+import { dispatchScreenshotRequest } from './lib/screenshot'
 import { useAIStore } from './store/ai'
 import { useUpdateStore } from './store/update'
 import { useActiveTab, useEditorStore } from './store/editor'
@@ -198,6 +200,9 @@ export default function App() {
         case 'edit.imageHosting':
           document.dispatchEvent(new CustomEvent('app:image-hosting-open'))
           break
+        case 'edit.captureScreenshot':
+          dispatchScreenshotRequest()
+          break
         case 'view.toggleFocus':
           store.setFocusMode(!store.focusMode)
           break
@@ -291,7 +296,10 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (matchesPrimaryShortcut(event, { key: 'p', shift: true })) {
+      if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.code === 'KeyA') {
+        event.preventDefault()
+        runAppShortcutCommand('edit.captureScreenshot')
+      } else if (matchesPrimaryShortcut(event, { key: 'p', shift: true })) {
         event.preventDefault()
         runAppShortcutCommand('view.commandPalette')
       } else if (matchesPrimaryShortcut(event, { key: 'p' })) {
@@ -676,6 +684,7 @@ export default function App() {
         </Suspense>
       )}
       <NotificationCenter />
+      <ScreenshotController />
       {externalMissingDialogOpen && (
         <Suspense fallback={null}>
           <ExternalMissingFileDialog />

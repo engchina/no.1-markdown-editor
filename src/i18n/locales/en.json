@@ -1207,6 +1207,53 @@
       "message": "Native webviews only render in the desktop app. Run the Tauri build to browse external sites."
     }
   },
+  "screenshot": {
+    "capture": {
+      "command": "Capture screenshot",
+      "commandDescription": "Select, annotate, and insert a screenshot into Markdown",
+      "title": "Select a screenshot area",
+      "hint": "Drag to select · Release to annotate · Esc cancels",
+      "continue": "Annotate"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "editText": "Edit text",
+      "insert": "Insert screenshot"
+    },
+    "editor": {
+      "title": "Annotate screenshot",
+      "toolsLabel": "Screenshot tools",
+      "color": "Annotation color",
+      "size": "Size",
+      "canvasLabel": "Screenshot annotation canvas",
+      "textInput": "Annotation text",
+      "textPlaceholder": "Type text, then press Enter",
+      "keyboardHint": "C/A/R/T/M/V tools · Arrow keys move · Shift + Arrow keys resize · Ctrl/Command + Enter inserts",
+      "exporting": "Preparing screenshot"
+    },
+    "tools": {
+      "select": "Select",
+      "crop": "Crop",
+      "arrow": "Arrow",
+      "rectangle": "Rectangle",
+      "text": "Text",
+      "mosaic": "Mosaic"
+    },
+    "notices": {
+      "desktopOnlyTitle": "Screenshot capture requires the desktop app",
+      "desktopOnlyMessage": "Use the desktop app to capture the screen. Image insertion remains available here.",
+      "shortcutConflictTitle": "Alt+A is already in use",
+      "shortcutConflictMessage": "The global shortcut could not be registered. Use the toolbar or Command Palette instead.",
+      "permissionDeniedTitle": "Screen recording permission is required",
+      "permissionDeniedMessage": "Allow screen capture for No.1 Markdown Editor in system settings, then try again.",
+      "captureFailedTitle": "Could not capture the screen",
+      "captureFailedMessage": "The editor returned safely without creating a file. {{reason}}",
+      "insertFailedTitle": "Could not insert the screenshot",
+      "insertFailedMessage": "No Markdown was changed. {{reason}}",
+      "documentChangedTitle": "Screenshot inserted at the original cursor",
+      "documentChangedMessage": "The document changed during capture, so existing text was preserved and the image was inserted near the original cursor."
+    }
+  },
   "runtimeError": {
     "appEyebrow": "Runtime Error",
     "appTitle": "The editor hit an unexpected error",

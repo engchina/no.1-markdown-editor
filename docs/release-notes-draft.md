@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.27.1`.
+This document is a draft for the next public release after `v0.27.2`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,52 +8,53 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.27.2`
+`No.1 Markdown Editor v0.27.3`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.27.2 adds lossless YAML Front Matter editing, optional OKF v0.1 workspace validation, and consistent internal document navigation across Preview and WYSIWYG modes.
+No.1 Markdown Editor v0.27.3 adds fast desktop screenshot capture, lightweight annotation, and direct Markdown image insertion without leaving the editor.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Edit rich YAML Front Matter without losing unknown fields, nested values, arrays, multiline text, or original line endings.
-- Review metadata through compact, keyboard-accessible cards in Preview and WYSIWYG mode, with clear diagnostics when YAML is invalid.
-- Enable OKF v0.1 per workspace, inspect errors and suggestions, and jump directly to the affected document and line.
-- Follow workspace-root, relative, directory-index, and cross-document heading links consistently.
+- Start a screen-region capture with global `Alt+A`, the toolbar camera button, or the command palette.
+- Annotate immediately with crop, arrow, rectangle, text, and mosaic tools, then insert a flattened PNG at the remembered cursor position.
+- Keep saved-document images beside the document and unsaved-document images in the existing draft asset workflow.
+- Cancel the complete capture session immediately with `Esc`.
 
 ### Why This Release Matters
 
-Knowledge documents often need structured metadata without sacrificing normal Markdown editing. This release keeps YAML source authoritative and untouched during ordinary saves, while adding an optional OKF layer only where a workspace requests it.
+Screenshots are a common part of technical writing. This release removes the need to switch to a separate capture tool for the core capture, annotate, and insert workflow while preserving the editor's existing image storage behavior.
 
 ### User-Facing Improvements
 
-#### YAML Front Matter
+#### Capture and annotation
 
-- Front Matter supports mappings, arrays, multiline values, CRLF files, duplicate-key diagnostics, and both generic Markdown closing markers.
-- Type, tags, resource links, and other values share the same visual treatment in Preview and WYSIWYG mode.
-- Invalid closed YAML remains editable and visible; unclosed blocks stay as source text.
+- Windows, macOS, and Linux X11 use the same region-selection overlay; Linux Wayland uses the system screenshot portal before opening the shared annotation interface.
+- Selection, crop, arrow, rectangle, single-line text, and mosaic tools are available as direct icon actions without an intermediate annotation step.
+- Annotation objects can be selected, moved, resized, deleted, undone, and redone with mouse or keyboard controls.
 
-#### OKF workspaces
+#### Fast and reliable interaction
 
-- Root `index.md` files declaring `okf_version: "0.1"` enable OKF automatically, while each workspace can override the mode.
-- Concept documents require only valid Front Matter and a non-empty `type`; title, description, and timestamp remain suggestions.
-- Broken links, unknown types, unknown fields, and missing optional metadata never block opening or saving a document.
+- Capture overlays are prepared before the editor is hidden and preview pixels are transferred without PNG compression, reducing visible flashing and startup delay.
+- Text annotation starts after pointer release, receives focus immediately, and is no longer blocked by existing annotation hit areas.
+- Permission denial, capture failure, shortcut conflicts, and cancellation return safely to the editor without writing an asset.
 
-#### Navigation
+#### Markdown insertion
 
-- Workspace-root links such as `/tables/orders.md`, relative links, directory links, and heading anchors resolve through one shared navigation path.
-- Broken internal links show a recoverable warning instead of navigating the WebView away from the document.
+- The final image reuses the existing saved-document and draft-image persistence paths.
+- If the document changed during capture, insertion preserves the new text and uses the nearest safe position to the original cursor.
+- Source, Split, WYSIWYG, and Preview continue to render the same Markdown image reference.
 
 ### Suggested Upgrade Notes Section
 
-- Existing Markdown files remain unchanged unless edited by the user.
-- OKF validation is disabled for ordinary workspaces unless explicitly enabled or declared by the root `index.md`.
+- Global `Alt+A` remains fixed for this release; if another application owns it, the toolbar and command-palette entries remain available.
+- Captured annotations are flattened into PNG and cannot be edited after insertion.
 
 ### Suggested Who Should Update Section
 
-This release is especially useful for teams maintaining Markdown knowledge catalogs, data documentation, or other metadata-rich workspaces.
+This release is especially useful for technical writers, developers, support teams, and anyone who regularly inserts annotated screenshots into Markdown documents.
 
 ## Packaging Checklist Before Release
 
@@ -61,7 +62,7 @@ This release is especially useful for teams maintaining Markdown knowledge catal
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.27.2`.
-- Run `npm run release:validate -- 0.27.2` so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.27.2`.
-- After publication, run `npm run release:draft:advance -- 0.27.2`.
+- Run `npm run release:prepare -- 0.27.3`.
+- Run `npm run release:validate -- 0.27.3` so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.27.3`.
+- After publication, run `npm run release:draft:advance -- 0.27.3`.

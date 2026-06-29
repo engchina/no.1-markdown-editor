@@ -1201,6 +1201,53 @@
       "message": "ネイティブ Webview はデスクトップアプリでのみ描画されます。外部サイトを閲覧するには Tauri 版で実行してください。"
     }
   },
+  "screenshot": {
+    "capture": {
+      "command": "スクリーンショットを撮影",
+      "commandDescription": "範囲を選択し、注釈を付けて Markdown に挿入します",
+      "title": "撮影範囲を選択",
+      "hint": "ドラッグで選択 · 離すと注釈 · Esc でキャンセル",
+      "continue": "注釈を追加"
+    },
+    "actions": {
+      "cancel": "キャンセル",
+      "editText": "文字を編集",
+      "insert": "スクリーンショットを挿入"
+    },
+    "editor": {
+      "title": "スクリーンショットに注釈",
+      "toolsLabel": "スクリーンショットツール",
+      "color": "注釈の色",
+      "size": "サイズ",
+      "canvasLabel": "スクリーンショット注釈キャンバス",
+      "textInput": "注釈テキスト",
+      "textPlaceholder": "文字を入力して Enter で確定",
+      "keyboardHint": "C/A/R/T/M/V でツール切替 · 矢印キーで移動 · Shift + 矢印キーでサイズ変更 · Ctrl/Command + Enter で挿入",
+      "exporting": "スクリーンショットを準備中"
+    },
+    "tools": {
+      "select": "選択",
+      "crop": "トリミング",
+      "arrow": "矢印",
+      "rectangle": "四角形",
+      "text": "テキスト",
+      "mosaic": "モザイク"
+    },
+    "notices": {
+      "desktopOnlyTitle": "スクリーンショット撮影はデスクトップ版で利用できます",
+      "desktopOnlyMessage": "画面を撮影するにはデスクトップ版をお使いください。画像の挿入は引き続き利用できます。",
+      "shortcutConflictTitle": "Alt+A は別のアプリで使用されています",
+      "shortcutConflictMessage": "グローバルショートカットを登録できませんでした。ツールバーまたはコマンドパレットから起動できます。",
+      "permissionDeniedTitle": "画面収録の権限が必要です",
+      "permissionDeniedMessage": "システム設定で No.1 Markdown Editor の画面撮影を許可してから、もう一度お試しください。",
+      "captureFailedTitle": "画面を撮影できませんでした",
+      "captureFailedMessage": "ファイルを作成せず、安全にエディターへ戻りました。{{reason}}",
+      "insertFailedTitle": "スクリーンショットを挿入できませんでした",
+      "insertFailedMessage": "Markdown は変更されていません。{{reason}}",
+      "documentChangedTitle": "元のカーソル位置に挿入しました",
+      "documentChangedMessage": "撮影中に文書が変更されたため、既存の文字を残し、元のカーソルに最も近い位置へ画像を挿入しました。"
+    }
+  },
   "runtimeError": {
     "appEyebrow": "ランタイムエラー",
     "appTitle": "エディターで予期しないエラーが発生しました",

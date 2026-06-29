@@ -1,6 +1,6 @@
 {
   "name": "no1-markdown-editor",
-  "version": "0.27.2",
+  "version": "0.27.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -20,6 +20,7 @@
     "test:paste:smoke": "npm run build && node scripts/run-paste-smoke.mjs",
     "test:source:smoke": "npm run build && node scripts/run-source-interaction-smoke.mjs",
     "test:scroll:sync:smoke": "npm run build && node scripts/run-split-scroll-sync-smoke.mjs",
+    "test:screenshot:smoke": "npm run build && node scripts/run-screenshot-smoke.mjs",
     "release:prepare": "node scripts/prepare-release.mjs",
     "release:draft:advance": "node scripts/advance-release-draft.mjs",
     "release:notes:preview": "node scripts/build-release-body.mjs",

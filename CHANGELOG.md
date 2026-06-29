@@ -20,6 +20,24 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.3 - 2026-06-29
+
+### Added
+
+- The desktop editor can now capture a screen region with global `Alt+A`, annotate it with crop, arrow, rectangle, text, and mosaic tools, and insert the flattened PNG through the existing document or draft image workflow.
+
+### Changed
+
+### Fixed
+
+- Screenshot text annotations now preserve in-progress text when confirming, provide a clear edit action, and use a larger hit area for selecting or double-clicking existing text.
+- `Alt+A` now also starts screenshot capture through an in-app fallback, including when an embedded browser tab has focus.
+- Screenshot capture now opens substantially faster and avoids flashing an empty overlay or briefly switching Preview to Source.
+
+### Internal
+
+- Added screenshot session, annotation, insertion-strategy, localization, and entry-point regression coverage, plus the Linux capture and portal build dependencies.
+
 ## 0.27.2 - 2026-06-29
 
 ### Added

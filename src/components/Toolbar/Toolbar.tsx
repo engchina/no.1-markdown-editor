@@ -11,6 +11,7 @@ import { EDITOR_AI_SETUP_OPEN_EVENT } from '../../lib/ai/events'
 import { triggerImageHostingUploadForActiveDocument } from '../../lib/imageHosting/triggerUpload'
 import { getKeyboardShortcutsShortcutLabel } from '../../lib/keyboardShortcuts'
 import { DEFAULT_BROWSER_URL } from '../../lib/browser/defaults'
+import { dispatchScreenshotRequest, getScreenshotShortcutLabel } from '../../lib/screenshot.ts'
 import type { FormatAction } from '../Editor/formatCommands'
 import { getFormatShortcutLabel } from '../Editor/formatShortcuts'
 import AppIcon, { type IconName } from '../Icons/AppIcon'
@@ -379,6 +380,7 @@ export default function Toolbar({
   const headingShortcut = getFormatShortcutLabel('heading')
   const boldShortcut = getFormatShortcutLabel('bold')
   const italicShortcut = getFormatShortcutLabel('italic')
+  const screenshotShortcut = getScreenshotShortcutLabel()
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -564,6 +566,14 @@ export default function Toolbar({
         </ToolbarBtn>
         <ToolbarBtn title={`${t('toolbar.italic')} (${italicShortcut})`} onClick={() => emitFormat('italic')}>
           <AppIcon name="italic" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn title={`${t('toolbar.image')} (${getFormatShortcutLabel('image')})`} onClick={() => emitFormat('image')}>
+          <AppIcon name="image" size={16} />
+        </ToolbarBtn>
+        <ToolbarBtn title={`${t('screenshot.capture.command')} (${screenshotShortcut})`} onClick={() => dispatchScreenshotRequest()}>
+          <span data-toolbar-action="capture-screenshot" className="contents">
+            <AppIcon name="camera" size={16} />
+          </span>
         </ToolbarBtn>
 
         <div className="relative">
