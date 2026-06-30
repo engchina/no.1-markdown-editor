@@ -2833,7 +2833,7 @@ dependencies = [
 
 [[package]]
 name = "no1-markdown-editor"
-version = "0.27.9"
+version = "0.27.10"
 dependencies = [
  "ashpd",
  "base64 0.22.1",

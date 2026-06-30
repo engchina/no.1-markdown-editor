@@ -105,6 +105,8 @@ export default function ScreenshotOverlay() {
   const loupeCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const activePointerIdRef = useRef<number | null>(null)
+  const cancellingRef = useRef(false)
 
   // Re-arm the overlay for a new capture: drop the previous frame and adopt the
   // new session id, which re-runs the capture-read effect below.
@@ -123,7 +125,15 @@ export default function ScreenshotOverlay() {
     setSmartTarget(null)
     smartTargetRef.current = null
     pressedTargetRef.current = null
+    activePointerIdRef.current = null
+    cancellingRef.current = false
     aimRevisionRef.current += 1
+    if (moveRafRef.current != null) {
+      window.cancelAnimationFrame(moveRafRef.current)
+      moveRafRef.current = null
+    }
+    pendingSelectionRef.current = null
+    pendingCursorRef.current = null
     pendingElementQueryRef.current = null
     imageCanvasRef.current = null
     claimedRef.current = false
@@ -292,10 +302,30 @@ export default function ScreenshotOverlay() {
   }, [busy, claim, imageSize.height, imageSize.width])
 
   const cancel = useCallback(() => {
-    if (busy || !sessionId) return
+    if (cancellingRef.current || !sessionId) return
+    cancellingRef.current = true
     setBusy(true)
-    void invoke('screenshot_capture_cancel', { sessionId }).catch(() => setBusy(false))
-  }, [busy, sessionId])
+    if (moveRafRef.current != null) {
+      window.cancelAnimationFrame(moveRafRef.current)
+      moveRafRef.current = null
+    }
+    pendingSelectionRef.current = null
+    pendingCursorRef.current = null
+    pressedTargetRef.current = null
+    setDragStart(null)
+
+    const pointerId = activePointerIdRef.current
+    activePointerIdRef.current = null
+    const surface = surfaceRef.current
+    if (pointerId != null && surface?.hasPointerCapture(pointerId)) {
+      surface.releasePointerCapture(pointerId)
+    }
+
+    void invoke('screenshot_capture_cancel', { sessionId }).catch(() => {
+      cancellingRef.current = false
+      setBusy(false)
+    })
+  }, [sessionId])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -325,8 +355,8 @@ export default function ScreenshotOverlay() {
         imageSize.height
       ))
     }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [cancel, claim, editing, enterEditing, imageSize.height, imageSize.width, selection])
 
   // One rAF coalesces both cursor (loupe/crosshair) and selection updates so a
@@ -350,6 +380,7 @@ export default function ScreenshotOverlay() {
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (busy || event.button !== 0) return
     event.currentTarget.setPointerCapture(event.pointerId)
+    activePointerIdRef.current = event.pointerId
     void claim()
     const point = pointFromEvent(event)
     const target = smartTargetRef.current
@@ -379,7 +410,8 @@ export default function ScreenshotOverlay() {
   }
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragStart) return
+    if (!dragStart || activePointerIdRef.current !== event.pointerId) return
+    activePointerIdRef.current = null
     if (moveRafRef.current != null) {
       window.cancelAnimationFrame(moveRafRef.current)
       moveRafRef.current = null
@@ -391,7 +423,9 @@ export default function ScreenshotOverlay() {
       imageSize.width,
       imageSize.height
     )
-    event.currentTarget.releasePointerCapture(event.pointerId)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
     setDragStart(null)
     if (nextSelection.width >= 2 && nextSelection.height >= 2) {
       pressedTargetRef.current = null
@@ -408,6 +442,10 @@ export default function ScreenshotOverlay() {
       ? pressedTarget.rect
       : windowTarget?.rect
     if (targetRect) void enterEditing(targetRect)
+  }
+
+  const onPointerInterrupted = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (activePointerIdRef.current === event.pointerId) cancel()
   }
 
   const onPointerLeave = () => {
@@ -476,6 +514,8 @@ export default function ScreenshotOverlay() {
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onPointerCancel={onPointerInterrupted}
+          onLostPointerCapture={onPointerInterrupted}
           onPointerLeave={onPointerLeave}
         >
           <img
@@ -503,7 +543,7 @@ export default function ScreenshotOverlay() {
               void overlay.show()
                 .then(async () => {
                   await invoke('screenshot_hide_main').catch(() => undefined)
-                  void overlay.setFocus().catch(() => undefined)
+                  await overlay.setFocus().catch(() => undefined)
                   cancelButtonRef.current?.focus()
                   // Fetch window rects after the editor is hidden so it isn't listed.
                   if (activeSession) {

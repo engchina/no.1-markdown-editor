@@ -151,8 +151,18 @@ test('selection opens the icon annotation toolbar directly without an Annotate s
   assert.match(backend, /edit: Option<serde_json::Value>/)
 })
 
-test('Escape exits the complete capture and text input owns pointer and keyboard focus', () => {
+test('Escape exits before, during, and after region selection', () => {
+  const overlay = read('src/components/Screenshot/ScreenshotOverlay.tsx')
   const editor = read('src/components/Screenshot/ScreenshotEditor.tsx')
+  assert.match(overlay, /const activePointerIdRef = useRef<number \| null>\(null\)/)
+  assert.match(overlay, /const cancellingRef = useRef\(false\)/)
+  assert.match(overlay, /if \(cancellingRef\.current \|\| !sessionId\) return/)
+  assert.match(overlay, /window\.addEventListener\('keydown', onKeyDown, true\)/)
+  assert.match(overlay, /const onPointerUp[\s\S]*?activePointerIdRef\.current = null[\s\S]*?releasePointerCapture\(event\.pointerId\)/)
+  assert.match(overlay, /const onPointerInterrupted[\s\S]*?activePointerIdRef\.current === event\.pointerId[\s\S]*?cancel\(\)/)
+  assert.match(overlay, /onPointerCancel=\{onPointerInterrupted\}/)
+  assert.match(overlay, /onLostPointerCapture=\{onPointerInterrupted\}/)
+  assert.match(overlay, /await overlay\.setFocus\(\)[\s\S]*?cancelButtonRef\.current\?\.focus\(\)/)
   assert.match(editor, /if \(event\.key === 'Escape'\) \{[\s\S]*?onCancel\(\)/)
   assert.match(editor, /event\.key === 'Enter' && interactiveControl/)
   assert.match(editor, /if \(event\.key === 'Enter'\) \{[\s\S]*?void confirm\(\)/)

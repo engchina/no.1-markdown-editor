@@ -20,6 +20,20 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.10 - 2026-06-30
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Pressing `Esc` now cancels screenshot capture even while a region drag is active, closes the capture overlays, and returns to the editor without inserting an image.
+
+### Internal
+
+- Added regression coverage for screenshot cancellation before, during, and after region selection.
+
 ## 0.27.9 - 2026-06-30
 
 ### Added
