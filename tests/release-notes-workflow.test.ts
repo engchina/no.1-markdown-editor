@@ -136,11 +136,12 @@ test('build-release-body limits the macOS helper to initial install or legacy mi
     changelogSource: '# Changelog\n',
   })
 
-  assert.match(body, /## macOS: First Launch/)
+  assert.match(body, /## macOS: Initial Install or One-Time Migration/)
   assert.match(body, /macOS-First-Launch-Helper\.zip/)
   assert.match(body, /Open-No1-Markdown-Editor\.command/)
   assert.match(body, /xattr -dr com\.apple\.quarantine/)
-  assert.match(body, /Later updates are verified and installed inside the app/)
+  assert.match(body, /Do not use it for normal in-app updates/)
+  assert.match(body, /without downloading another DMG or approving each version in Privacy & Security/)
   assert.doesNotMatch(body, /every launch right after an update/)
   assert.doesNotMatch(body, /Run it again after each update/)
   // The permanent note is the last section of the release body.

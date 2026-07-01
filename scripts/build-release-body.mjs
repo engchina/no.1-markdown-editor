@@ -11,19 +11,19 @@ const CHANGELOG_PATH = 'CHANGELOG.md'
 // Later releases use Tauri's independently signed in-app updater and do not
 // send existing users back through the browser/DMG install path.
 export const MACOS_FIRST_LAUNCH_NOTE = [
-  '## macOS: First Launch / 初回起動 / 首次启动',
+  '## macOS: Initial Install or One-Time Migration / 初回インストール・一度限りの移行 / 首次安装或一次性迁移',
   '',
-  'The macOS build is **not notarized by Apple**, so Gatekeeper can block the first installation. This is expected; it is not a real malware detection. Existing users upgrading from a release without the signed in-app updater may need this step one last time. Later updates are verified and installed inside the app.',
+  'This build is not signed with an Apple Developer ID or notarized, so macOS may block it during the initial installation. Use the helper below only for the initial installation or when migrating from `v0.27.10` or earlier. Do not use it for normal in-app updates. From `v0.27.11` onward, updates are signature-verified and installed inside the app without downloading another DMG or approving each version in Privacy & Security.',
   '',
-  '- **Easiest (no command):** download `macOS-First-Launch-Helper.zip` from the Assets below, unzip it, and **double-click `Open-No1-Markdown-Editor.command`**. It clears the initial security flag and launches the app.',
+  '- **Only if macOS blocks the app:** download `macOS-First-Launch-Helper.zip` from the Assets below, unzip it, and **double-click `Open-No1-Markdown-Editor.command`**. It removes the quarantine attribute from the installed app and opens it.',
   '- **Manual:** in Terminal run:',
   '  ```',
   '  xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"',
   '  ```',
   '',
-  '**日本語**: この macOS ビルドは Apple の公証を受けていないため、初回インストール時にセキュリティ警告でブロックされることがあります。不具合ではありません。下の Assets から `macOS-First-Launch-Helper.zip` をダウンロードして解凍し、`Open-No1-Markdown-Editor.command` をダブルクリックすると解除して起動できます。署名付きアプリ内アップデーターを搭載していない旧版からの移行時は、この操作が最後に一度だけ必要になる場合があります。以降の更新はアプリ内で検証・インストールされます。',
+  '**日本語**: このビルドは Apple Developer ID で署名・公証されていないため、macOS が初回インストール時に起動をブロックする場合があります。下記のヘルパーは、初回インストール時、または `v0.27.10` 以前から移行するときに限り使用してください。通常のアプリ内更新では使用しません。`v0.27.11` 以降の更新はアプリ内で署名を検証してインストールされ、新しい DMG のダウンロードや「プライバシーとセキュリティ」でバージョンごとに許可する操作は不要です。macOS にブロックされた場合のみ、Assets から `macOS-First-Launch-Helper.zip` をダウンロードして解凍し、`Open-No1-Markdown-Editor.command` をダブルクリックしてください。',
   '',
-  '**中文**: 此 macOS 版本未经 Apple 公证，首次安装时可能被 Gatekeeper 拦截，这是正常现象，不是真的检测到恶意软件。从下方 Assets 下载 `macOS-First-Launch-Helper.zip`，解压后双击 `Open-No1-Markdown-Editor.command` 即可解除并启动。从尚未内置签名更新器的旧版本迁移时，可能还需要最后执行一次；之后的更新会在应用内完成签名验证和安装。',
+  '**中文**: 此版本未使用 Apple Developer ID 签名且未经 Apple 公证，因此 macOS 可能在首次安装时阻止启动。以下助手仅用于首次安装，或从 `v0.27.10` 及更早版本迁移时使用；正常的应用内更新不要运行它。从 `v0.27.11` 开始，后续更新会在应用内验证签名并安装，无需重新下载 DMG，也无需针对每个版本前往“隐私与安全性”重新允许。仅在 macOS 阻止启动时，才从 Assets 下载并解压 `macOS-First-Launch-Helper.zip`，然后双击 `Open-No1-Markdown-Editor.command`。',
 ].join('\n')
 
 export function extractReleaseNotesDraftBody(source) {

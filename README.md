@@ -100,12 +100,12 @@ Install latest package from [releases](https://github.com/engchina/no.1-markdown
 - macOS universal desktop bundle
 - Linux x64 desktop bundle
 
-### First launch (unsigned builds)
+### Initial installation (unsigned builds)
 
-The packages are not code-signed, so the OS warns the first time you open them. This is expected, not a malware detection.
+The packages are not signed with platform-vendor certificates, so the OS may warn during the initial installation.
 
 - **Windows**: SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
-- **macOS**: Gatekeeper can block the initial installation because the app is not Apple-notarized. Easiest fix: unzip `macOS-First-Launch-Helper.zip` from the release and double-click `Open-No1-Markdown-Editor.command`. Users migrating from a release without the signed in-app updater may need this one final time. Manual fallback: `xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"`. See [Release / macOS signing](#release) for details.
+- **macOS**: Gatekeeper can block the initial installation because the app has no Apple Developer ID signature or notarization. Only if macOS blocks the app, unzip `macOS-First-Launch-Helper.zip` and double-click `Open-No1-Markdown-Editor.command`. Use it only for the initial installation or a one-time migration from `v0.27.10` or earlier, never for normal in-app updates. Manual fallback: `xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"`. See [Release / macOS signing](#release) for details.
 - **Linux**: no prompt; mark the bundle executable if your file manager requires it.
 
 
@@ -139,11 +139,11 @@ For macOS builds:
 
 - The workflow uses `--target universal-apple-darwin`, so one package covers both Apple Silicon and Intel Macs.
 - The build is **ad-hoc signed** (`APPLE_SIGNING_IDENTITY: "-"`), which lets Apple Silicon run it without a "damaged" error. This is **not** Apple notarization and requires no developer certificate.
-- Because the build is not notarized, Gatekeeper can still block the **initial installation**. This is expected, not a real malware detection.
+- Because the build has no Apple Developer ID signature or notarization, Gatekeeper can still block the **initial installation**.
 - macOS update bundles are signed with a separate Tauri updater key. The app verifies the signature, installs the update in place, and restarts without opening a browser or downloading another DMG.
 - To make recovery painless for end users without an Apple Developer certificate:
-  - Every GitHub release body carries a permanent macOS first-launch note in EN/JA/ZH (appended by `scripts/build-release-body.mjs`).
-  - Each release ships `macOS-First-Launch-Helper.zip`: unzip and double-click `Open-No1-Markdown-Editor.command` to clear the initial quarantine flag and launch the app. Existing installations predating the signed updater may need this one last time.
+  - Every GitHub release body carries a permanent EN/JA/ZH note limited to initial installation or one-time migration (appended by `scripts/build-release-body.mjs`).
+  - Each release ships `macOS-First-Launch-Helper.zip`. Use it only when macOS blocks the initial installation or migration from `v0.27.10` or earlier; normal in-app updates must not use it.
   - The manual fallback is `xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"`.
 - The updater signing key is not an Apple identity and does not remove Gatekeeper from first installation. Removing that first-install prompt still requires Apple Developer signing and notarization or an organization-managed MDM policy.
 

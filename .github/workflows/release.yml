@@ -88,7 +88,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Ad-hoc sign the macOS build (identity "-") so Apple Silicon can run it
           # without a "damaged" error. This is not Apple notarization, so Gatekeeper
-          # still prompts on first launch; the bundled helper script clears that.
+          # can still block initial installation; the helper is only for that or
+          # a one-time migration from a release without the signed updater.
           APPLE_SIGNING_IDENTITY: ${{ matrix.label == 'macOS universal' && '-' || '' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ matrix.label == 'macOS universal' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ matrix.label == 'macOS universal' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
