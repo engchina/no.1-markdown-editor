@@ -161,14 +161,25 @@ test('Command palette exposes the check-for-updates action', async () => {
   assert.match(palette, /file\.checkUpdates/)
 })
 
-test('UpdateAvailableDialog renders a modal with download, skip, and cancel actions', async () => {
-  const dialog = await readFile(new URL('../src/components/Updates/UpdateAvailableDialog.tsx', import.meta.url), 'utf8')
+test('UpdateAvailableDialog installs signed macOS updates in app and keeps downloads elsewhere', async () => {
+  const [dialog, actions] = await Promise.all([
+    readFile(new URL('../src/components/Updates/UpdateAvailableDialog.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/updateActions.ts', import.meta.url), 'utf8'),
+  ])
 
   assert.match(dialog, /role="dialog"/)
   assert.match(dialog, /aria-modal="true"/)
-  assert.match(dialog, /t\('updates\.downloadLatest'\)/)
+  assert.match(dialog, /updates\.downloadLatest/)
+  assert.match(dialog, /updates\.installAndRestart/)
+  assert.match(dialog, /updates\.installing/)
+  assert.match(dialog, /aria-busy=\{isInstalling\}/)
+  assert.match(dialog, /!installsInApp && release\.assetName/)
   assert.match(dialog, /t\('updates\.skipVersion'\)/)
   assert.match(dialog, /t\('updates\.cancel'\)/)
+  assert.match(actions, /return isDesktopApp\(\) && isMacPlatform\(\)/)
+  assert.match(actions, /await invoke\('install_app_update'\)/)
+  assert.match(actions, /updateInstallErrorTitle/)
+  assert.match(actions, /await openUpdateUrlWithNotice\(getReleaseDownloadUrl\(release\)\)/)
 })
 
 test('UpdateAvailableDialog keeps actions reachable in compact window heights', async () => {

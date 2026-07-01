@@ -121,7 +121,7 @@ test('build-release-body appends matching changelog content to the release draft
   assert.doesNotMatch(body, /Ignore unreleased/)
 })
 
-test('build-release-body always appends the macOS first-launch helper note', () => {
+test('build-release-body limits the macOS helper to initial install or legacy migration', () => {
   const body = buildReleaseBody({
     version: '0.26.5',
     releaseNotesDraftSource: [
@@ -140,6 +140,9 @@ test('build-release-body always appends the macOS first-launch helper note', () 
   assert.match(body, /macOS-First-Launch-Helper\.zip/)
   assert.match(body, /Open-No1-Markdown-Editor\.command/)
   assert.match(body, /xattr -dr com\.apple\.quarantine/)
+  assert.match(body, /Later updates are verified and installed inside the app/)
+  assert.doesNotMatch(body, /every launch right after an update/)
+  assert.doesNotMatch(body, /Run it again after each update/)
   // The permanent note is the last section of the release body.
   assert.ok(body.trimEnd().endsWith(MACOS_FIRST_LAUNCH_NOTE))
 })
@@ -617,15 +620,20 @@ test('validateRelease reports version drift clearly', () => {
   )
 })
 
-test('release workflow builds releaseBody from repository docs before invoking tauri-action', async () => {
-  const [workflow, readme, changelog, draft, packageJson] = await Promise.all([
+test('release workflow builds releaseBody and signed macOS updater assets', async () => {
+  const [workflow, readme, changelog, draft, packageJson, macConfig, cargoToml, updateRust, appRust] = await Promise.all([
     readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8'),
     readFile(new URL('../README.md', import.meta.url), 'utf8'),
     readFile(new URL('../CHANGELOG.md', import.meta.url), 'utf8'),
     readFile(new URL('../docs/release-notes-draft.md', import.meta.url), 'utf8'),
     readFile(new URL('../package.json', import.meta.url), 'utf8'),
+    readFile(new URL('../src-tauri/tauri.macos.conf.json', import.meta.url), 'utf8'),
+    readFile(new URL('../src-tauri/Cargo.toml', import.meta.url), 'utf8'),
+    readFile(new URL('../src-tauri/src/update.rs', import.meta.url), 'utf8'),
+    readFile(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8'),
   ])
   const pkg = JSON.parse(packageJson)
+  const macUpdater = JSON.parse(macConfig)
   const currentVersionPattern = String(pkg.version).replace(/\./g, '\\.')
 
   assert.match(workflow, /name: Validate release metadata/)
@@ -643,6 +651,28 @@ test('release workflow builds releaseBody from repository docs before invoking t
   // macOS build is ad-hoc signed (identity "-") instead of skipped via --no-sign.
   assert.match(workflow, /APPLE_SIGNING_IDENTITY: \$\{\{ matrix\.label == 'macOS universal' && '-' \|\| '' \}\}/)
   assert.doesNotMatch(workflow, /--no-sign/)
+  assert.match(workflow, /name: Validate macOS updater signing secrets/)
+  assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY: \$\{\{ matrix\.label == 'macOS universal' && secrets\.TAURI_SIGNING_PRIVATE_KEY \|\| '' \}\}/)
+  assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD: \$\{\{ matrix\.label == 'macOS universal' && secrets\.TAURI_SIGNING_PRIVATE_KEY_PASSWORD \|\| '' \}\}/)
+  assert.match(workflow, /includeUpdaterJson: true/)
+  assert.doesNotMatch(workflow, /uploadUpdaterJson|uploadUpdaterSignatures/)
+  assert.match(workflow, /name: Verify macOS updater release assets/)
+  assert.match(workflow, /"darwin-aarch64", "darwin-x86_64"/)
+  assert.match(workflow, /endsWith\("\.app\.tar\.gz"\)/)
+
+  assert.equal(macUpdater.bundle.createUpdaterArtifacts, true)
+  assert.equal(
+    macUpdater.plugins.updater.endpoints[0],
+    'https://github.com/engchina/no.1-markdown-editor/releases/latest/download/latest.json'
+  )
+  assert.match(macUpdater.plugins.updater.pubkey, /^[A-Za-z0-9+/=]+$/u)
+  assert.match(cargoToml, /\[target\."cfg\(target_os = \\"macos\\"\)"\.dependencies\][\s\S]*tauri-plugin-updater = "2\.10"/)
+  assert.match(updateRust, /pub async fn install_app_update/)
+  assert.match(updateRust, /\.download_and_install\(\|_, _\| \{\}, \|\| \{\}\)/)
+  assert.match(updateRust, /app\.restart\(\)/)
+  assert.doesNotMatch(updateRust, /xattr|com\.apple\.quarantine/u)
+  assert.match(appRust, /builder\.plugin\(tauri_plugin_updater::Builder::new\(\)\.build\(\)\)/)
+  assert.match(appRust, /update::install_app_update/)
   // macOS first-launch helper is packaged and uploaded as a release asset.
   assert.match(workflow, /name: Package macOS first-launch helper/)
   assert.match(workflow, /name: Upload macOS first-launch helper/)

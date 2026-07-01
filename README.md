@@ -105,7 +105,7 @@ Install latest package from [releases](https://github.com/engchina/no.1-markdown
 The packages are not code-signed, so the OS warns the first time you open them. This is expected, not a malware detection.
 
 - **Windows**: SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
-- **macOS**: Gatekeeper blocks the first launch (and the first launch after each in-app update). Easiest fix: unzip `macOS-First-Launch-Helper.zip` from the release and double-click `Open-No1-Markdown-Editor.command`. Manual fallback: `xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"`. See [Release / macOS signing](#release) for details.
+- **macOS**: Gatekeeper can block the initial installation because the app is not Apple-notarized. Easiest fix: unzip `macOS-First-Launch-Helper.zip` from the release and double-click `Open-No1-Markdown-Editor.command`. Users migrating from a release without the signed in-app updater may need this one final time. Manual fallback: `xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"`. See [Release / macOS signing](#release) for details.
 - **Linux**: no prompt; mark the bundle executable if your file manager requires it.
 
 
@@ -127,10 +127,10 @@ The packages are not code-signed, so the OS warns the first time you open them. 
 
 GitHub release automation is defined in `.github/workflows/release.yml`.
 
-- Run `npm run release:prepare -- 0.27.10` to sync `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and promote `CHANGELOG.md` `## Unreleased` into a dated `## 0.27.10 - YYYY-MM-DD` section before tagging.
-- Run `npm run release:validate` after bumping the release version to confirm `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `CHANGELOG.md` are ready for the same tag, and that the release changelog section no longer contains scaffold comment placeholders. Use `npm run release:validate -- 0.27.10` if you want to validate an explicit target before committing the version bump.
-- Run `npm run release:notes:preview -- 0.27.10` to print the GitHub release body locally before pushing `v0.27.10`.
-- After the release is published, run `npm run release:draft:advance -- 0.27.10` to reset `docs/release-notes-draft.md` and normalize `CHANGELOG.md` `## Unreleased` into the next-cycle suggested scaffold after `v0.27.10`.
+- Run `npm run release:prepare -- 0.27.11` to sync `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and promote `CHANGELOG.md` `## Unreleased` into a dated `## 0.27.11 - YYYY-MM-DD` section before tagging.
+- Run `npm run release:validate` after bumping the release version to confirm `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `CHANGELOG.md` are ready for the same tag, and that the release changelog section no longer contains scaffold comment placeholders. Use `npm run release:validate -- 0.27.11` if you want to validate an explicit target before committing the version bump.
+- Run `npm run release:notes:preview -- 0.27.11` to print the GitHub release body locally before pushing `v0.27.11`.
+- After the release is published, run `npm run release:draft:advance -- 0.27.11` to reset `docs/release-notes-draft.md` and normalize `CHANGELOG.md` `## Unreleased` into the next-cycle suggested scaffold after `v0.27.11`.
 - Keep the version aligned in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`.
 - Create and push a version tag such as `v0.14.0`. The workflow fails early if the tag does not match the app version.
 - Pushing the tag builds Windows x64, a single universal macOS release bundle for both Apple Silicon and Intel Macs, and Linux x64 release bundles on GitHub-hosted runners and uploads them to GitHub Releases automatically.
@@ -139,11 +139,12 @@ For macOS builds:
 
 - The workflow uses `--target universal-apple-darwin`, so one package covers both Apple Silicon and Intel Macs.
 - The build is **ad-hoc signed** (`APPLE_SIGNING_IDENTITY: "-"`), which lets Apple Silicon run it without a "damaged" error. This is **not** Apple notarization and requires no developer certificate.
-- Because the build is not notarized, Gatekeeper still blocks the **first launch and every launch right after an in-app update**. This is expected, not a real malware detection.
+- Because the build is not notarized, Gatekeeper can still block the **initial installation**. This is expected, not a real malware detection.
+- macOS update bundles are signed with a separate Tauri updater key. The app verifies the signature, installs the update in place, and restarts without opening a browser or downloading another DMG.
 - To make recovery painless for end users without an Apple Developer certificate:
   - Every GitHub release body carries a permanent macOS first-launch note in EN/JA/ZH (appended by `scripts/build-release-body.mjs`).
-  - Each release ships `macOS-First-Launch-Helper.zip`: unzip and double-click `Open-No1-Markdown-Editor.command` to clear the quarantine flag and launch the app — no Terminal command to memorize, repeatable after every update.
+  - Each release ships `macOS-First-Launch-Helper.zip`: unzip and double-click `Open-No1-Markdown-Editor.command` to clear the initial quarantine flag and launch the app. Existing installations predating the signed updater may need this one last time.
   - The manual fallback is `xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"`.
-- The only way to remove these prompts entirely is to add Apple Developer signing **and** notarization to the workflow.
+- The updater signing key is not an Apple identity and does not remove Gatekeeper from first installation. Removing that first-install prompt still requires Apple Developer signing and notarization or an organization-managed MDM policy.
 
 Windows installers are still built unsigned by default. If you want SmartScreen-friendly production releases, add a Windows code-signing configuration separately.

@@ -1,6 +1,6 @@
 [package]
 name = "no1-markdown-editor"
-version = "0.27.10"
+version = "0.27.11"
 description = "No.1 Markdown Editor — Free Forever"
 authors = []
 edition = "2021"
@@ -46,6 +46,7 @@ webview2-com = "0.38"
 windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [target."cfg(target_os = \"macos\")".dependencies]
+tauri-plugin-updater = "2.10"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-web-kit = { version = "0.3", features = ["WKWebView", "WKNavigation", "WKPDFConfiguration", "block2"] }

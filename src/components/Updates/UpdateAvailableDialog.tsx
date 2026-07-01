@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { downloadAvailableRelease } from '../../lib/updateActions'
+import { canInstallAvailableReleaseInApp, downloadAvailableRelease } from '../../lib/updateActions'
 import { formatPublishedAt, normalizeReleaseNotes } from '../../lib/update'
 import { focusElementWithoutScroll, useDialogFocusRestore } from '../../hooks/useDialogFocusRestore'
 import { useUpdateStore } from '../../store/update'
@@ -24,9 +24,11 @@ export default function UpdateAvailableDialog() {
   const skipVersion = useUpdateStore((state) => state.skipVersion)
   const dialogRef = useRef<HTMLDivElement>(null)
   const downloadButtonRef = useRef<HTMLButtonElement>(null)
+  const [isInstalling, setIsInstalling] = useState(false)
   const [dialogFrameBounds, setDialogFrameBounds] = useState<UpdateDialogFrameBounds>(() =>
     resolveUpdateDialogFrameBounds()
   )
+  const installsInApp = canInstallAvailableReleaseInApp()
 
   useDialogFocusRestore(downloadButtonRef)
 
@@ -73,14 +75,14 @@ export default function UpdateAvailableDialog() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (trapUpdateDialogTabFocus(event, dialogRef.current)) return
 
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape' || isInstalling) return
       event.preventDefault()
       closeUpdateDialog()
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [closeUpdateDialog, dialogOpen])
+  }, [closeUpdateDialog, dialogOpen, isInstalling])
 
   useEffect(() => {
     if (!dialogOpen) return
@@ -109,7 +111,7 @@ export default function UpdateAvailableDialog() {
       className="fixed inset-0 z-[130] overflow-hidden"
       style={{ background: 'color-mix(in srgb, var(--bg-primary) 34%, rgba(0, 0, 0, 0.44))' }}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) closeUpdateDialog()
+        if (!isInstalling && event.target === event.currentTarget) closeUpdateDialog()
       }}
     >
       <div
@@ -149,7 +151,7 @@ export default function UpdateAvailableDialog() {
                 {t('updates.dialogTitle')}
               </h2>
               <p id="update-dialog-description" className="mt-1 text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
-                {t('updates.dialogMessage')}
+                {t(installsInApp ? 'updates.dialogMessageInApp' : 'updates.dialogMessage')}
               </p>
             </div>
           </div>
@@ -196,7 +198,7 @@ export default function UpdateAvailableDialog() {
                 <h3 className="flex-shrink-0 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                   {t('updates.releaseNotes')}
                 </h3>
-                {release.assetName && (
+                {!installsInApp && release.assetName && (
                   <span
                     className="min-w-0 max-w-[65%] truncate rounded-full px-2.5 py-1 text-[11px] font-medium"
                     style={{
@@ -232,25 +234,37 @@ export default function UpdateAvailableDialog() {
               onClick={() => {
                 void (async () => {
                   try {
+                    setIsInstalling(true)
                     await downloadAvailableRelease(release)
-                    closeUpdateDialog()
+                    if (!installsInApp) closeUpdateDialog()
                   } catch {
                     // Error notice is already handled in the download helper.
+                  } finally {
+                    setIsInstalling(false)
                   }
                 })()
               }}
-              className="min-h-[38px] rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+              disabled={isInstalling}
+              aria-busy={isInstalling}
+              className="min-h-[38px] cursor-pointer rounded-xl px-4 py-2 text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-70"
               style={{
                 background: 'var(--accent)',
                 color: 'white',
               }}
             >
-              {t('updates.downloadLatest')}
+              {t(
+                isInstalling
+                  ? 'updates.installing'
+                  : installsInApp
+                    ? 'updates.installAndRestart'
+                    : 'updates.downloadLatest'
+              )}
             </button>
             <button
               type="button"
+              disabled={isInstalling}
               onClick={() => skipVersion(release.latestVersion)}
-              className="min-h-[38px] rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+              className="min-h-[38px] cursor-pointer rounded-xl px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 background: 'color-mix(in srgb, var(--bg-secondary) 92%, transparent)',
                 color: 'var(--text-secondary)',
@@ -261,8 +275,9 @@ export default function UpdateAvailableDialog() {
             </button>
             <button
               type="button"
+              disabled={isInstalling}
               onClick={closeUpdateDialog}
-              className="min-h-[38px] rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+              className="min-h-[38px] cursor-pointer rounded-xl px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 background: 'transparent',
                 color: 'var(--text-muted)',

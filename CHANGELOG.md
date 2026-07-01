@@ -20,6 +20,16 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.11 - 2026-07-01
+
+### Fixed
+
+- macOS updates are now signature-verified and installed inside the app, so users no longer have to download a new DMG and approve every update in Privacy & Security after the one-time migration.
+
+### Internal
+
+- Added macOS-only Tauri updater artifacts, GitHub Actions secret validation, and release-asset checks for Universal update metadata and signatures.
+
 ## 0.27.10 - 2026-06-30
 
 ### Added

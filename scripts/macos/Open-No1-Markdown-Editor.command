@@ -1,15 +1,15 @@
 #!/bin/bash
 # No.1 Markdown Editor - macOS first-launch helper / 初回起動ヘルパー / 首次启动助手
 #
-# This macOS build is not notarized by Apple, so Gatekeeper blocks the first
-# launch (and every launch right after an update). This script removes the
-# quarantine attribute and opens the app. No Terminal command to memorize:
-# just double-click this file after installing and after each update.
+# This macOS build is not notarized by Apple, so Gatekeeper can block the first
+# installation. This script removes that initial quarantine attribute and opens
+# the app. Releases with the signed in-app updater do not need this after each
+# update; users migrating from an older release may need it one final time.
 #
-# この macOS ビルドは Apple の公証を受けていないため、初回起動時（および
-# アップデート直後）にセキュリティ警告でブロックされます。このファイルを
-# ダブルクリックするだけで quarantine 属性を解除してアプリを起動します。
-# コマンドを覚える必要はありません。
+# この macOS ビルドは Apple の公証を受けていないため、初回インストール時に
+# セキュリティ警告でブロックされることがあります。このファイルをダブルクリック
+# すると quarantine 属性を解除して起動します。署名付きアプリ内アップデーターを
+# 搭載していない旧版からの移行時は、最後に一度だけ必要になる場合があります。
 
 set -u
 

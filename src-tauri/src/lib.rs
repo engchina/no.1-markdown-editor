@@ -1226,6 +1226,9 @@ pub fn run() {
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     let builder = register_single_instance_plugin(builder);
 
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+
     builder
         .manage(pending_open_paths)
         .manage(ai_in_flight_requests)
@@ -1297,6 +1300,7 @@ pub fn run() {
             fetch_local_image_data_url,
             pdf_export::export_pdf_to_file,
             update::check_for_app_update,
+            update::install_app_update,
             create_browser_webview,
             reposition_browser_webview,
             show_browser_webview,

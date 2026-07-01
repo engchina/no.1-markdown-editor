@@ -72,6 +72,16 @@ jobs:
             printf '\n%s\n' "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Validate macOS updater signing secrets
+        if: matrix.label == 'macOS universal'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "::error::Missing TAURI_SIGNING_PRIVATE_KEY"; exit 1; }
+          test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "::error::Missing TAURI_SIGNING_PRIVATE_KEY_PASSWORD"; exit 1; }
+
       - name: Build app and upload release assets
         uses: tauri-apps/tauri-action@action-v0.6.2
         env:
@@ -80,6 +90,8 @@ jobs:
           # without a "damaged" error. This is not Apple notarization, so Gatekeeper
           # still prompts on first launch; the bundled helper script clears that.
           APPLE_SIGNING_IDENTITY: ${{ matrix.label == 'macOS universal' && '-' || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ matrix.label == 'macOS universal' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ matrix.label == 'macOS universal' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "No.1 Markdown Editor ${{ github.ref_name }}"
@@ -88,6 +100,27 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+          includeUpdaterJson: true
+
+      - name: Verify macOS updater release assets
+        if: matrix.label == 'macOS universal'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/updater-assets"
+          gh release download "${{ github.ref_name }}" --pattern "latest.json" --pattern "*.app.tar.gz.sig" --dir "$RUNNER_TEMP/updater-assets"
+          node -e '
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const root = process.env.RUNNER_TEMP + "/updater-assets";
+            const latest = JSON.parse(fs.readFileSync(path.join(root, "latest.json"), "utf8"));
+            const targets = ["darwin-aarch64", "darwin-x86_64"];
+            const entries = targets.map((target) => latest.platforms?.[target]);
+            if (entries.some((entry) => !entry?.signature || !entry.url?.endsWith(".app.tar.gz"))) process.exit(1);
+            if (entries[0].url !== entries[1].url) process.exit(1);
+            if (!fs.readdirSync(root).some((name) => name.endsWith(".app.tar.gz.sig"))) process.exit(1);
+          '
 
       - name: Package macOS first-launch helper
         if: matrix.label == 'macOS universal'

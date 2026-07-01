@@ -6,25 +6,24 @@ import { pathToFileURL } from 'node:url'
 const RELEASE_NOTES_DRAFT_PATH = 'docs/release-notes-draft.md'
 const CHANGELOG_PATH = 'CHANGELOG.md'
 
-// Permanent note appended to every GitHub release body. The macOS build ships
-// unsigned/un-notarized (`--no-sign` history; now ad-hoc signed), so Gatekeeper
-// blocks the first launch and every launch right after an update. This keeps the
-// recovery steps in front of users on every release page so it never has to be
-// explained by hand again.
+// Permanent note appended to every GitHub release body. The macOS build is
+// ad-hoc signed and unnotarized, so Gatekeeper can block the initial install.
+// Later releases use Tauri's independently signed in-app updater and do not
+// send existing users back through the browser/DMG install path.
 export const MACOS_FIRST_LAUNCH_NOTE = [
   '## macOS: First Launch / 初回起動 / 首次启动',
   '',
-  'The macOS build is **not notarized by Apple**, so Gatekeeper blocks the first launch — and every launch right after an update. This is expected; it is not a real malware detection. Two ways to open it:',
+  'The macOS build is **not notarized by Apple**, so Gatekeeper can block the first installation. This is expected; it is not a real malware detection. Existing users upgrading from a release without the signed in-app updater may need this step one last time. Later updates are verified and installed inside the app.',
   '',
-  '- **Easiest (no command):** download `macOS-First-Launch-Helper.zip` from the Assets below, unzip it, and **double-click `Open-No1-Markdown-Editor.command`**. It clears the security flag and launches the app. Run it again after each update.',
+  '- **Easiest (no command):** download `macOS-First-Launch-Helper.zip` from the Assets below, unzip it, and **double-click `Open-No1-Markdown-Editor.command`**. It clears the initial security flag and launches the app.',
   '- **Manual:** in Terminal run:',
   '  ```',
   '  xattr -dr com.apple.quarantine "/Applications/No.1 Markdown Editor.app"',
   '  ```',
   '',
-  '**日本語**: この macOS ビルドは Apple の公証を受けていないため、初回起動時（およびアップデート直後）にセキュリティ警告でブロックされます。不具合ではありません。下の Assets から `macOS-First-Launch-Helper.zip` をダウンロードして解凍し、`Open-No1-Markdown-Editor.command` をダブルクリックすると解除して起動できます（アップデートのたびに同じ操作で大丈夫です）。',
+  '**日本語**: この macOS ビルドは Apple の公証を受けていないため、初回インストール時にセキュリティ警告でブロックされることがあります。不具合ではありません。下の Assets から `macOS-First-Launch-Helper.zip` をダウンロードして解凍し、`Open-No1-Markdown-Editor.command` をダブルクリックすると解除して起動できます。署名付きアプリ内アップデーターを搭載していない旧版からの移行時は、この操作が最後に一度だけ必要になる場合があります。以降の更新はアプリ内で検証・インストールされます。',
   '',
-  '**中文**: 此 macOS 版本未经 Apple 公证，首次启动（以及每次更新后）会被 Gatekeeper 拦截，这是正常现象，不是真的检测到恶意软件。从下方 Assets 下载 `macOS-First-Launch-Helper.zip`，解压后双击 `Open-No1-Markdown-Editor.command` 即可解除并启动（每次更新后重复一次即可）。',
+  '**中文**: 此 macOS 版本未经 Apple 公证，首次安装时可能被 Gatekeeper 拦截，这是正常现象，不是真的检测到恶意软件。从下方 Assets 下载 `macOS-First-Launch-Helper.zip`，解压后双击 `Open-No1-Markdown-Editor.command` 即可解除并启动。从尚未内置签名更新器的旧版本迁移时，可能还需要最后执行一次；之后的更新会在应用内完成签名验证和安装。',
 ].join('\n')
 
 export function extractReleaseNotesDraftBody(source) {
