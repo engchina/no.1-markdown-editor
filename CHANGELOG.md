@@ -20,6 +20,12 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.12 - 2026-07-01
+
+### Changed
+
+- Clarified the macOS guidance: the helper is only for an initial installation or one-time migration from `v0.27.10` or earlier, and must not be used for normal in-app updates.
+
 ## 0.27.11 - 2026-07-01
 
 ### Fixed

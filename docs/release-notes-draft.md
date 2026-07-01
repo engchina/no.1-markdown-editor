@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.27.10`.
+This document is a draft for the next public release after `v0.27.11`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,40 +8,39 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.27.11`
+`No.1 Markdown Editor v0.27.12`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.27.11 adds signature-verified, in-app updates on macOS so future upgrades no longer require downloading a new DMG or approving every version in Privacy & Security.
+No.1 Markdown Editor v0.27.12 makes the macOS installation guidance explicit: the helper is only for an initial installation or one-time migration, never for normal in-app updates.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- macOS updates can now be downloaded, signature-verified, installed, and restarted directly inside the app.
-- After the one-time migration to this release, future macOS updates no longer open a browser or require a new DMG.
+- The macOS help section is now titled "Initial Install or One-Time Migration" in English, Japanese, and Chinese.
+- The helper instructions now explicitly say not to use the helper for normal in-app updates.
 
 ### Why This Release Matters
 
-Unsigned public macOS apps cannot eliminate Gatekeeper checks for the initial installation, but they should not force users through the same manual approval flow for every update. This release introduces a separately signed Tauri update channel while keeping the existing ad-hoc app signature and avoiding any silent security bypass.
+Initial installation and routine updates have different security paths. Clear wording prevents users from repeating the Gatekeeper recovery step after every release when the signed in-app updater already handles normal updates.
 
 ### User-Facing Improvements
 
-#### Fixes
+#### Changes
 
-- The macOS update dialog now installs the verified update and restarts the app instead of opening the GitHub download page.
-- The update action is disabled while installation is running, with clear progress and error feedback.
-- Windows and Linux continue to use the existing browser-download flow.
+- The release note, README, and helper now consistently limit the helper to initial installation or migration from `v0.27.10` or earlier.
+- The instructions state that updates from `v0.27.11` onward are verified and installed inside the app without downloading another DMG or approving every version in Privacy & Security.
 
 ### Suggested Upgrade Notes Section
 
-- Users upgrading from `v0.27.10` or an older release must install this version manually and may need to approve it in Privacy & Security one final time.
-- The initial installation remains subject to macOS Gatekeeper because the app is not signed with an Apple Developer ID or notarized.
-- Updates from this version onward are installed inside the app after signature verification.
+- No settings or document migration is required.
+- Users already running `v0.27.11` should install this release through the in-app updater.
+- The helper remains available only when macOS blocks an initial installation or migration from `v0.27.10` or earlier.
 
 ### Suggested Who Should Update Section
 
-This release is recommended for every macOS user, especially anyone who was repeatedly asked to approve each downloaded version.
+This release is recommended for macOS users and provides the first public follow-up release that can be installed through the signed in-app updater introduced in `v0.27.11`.
 
 ## Packaging Checklist Before Release
 
@@ -49,7 +48,7 @@ This release is recommended for every macOS user, especially anyone who was repe
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.27.11`.
-- Run `npm run release:validate -- 0.27.11` so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.27.11`.
-- After publication, run `npm run release:draft:advance -- 0.27.11`.
+- Run `npm run release:prepare -- 0.27.12`.
+- Run `npm run release:validate -- 0.27.12` so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.27.12`.
+- After publication, run `npm run release:draft:advance -- 0.27.12`.
