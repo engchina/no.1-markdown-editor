@@ -722,6 +722,95 @@ async function runPreviewPerTabScrollScenario(page) {
   await waitForPreview('other paragraph 120', 600, 'the preview to restore scroll after a mode switch')
 }
 
+async function readEditorTopElement(page) {
+  return page.evaluate(() => {
+    const view = document.querySelector('.cm-content')?.cmTile?.root?.view
+    if (!view) return null
+    const viewportTop = view.scrollDOM.getBoundingClientRect().top
+    for (const element of view.contentDOM.children) {
+      const rect = element.getBoundingClientRect()
+      if (rect.height > 0 && rect.bottom > viewportTop) {
+        return { pos: view.posAtDOM(element), offset: rect.top - viewportTop }
+      }
+    }
+    return null
+  })
+}
+
+async function waitForEditorTopElement(page, expected, label) {
+  await waitForCondition(async () => {
+    const actual = await readEditorTopElement(page)
+    return actual?.pos === expected.pos && Math.abs(actual.offset - expected.offset) <= 2
+  }, `${label} to keep the exact editor viewport`)
+}
+
+// WYSIWYG renders images inline; they grow their line after loading. The view
+// must stay put on blur and come back to the exact same spot after remounts.
+async function runWysiwygImageViewportScenario(page) {
+  await page.route('**/viewport-smoke-images/**', async (route) => {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 400))
+    await route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#8ac"/></svg>',
+    })
+  })
+  const origin = new URL(page.url()).origin
+  const sections = Array.from({ length: 40 }, (_unused, index) => [
+    `## section ${index + 1}`,
+    `paragraph ${index + 1}`,
+    '```js',
+    `const value = ${index + 1}`,
+    '```',
+    `![pic ${index + 1}](${origin}/viewport-smoke-images/${index + 1}.svg)`,
+    '',
+  ].join('\n'))
+  const content = sections.join('\n')
+  const otherContent = 'other tab\n\nshort content'
+  await resetEditor(page, {
+    content,
+    wysiwygMode: true,
+    extraTabs: [
+      {
+        id: 'source-smoke-wysiwyg-other-tab',
+        path: null,
+        name: 'OtherTab.md',
+        content: otherContent,
+        savedContent: otherContent,
+        isDirty: false,
+      },
+    ],
+  })
+  await page.evaluate(() => {
+    const view = document.querySelector('.cm-content')?.cmTile?.root?.view
+    const anchor = view.state.doc.toString().indexOf('paragraph 25')
+    view.focus()
+    view.dispatch({ selection: { anchor }, effects: view.constructor.scrollIntoView(anchor, { y: 'center' }) })
+  })
+  // Let every image in and around the viewport load.
+  await page.waitForTimeout(1500)
+  const before = await readEditorTopElement(page)
+  assert.ok(before, 'Expected a visible editor line before switching')
+
+  await page.evaluate(() => document.activeElement?.blur())
+  await page.waitForTimeout(300)
+  await waitForEditorTopElement(page, before, 'blurring the WYSIWYG editor')
+
+  await page.click('[role="tab"][title="OtherTab.md"]')
+  await waitForCondition(
+    async () => (await readEditorSnapshot(page))?.docText === otherContent,
+    'the other tab to become active'
+  )
+  await page.click('[role="tab"][title="SourceInteractionSmoke.md"]')
+  await waitForEditorTopElement(page, before, 'switching back to the WYSIWYG tab')
+
+  await page.click('button:has([data-view-mode="preview"])')
+  await waitForCondition(async () => (await page.locator('.cm-content').count()) === 0, 'preview mode')
+  await page.click('button:has([data-view-mode="source"])')
+  await page.waitForSelector('.cm-content')
+  await waitForEditorTopElement(page, before, 'switching back from preview mode')
+  await page.unroute('**/viewport-smoke-images/**')
+}
+
 async function runOrdinaryInputScenario(page, diagnostics) {
   await resetEditor(page)
   await placeCursorAtLineEnd(page, TARGET_LINE_TEXT)
@@ -1443,6 +1532,7 @@ async function main() {
 
     await runRemountViewportRestoreScenario(page, diagnostics)
     await runPreviewPerTabScrollScenario(page)
+    await runWysiwygImageViewportScenario(page)
     await runOrdinaryInputScenario(page, diagnostics)
     await runDeleteKeyScenario(page, diagnostics)
     await runEnterKeyScenario(page, diagnostics)

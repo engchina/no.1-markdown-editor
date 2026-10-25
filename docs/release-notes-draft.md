@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.27.13`.
+This document is a draft for the next public release after `v0.27.14`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,28 +8,31 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.27.14`
+`No.1 Markdown Editor v0.27.15`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.27.14 makes the preview remember where you were in each file, so switching files no longer carries one file's scroll position over to another.
+No.1 Markdown Editor v0.27.15 returns you to exactly the same place when you switch files or view modes, even in documents with images, math, and diagrams.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- The preview keeps a separate scroll position for every open file.
-- A file you open for the first time starts at the top of the preview.
+- Switching files or between Source and Preview now lands on exactly the same line you left.
+- Source and Preview share one reading position per file, so the preview opens where you were editing and vice versa.
+- The WYSIWYG editor no longer jumps when it loses focus after images have loaded.
 
 ### Why This Release Matters
 
-v0.27.13 kept the editor in place across file switches, but the preview still shared a single scroll position between files. Each file now keeps its own place in both the editor and the preview.
+Earlier releases restored a pixel offset, which drifted as soon as images, math, or diagrams finished loading. Positions are now kept as source lines, the same approach Obsidian uses, so they stay put while content settles.
 
 ### User-Facing Improvements
 
 #### Fixes
 
-- Switching files in Preview or Split mode restores each file's own preview position instead of reusing the previous file's position.
+- Returning to a file restores the exact viewport in both the editor and the preview.
+- Preview positions no longer drift after images, math, or diagrams finish loading.
+- Clicking outside the WYSIWYG editor (for example on another tab) no longer scrolls it.
 
 ### Suggested Upgrade Notes Section
 
@@ -38,7 +41,7 @@ v0.27.13 kept the editor in place across file switches, but the preview still sh
 
 ### Suggested Who Should Update Section
 
-This release is recommended for everyone who reads or edits several files in Preview or Split mode.
+This release is recommended for everyone, especially anyone writing long documents with images in WYSIWYG or Preview mode.
 
 ## Packaging Checklist Before Release
 
@@ -46,7 +49,7 @@ This release is recommended for everyone who reads or edits several files in Pre
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.27.14`.
-- Run `npm run release:validate -- 0.27.14` so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.27.14`.
-- After publication, run `npm run release:draft:advance -- 0.27.14`.
+- Run `npm run release:prepare -- 0.27.15`.
+- Run `npm run release:validate -- 0.27.15` so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.27.15`.
+- After publication, run `npm run release:draft:advance -- 0.27.15`.

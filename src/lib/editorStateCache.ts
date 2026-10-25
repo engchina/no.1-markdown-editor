@@ -1,4 +1,4 @@
-import { EditorState, type Extension, type StateEffect } from '@codemirror/state'
+import { EditorState, type Extension } from '@codemirror/state'
 import { history, historyField, isolateHistory } from '@codemirror/commands'
 
 const snapshotFields = {
@@ -11,27 +11,36 @@ const snapshotExtensions = [
 ]
 
 const editorStateSnapshotByTabId = new Map<string, unknown>()
-// EditorView.scrollSnapshot() effects, kept beside the state JSON so remounts
-// (tab switch, view-mode switch) land on the same viewport instead of the top.
-const editorScrollSnapshotByTabId = new Map<string, StateEffect<unknown>>()
 
-export function saveEditorStateSnapshot(
-  tabId: string,
-  state: EditorState,
-  scrollSnapshot?: StateEffect<unknown>
-): void {
-  editorStateSnapshotByTabId.set(tabId, state.toJSON(snapshotFields))
-  if (scrollSnapshot) editorScrollSnapshotByTabId.set(tabId, scrollSnapshot)
-  else editorScrollSnapshotByTabId.delete(tabId)
+// Per-tab viewport position, shared by the editor and the preview (like
+// Obsidian's ephemeral `scroll` state): the source line at the viewport top
+// works across surfaces and survives late height changes (images, diagrams).
+export interface TabViewportAnchor {
+  /** 1-based source line at the top of the viewport. */
+  line: number
+  /** How far that line has scrolled past the viewport top, 0..1. */
+  fraction: number
+  /** Exact editor anchor: doc position and its px offset from the viewport top. */
+  editor?: { pos: number; offset: number }
 }
 
-export function getEditorScrollSnapshot(tabId: string): StateEffect<unknown> | undefined {
-  return editorScrollSnapshotByTabId.get(tabId)
+const tabViewportAnchorByTabId = new Map<string, TabViewportAnchor>()
+
+export function saveEditorStateSnapshot(tabId: string, state: EditorState): void {
+  editorStateSnapshotByTabId.set(tabId, state.toJSON(snapshotFields))
+}
+
+export function saveTabViewportAnchor(tabId: string, anchor: TabViewportAnchor): void {
+  tabViewportAnchorByTabId.set(tabId, anchor)
+}
+
+export function getTabViewportAnchor(tabId: string): TabViewportAnchor | undefined {
+  return tabViewportAnchorByTabId.get(tabId)
 }
 
 export function clearEditorStateSnapshot(tabId: string): void {
   editorStateSnapshotByTabId.delete(tabId)
-  editorScrollSnapshotByTabId.delete(tabId)
+  tabViewportAnchorByTabId.delete(tabId)
 }
 
 export function restoreEditorStateSnapshot(options: {

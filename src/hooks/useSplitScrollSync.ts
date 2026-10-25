@@ -7,8 +7,8 @@ import {
   lineFromScrollTop,
   scrollTopForLine,
   type ScrollSyncGuard,
-  type SourceLineEntry,
 } from '../lib/scrollSync'
+import { readSourceLineEntries } from '../lib/previewViewportAnchor.ts'
 import { useEditorStore } from '../store/editor'
 import { useScrollSyncStore } from '../store/scrollSync'
 
@@ -17,30 +17,6 @@ const COOLDOWN_MS = 150
 // follow the last wheel/pointer event, short enough that async reflows (image
 // loads after pasting an image markdown) fall outside it.
 const PREVIEW_INTENT_WINDOW_MS = 1500
-
-function readSourceLineEntries(container: HTMLElement): SourceLineEntry[] {
-  const elements = container.querySelectorAll<HTMLElement>('[data-source-line]')
-  const entries: SourceLineEntry[] = []
-  // Use rect math instead of `element.offsetTop` so the position is always
-  // measured against the scroll container itself, regardless of which ancestor
-  // happens to be the offsetParent.
-  const containerRect = container.getBoundingClientRect()
-  const containerScrollTop = container.scrollTop
-  for (const element of elements) {
-    const raw = element.getAttribute('data-source-line')
-    if (!raw) continue
-    const line = Number.parseInt(raw, 10)
-    if (!Number.isFinite(line) || line <= 0) continue
-    const elementRect = element.getBoundingClientRect()
-    const offsetTop = elementRect.top - containerRect.top + containerScrollTop
-    entries.push({
-      line,
-      offsetTop,
-      offsetHeight: elementRect.height,
-    })
-  }
-  return entries
-}
 
 // Convert screen-y at the top of the editor viewport to a source line. Using
 // posAtCoords avoids any assumption about CM6's internal "documentTop" /
