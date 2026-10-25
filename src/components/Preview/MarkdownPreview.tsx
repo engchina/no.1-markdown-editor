@@ -38,13 +38,16 @@ import { useFileTreeStore } from '../../store/fileTree'
 import { useScrollSyncStore } from '../../store/scrollSync'
 import { openWorkspaceDocumentHref } from '../../lib/workspaceNavigation.ts'
 import { isExternalWorkspaceLink } from '../../lib/workspaceLinks.ts'
+import { getTabViewportAnchor, saveTabViewportAnchor } from '../../lib/editorStateCache.ts'
+import {
+  capturePreviewViewportAnchor,
+  pinPreviewToViewportAnchor,
+  previewScrollTopForAnchor,
+} from '../../lib/previewViewportAnchor.ts'
+import type { ViewportPin } from '../../lib/viewportPin.ts'
 
 const MERMAID_AUTO_RENDER_DELAY_MS = 650
 const MERMAID_AUTO_RENDER_ROOT_MARGIN = '240px 0px'
-
-// The preview container is shared across tabs, so keep each tab's own scroll
-// position instead of letting one file's viewport leak into the next.
-const previewScrollTopByTabId = new Map<string, number>()
 
 export default function MarkdownPreview() {
   const { t, i18n } = useTranslation()
@@ -109,14 +112,25 @@ export default function MarkdownPreview() {
     tabId: activeTabId,
     htmlAtSwitch: html,
   })
+  const viewportPinRef = useRef<ViewportPin | null>(null)
 
   useLayoutEffect(() => {
     const preview = previewRef.current
     pendingScrollRestoreRef.current = { tabId: activeTabId, htmlAtSwitch: html }
     return () => {
-      // Still showing the outgoing tab's HTML here, so its scrollTop is valid.
+      viewportPinRef.current?.stop()
+      viewportPinRef.current = null
+      // Still showing the outgoing tab's HTML here, so its layout is valid.
+      // With the editor mounted (split mode) the editor owns the anchor.
       const displayedTabId = displayedScrollTabIdRef.current
-      if (preview && displayedTabId) previewScrollTopByTabId.set(displayedTabId, preview.scrollTop)
+      if (!preview || !displayedTabId || useScrollSyncStore.getState().editorView) return
+      // Still where the saved anchor put it: keep that anchor, which may be the
+      // editor's exact one, instead of coarsening it to preview block level.
+      const saved = getTabViewportAnchor(displayedTabId)
+      const savedTop = saved ? previewScrollTopForAnchor(preview, saved) : null
+      if (savedTop !== null && Math.abs(preview.scrollTop - savedTop) <= 1) return
+      const anchor = capturePreviewViewportAnchor(preview)
+      if (anchor) saveTabViewportAnchor(displayedTabId, anchor)
     }
     // `html` is only read as the baseline the new tab's render must replace.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,12 +138,21 @@ export default function MarkdownPreview() {
 
   useLayoutEffect(() => {
     const preview = previewRef.current
+    if (!preview) return
     const pending = pendingScrollRestoreRef.current
     // Wait for the incoming tab's HTML; html changes only once its render lands.
-    if (!preview || !pending.tabId || !html || html === pending.htmlAtSwitch) return
+    if (!pending.tabId || !html || html === pending.htmlAtSwitch) {
+      viewportPinRef.current?.reapply()
+      return
+    }
+
     pendingScrollRestoreRef.current = { tabId: null, htmlAtSwitch: '' }
     displayedScrollTabIdRef.current = pending.tabId
-    preview.scrollTop = previewScrollTopByTabId.get(pending.tabId) ?? 0
+    viewportPinRef.current?.stop()
+    viewportPinRef.current = null
+    const anchor = getTabViewportAnchor(pending.tabId)
+    if (anchor) viewportPinRef.current = pinPreviewToViewportAnchor(preview, anchor)
+    else preview.scrollTop = 0
   }, [html, previewHtml])
 
   useEffect(() => {

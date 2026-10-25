@@ -1,5 +1,7 @@
-import type { StateEffect } from '@codemirror/state'
+import type { EditorState, StateEffect } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
+import type { TabViewportAnchor } from './editorStateCache.ts'
+import { pinViewportWhileSettling, type ViewportPin } from './viewportPin.ts'
 
 export const EDITOR_CURSOR_SCROLL_LINES = 3
 export const EDITOR_NAVIGATION_START_MARGIN_PX = 20
@@ -43,6 +45,73 @@ export function restoreEditorScrollSnapshot(
     if (!view.dom.isConnected) return
     applySnapshot(view)
   })
+}
+
+// Read the anchor from the rendered DOM, not the height map: block widgets
+// (WYSIWYG tables, images, math) can leave the height map a few px stale.
+export function captureEditorViewportAnchor(view: EditorView): TabViewportAnchor | null {
+  const viewportTop = view.scrollDOM.getBoundingClientRect().top
+  for (const element of Array.from(view.contentDOM.children)) {
+    const rect = element.getBoundingClientRect()
+    if (rect.height <= 0 || rect.bottom <= viewportTop) continue
+
+    const pos = view.posAtDOM(element)
+    return {
+      line: view.state.doc.lineAt(pos).number,
+      fraction: clamp((viewportTop - rect.top) / rect.height, 0, 1),
+      editor: { pos, offset: rect.top - viewportTop },
+    }
+  }
+  return null
+}
+
+// A line-level anchor (from the preview) the editor still shows unchanged at
+// the top: keep it rather than overwrite it with an equivalent editor anchor,
+// so preview -> source -> preview returns to the exact preview position.
+export function isSameLineViewport(
+  saved: TabViewportAnchor | undefined,
+  current: TabViewportAnchor
+): boolean {
+  return (
+    !!saved &&
+    !saved.editor &&
+    saved.line === current.line &&
+    Math.abs(current.editor?.offset ?? Number.POSITIVE_INFINITY) <= 1
+  )
+}
+
+// Coarse scroll for the EditorView `scrollTo` option. CodeMirror measures the
+// target with coordsAtPos, which can disagree with the line element's box for
+// decorated lines, so pinEditorToViewportAnchor() finishes the job.
+export function createEditorViewportAnchorScroll(
+  state: EditorState,
+  anchor: TabViewportAnchor
+): StateEffect<unknown> {
+  // `y: 'start'` puts the target at viewport top + yMargin, so a negative
+  // offset reproduces a line that was partly scrolled past the top.
+  if (anchor.editor && anchor.editor.pos <= state.doc.length) {
+    return EditorView.scrollIntoView(anchor.editor.pos, { y: 'start', yMargin: anchor.editor.offset })
+  }
+
+  const line = state.doc.line(clamp(anchor.line, 1, state.doc.lines))
+  return EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 0 })
+}
+
+export function pinEditorToViewportAnchor(view: EditorView, anchor: TabViewportAnchor): ViewportPin | null {
+  const target = anchor.editor
+  if (!target || target.pos > view.state.doc.length) return null
+
+  const align = () => {
+    if (!view.dom.isConnected) return
+    const element = Array.from(view.contentDOM.children).find(
+      (child) => child.getBoundingClientRect().height > 0 && view.posAtDOM(child) === target.pos
+    )
+    if (!element) return
+    const delta =
+      element.getBoundingClientRect().top - view.scrollDOM.getBoundingClientRect().top - target.offset
+    if (Math.abs(delta) > 0.5) view.scrollDOM.scrollTop += delta
+  }
+  return pinViewportWhileSettling(() => [view.contentDOM], align)
 }
 
 export function createEditorSelectionScrollEffect(

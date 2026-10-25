@@ -16,6 +16,9 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- User-visible fix affecting Markdown fidelity, files, preview, export, performance, or stability. -->
 
+- Switching files or view modes now returns to exactly the same place: the position is kept as a source line, so it survives images, math, and diagrams that finish loading later, and Source and Preview share it.
+- The WYSIWYG editor no longer jumps when it loses focus after images have loaded.
+
 ### Internal
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->

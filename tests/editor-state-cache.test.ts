@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { EditorState, StateEffect, type StateCommand, type Transaction } from '@codemirror/state'
+import { EditorState, type StateCommand, type Transaction } from '@codemirror/state'
 import { history, redo, undo } from '@codemirror/commands'
 import {
   clearEditorStateSnapshot,
-  getEditorScrollSnapshot,
+  getTabViewportAnchor,
   primeAIUndoHistorySnapshot,
   restoreEditorStateSnapshot,
   saveEditorStateSnapshot,
+  saveTabViewportAnchor,
 } from '../src/lib/editorStateCache.ts'
 
 function runStateCommand(command: StateCommand, state: EditorState): EditorState {
@@ -112,18 +113,15 @@ test('AI-seeded snapshots can stack background updates for the same tab', () => 
   clearEditorStateSnapshot(tabId)
 })
 
-test('snapshots keep the editor scroll position for remounts', () => {
-  const tabId = 'tab-remount-scroll'
-  const state = EditorState.create({ doc: 'hello' })
-  const scroll = StateEffect.define<number>().of(120)
+test('tab viewport anchors are kept per tab and cleared with the tab', () => {
+  saveTabViewportAnchor('tab-anchor-a', { line: 42, fraction: 0.5, editor: { pos: 900, offset: -6 } })
+  saveTabViewportAnchor('tab-anchor-b', { line: 3, fraction: 0 })
 
-  saveEditorStateSnapshot(tabId, state, scroll)
-  assert.equal(getEditorScrollSnapshot(tabId), scroll)
+  assert.deepEqual(getTabViewportAnchor('tab-anchor-a'), { line: 42, fraction: 0.5, editor: { pos: 900, offset: -6 } })
+  assert.deepEqual(getTabViewportAnchor('tab-anchor-b'), { line: 3, fraction: 0 })
 
-  saveEditorStateSnapshot(tabId, state)
-  assert.equal(getEditorScrollSnapshot(tabId), undefined)
-
-  saveEditorStateSnapshot(tabId, state, scroll)
-  clearEditorStateSnapshot(tabId)
-  assert.equal(getEditorScrollSnapshot(tabId), undefined)
+  clearEditorStateSnapshot('tab-anchor-a')
+  assert.equal(getTabViewportAnchor('tab-anchor-a'), undefined)
+  assert.deepEqual(getTabViewportAnchor('tab-anchor-b'), { line: 3, fraction: 0 })
+  clearEditorStateSnapshot('tab-anchor-b')
 })

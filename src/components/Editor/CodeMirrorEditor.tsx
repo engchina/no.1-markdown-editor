@@ -87,7 +87,11 @@ import { resolveSafeEditorInsertion } from '../../lib/editorInsertion.ts'
 import {
   appendEditorSelectionScrollEffect,
   captureEditorScrollSnapshot,
+  captureEditorViewportAnchor,
   createEditorNavigationScrollEffect,
+  createEditorViewportAnchorScroll,
+  isSameLineViewport,
+  pinEditorToViewportAnchor,
   restoreEditorScrollSnapshot,
   scheduleEditorNavigationScroll,
   type EditorScrollSnapshot,
@@ -101,9 +105,11 @@ import { convertClipboardHtmlToMarkdown, hasCollapsedDetailsWithOmittedBody } fr
 import { pushErrorNotice, pushInfoNotice } from '../../lib/notices'
 import {
   primeAIUndoHistorySnapshot,
-  getEditorScrollSnapshot,
+  getTabViewportAnchor,
   restoreEditorStateSnapshot,
   saveEditorStateSnapshot,
+  saveTabViewportAnchor,
+  type TabViewportAnchor,
 } from '../../lib/editorStateCache.ts'
 import {
   EDITOR_HISTORY_EVENT,
@@ -136,6 +142,12 @@ interface Props {
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const AI_GHOST_TEXT_PROMPT_KEY = 'ai.templates.ghostTextPrompt'
 
+// Height-affecting extensions resolved once and reused by later mounts, so a
+// remounted view (tab / view-mode switch) is built with its final layout and
+// the restored scroll position is not shifted by late decorations.
+let loadedMarkdownLanguageExtensions: Extension[] = []
+let loadedWysiwygExtensions: Extension[] = []
+
 interface AISelectionBubbleState {
   top: number
   left: number
@@ -154,7 +166,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const shellRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
-  const unmountScrollSnapshotRef = useRef<StateEffect<unknown> | null>(null)
+  const unmountViewportAnchorRef = useRef<TabViewportAnchor | null>(null)
   const previousAIComposerOpenRef = useRef(aiComposerOpen)
   const aiComposerRestoreSnapshotRef = useRef<AIComposerRestoreSnapshot | null>(null)
   const isUpdatingRef = useRef(false)
@@ -197,10 +209,14 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const [searchReplace, setSearchReplace] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchSupport, setSearchSupport] = useState<SearchSupport | null>(null)
-  const [markdownLanguageExtensions, setMarkdownLanguageExtensions] = useState<Extension[]>([])
+  const [markdownLanguageExtensions, setMarkdownLanguageExtensions] = useState<Extension[]>(
+    () => loadedMarkdownLanguageExtensions
+  )
   const [footnoteHoverExtension, setFootnoteHoverExtension] = useState<Extension[]>([])
   const [autocompleteExtensions, setAutocompleteExtensions] = useState<Extension[]>([])
-  const [wysiwygExtensions, setWysiwygExtensions] = useState<Extension[]>([])
+  const [wysiwygExtensions, setWysiwygExtensions] = useState<Extension[]>(() =>
+    wysiwygMode ? loadedWysiwygExtensions : []
+  )
   const [selectionBubble, setSelectionBubbleState] = useState<AISelectionBubbleState | null>(null)
   const documentLanguage = detectDocumentLanguage(content)
   const spellcheckConfig = resolveDocumentSpellcheckConfig(documentLanguage, spellcheckMode)
@@ -560,6 +576,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     if (markdownLanguageExtensions.length > 0) return markdownLanguageExtensions
 
     markdownLanguagePromiseRef.current ??= loadMarkdownLanguageExtensions().then((extensions) => {
+      loadedMarkdownLanguageExtensions = extensions
       setMarkdownLanguageExtensions(extensions)
       return extensions
     })
@@ -585,7 +602,11 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
     let cancelled = false
     void import('./wysiwyg').then(({ wysiwygPlugin, wysiwygTheme, wysiwygTableDecorations }) => {
-      if (!cancelled) setWysiwygExtensions([wysiwygTableDecorations, wysiwygPlugin, wysiwygTheme])
+      if (cancelled) return
+      if (loadedWysiwygExtensions.length === 0) {
+        loadedWysiwygExtensions = [wysiwygTableDecorations, wysiwygPlugin, wysiwygTheme]
+      }
+      setWysiwygExtensions(loadedWysiwygExtensions)
     })
 
     return () => {
@@ -609,7 +630,8 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   // Passive-effect cleanup runs after React detaches the DOM on unmount, when
   // scrollTop already reads 0. Capture the viewport while it is still attached.
   useLayoutEffect(() => () => {
-    unmountScrollSnapshotRef.current = viewRef.current?.scrollSnapshot() ?? null
+    const view = viewRef.current
+    unmountViewportAnchorRef.current = view ? captureEditorViewportAnchor(view) : null
   }, [])
 
   useEffect(() => {
@@ -694,11 +716,16 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
         extensions,
       })
 
+    const savedViewportAnchor = getTabViewportAnchor(tabId)
+    // The exact doc position is only meaningful for the same document.
+    const viewportAnchor =
+      savedViewportAnchor && !restoredState ? { ...savedViewportAnchor, editor: undefined } : savedViewportAnchor
     const view = new EditorView({
       state,
       parent: container,
-      scrollTo: restoredState ? getEditorScrollSnapshot(tabId) : undefined,
+      scrollTo: viewportAnchor ? createEditorViewportAnchorScroll(state, viewportAnchor) : undefined,
     })
+    const viewportPin = viewportAnchor ? pinEditorToViewportAnchor(view, viewportAnchor) : null
     viewRef.current = view
     useScrollSyncStore.getState().setEditorView(view)
     applySpellcheckConfigToEditable(view.contentDOM, spellcheckConfig)
@@ -709,11 +736,14 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     updateSelectionBubble(view)
 
     return () => {
-      saveEditorStateSnapshot(
-        tabId,
-        view.state,
-        view.dom.isConnected ? view.scrollSnapshot() : unmountScrollSnapshotRef.current ?? undefined
-      )
+      viewportPin?.stop()
+      saveEditorStateSnapshot(tabId, view.state)
+      const viewportAnchor = view.dom.isConnected
+        ? captureEditorViewportAnchor(view)
+        : unmountViewportAnchorRef.current
+      if (viewportAnchor && !isSameLineViewport(getTabViewportAnchor(tabId), viewportAnchor)) {
+        saveTabViewportAnchor(tabId, viewportAnchor)
+      }
       const setEditorView = useScrollSyncStore.getState().setEditorView
       if (useScrollSyncStore.getState().editorView === view) setEditorView(null)
       view.destroy()
