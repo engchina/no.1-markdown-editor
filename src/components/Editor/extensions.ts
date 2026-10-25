@@ -451,6 +451,25 @@ export function openKeyboardShortcutsFromEditor(): boolean {
   return true
 }
 
+// CodeMirror only watches the viewport size, not its content. Widgets that grow
+// after rendering (images, Mermaid, video, details) leave the height map stale,
+// and the next unrelated measure (blur, tab switch) "corrects" scrollTop and
+// jumps the viewport. Re-measure whenever the rendered content resizes.
+const measureOnContentResize = ViewPlugin.fromClass(
+  class {
+    readonly observer: ResizeObserver | null
+
+    constructor(view: EditorView) {
+      this.observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => view.requestMeasure())
+      this.observer?.observe(view.contentDOM)
+    }
+
+    destroy() {
+      this.observer?.disconnect()
+    }
+  }
+)
+
 export function buildCoreExtensions(options: {
   onChange: (content: string) => void
   onCursorChange: (line: number, col: number) => void
@@ -468,6 +487,7 @@ export function buildCoreExtensions(options: {
     indentOnInput(),
     bracketMatching(),
     tooltips({ position: 'fixed' }),
+    measureOnContentResize,
     Prec.highest(
       keymap.of([
         {

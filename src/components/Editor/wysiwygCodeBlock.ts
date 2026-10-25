@@ -24,6 +24,10 @@ const MERMAID_PACKET_PLACEHOLDER_ERROR_FALLBACK =
   'Packet diagrams require numeric bit positions such as 0-15: "Field" or +8: "Field".'
 
 let wysiwygMermaidRenderSequence = 0
+// Kept once lib/mermaid has loaded, so a re-created widget (tab or view-mode
+// switch) paints an already-rendered diagram synchronously at its final height
+// instead of growing from a placeholder and pushing the restored viewport.
+let loadedMermaidModule: typeof import('../../lib/mermaid.ts') | null = null
 const mermaidThemeObservers = new WeakMap<HTMLElement, MutationObserver>()
 
 function queueDecoration(
@@ -106,6 +110,15 @@ function syncMermaidStatus(
   wrapper.dataset.mermaidState = state
 }
 
+function applyWysiwygMermaidSvg(wrapper: HTMLElement, svg: string): void {
+  const surface = wrapper.querySelector<HTMLElement>('.cm-wysiwyg-mermaid__surface')
+  if (!surface) return
+
+  surface.innerHTML = svg
+  wrapper.dataset.mermaidState = 'rendered'
+  wrapper.removeAttribute('aria-busy')
+}
+
 async function renderWysiwygMermaidDiagram(
   wrapper: HTMLElement,
   source: string,
@@ -113,6 +126,12 @@ async function renderWysiwygMermaidDiagram(
 ): Promise<void> {
   const token = String(++wysiwygMermaidRenderSequence)
   wrapper.dataset.mermaidRenderToken = token
+  const cachedSvg = loadedMermaidModule?.getCachedMermaidSvg(source, theme)
+  if (cachedSvg) {
+    applyWysiwygMermaidSvg(wrapper, cachedSvg)
+    return
+  }
+
   wrapper.setAttribute('aria-busy', 'true')
   syncMermaidStatus(wrapper, MERMAID_RENDERING_FALLBACK, 'loading', 'status')
   void translateWysiwygMermaidText('preview.renderingDiagrams', MERMAID_RENDERING_FALLBACK).then((message) => {
@@ -125,16 +144,12 @@ async function renderWysiwygMermaidDiagram(
 
   try {
     const mermaidModule = await import('../../lib/mermaid.ts')
+    loadedMermaidModule = mermaidModule
     formatError = mermaidModule.getMermaidRenderErrorMessage
     const svg = await mermaidModule.renderMermaidToSvg(source, theme, 'mermaid-wysiwyg')
     if (!wrapper.isConnected || wrapper.dataset.mermaidRenderToken !== token) return
 
-    const surface = wrapper.querySelector<HTMLElement>('.cm-wysiwyg-mermaid__surface')
-    if (!surface) return
-
-    surface.innerHTML = svg
-    wrapper.dataset.mermaidState = 'rendered'
-    wrapper.removeAttribute('aria-busy')
+    applyWysiwygMermaidSvg(wrapper, svg)
   } catch (error) {
     if (!wrapper.isConnected || wrapper.dataset.mermaidRenderToken !== token) return
 

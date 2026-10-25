@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.27.14`.
+This document is a draft for the next public release after `v0.27.15`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,31 +8,31 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.27.15`
+`No.1 Markdown Editor v0.27.16`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.27.15 returns you to exactly the same place when you switch files or view modes, even in documents with images, math, and diagrams.
+No.1 Markdown Editor v0.27.16 keeps your place in more situations: while diagrams and embedded media render, when a file is reloaded or rewritten from outside the editor, and across sidebar panels.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Switching files or between Source and Preview now lands on exactly the same line you left.
-- Source and Preview share one reading position per file, so the preview opens where you were editing and vice versa.
-- The WYSIWYG editor no longer jumps when it loses focus after images have loaded.
+- The editor stays put while Mermaid diagrams, videos, and other embedded content finish rendering.
+- Reloading a file changed on disk, applying AI output, or rewriting image links after an upload keeps the cursor and view where they were.
+- Each sidebar panel remembers its own scroll position.
 
 ### Why This Release Matters
 
-Earlier releases restored a pixel offset, which drifted as soon as images, math, or diagrams finished loading. Positions are now kept as source lines, the same approach Obsidian uses, so they stay put while content settles.
+v0.27.15 made switching files and modes return to the exact same place. A follow-up review found other ways the view could still jump or reset, and this release fixes them at the source.
 
 ### User-Facing Improvements
 
 #### Fixes
 
-- Returning to a file restores the exact viewport in both the editor and the preview.
-- Preview positions no longer drift after images, math, or diagrams finish loading.
-- Clicking outside the WYSIWYG editor (for example on another tab) no longer scrolls it.
+- The WYSIWYG editor no longer jumps after Mermaid diagrams or other embedded content finish rendering, and already-rendered diagrams reappear instantly when you switch back to a file.
+- External reloads, AI apply, and image-host link rewrites update only the changed text, so the cursor and view no longer reset to the top.
+- The outline, files, search, and recent panels each keep their own scroll position.
 
 ### Suggested Upgrade Notes Section
 
@@ -41,7 +41,7 @@ Earlier releases restored a pixel offset, which drifted as soon as images, math,
 
 ### Suggested Who Should Update Section
 
-This release is recommended for everyone, especially anyone writing long documents with images in WYSIWYG or Preview mode.
+This release is recommended for everyone, especially anyone using Mermaid diagrams, editing files that change outside the app, or using image hosting.
 
 ## Packaging Checklist Before Release
 
@@ -49,7 +49,7 @@ This release is recommended for everyone, especially anyone writing long documen
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.27.15`.
-- Run `npm run release:validate -- 0.27.15` so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.27.15`.
-- After publication, run `npm run release:draft:advance -- 0.27.15`.
+- Run `npm run release:prepare -- 0.27.16`.
+- Run `npm run release:validate -- 0.27.16` so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.27.16`.
+- After publication, run `npm run release:draft:advance -- 0.27.16`.
