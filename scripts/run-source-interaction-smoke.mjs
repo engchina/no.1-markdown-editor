@@ -607,7 +607,9 @@ async function waitForRestoredViewport(page, before, label) {
 }
 
 async function runRemountViewportRestoreScenario(page, diagnostics) {
-  const otherContent = 'other tab\n\nshort content'
+  // Both tabs are long so a viewport leaking between files is detectable.
+  const otherLines = Array.from({ length: 90 }, (_unused, index) => `other ${String(index + 1).padStart(3, '0')}`)
+  const otherContent = otherLines.join('\n')
   await resetEditor(page, {
     extraTabs: [
       {
@@ -629,9 +631,26 @@ async function runRemountViewportRestoreScenario(page, diagnostics) {
     async () => (await readEditorSnapshot(page))?.docText === otherContent,
     'the other tab to become active'
   )
+  // Give any late scroll restoration a chance to leak in before asserting.
+  await page.waitForTimeout(300)
+  const otherFirstVisit = await readEditorSnapshot(page)
+  diagnostics.remountRestoreOtherFirstVisit = otherFirstVisit
+  assert.ok(
+    otherFirstVisit.scrollTop < otherFirstVisit.defaultLineHeight,
+    `A never-visited tab should open at the top, got scrollTop=${otherFirstVisit.scrollTop}`
+  )
+
+  await placeCursorAtLineEnd(page, otherLines[39])
+  const otherBefore = await readEditorSnapshot(page)
+
   await page.click('[role="tab"][title="SourceInteractionSmoke.md"]')
   await waitForRestoredViewport(page, before, 'tab switch')
   diagnostics.remountRestoreAfterTab = await readEditorSnapshot(page)
+
+  await page.click('[role="tab"][title="OtherTab.md"]')
+  await waitForRestoredViewport(page, otherBefore, 'switching back to the other tab')
+  await page.click('[role="tab"][title="SourceInteractionSmoke.md"]')
+  await waitForRestoredViewport(page, before, 'second tab switch')
 
   for (const mode of ['preview', 'split']) {
     await page.click(`button:has([data-view-mode="${mode}"])`)
@@ -645,6 +664,62 @@ async function runRemountViewportRestoreScenario(page, diagnostics) {
     await page.waitForSelector('.cm-content')
     await waitForRestoredViewport(page, before, `${mode} -> source switch`)
   }
+}
+
+async function runPreviewPerTabScrollScenario(page) {
+  const paragraphs = (prefix) =>
+    Array.from({ length: 120 }, (_unused, index) => `${prefix} paragraph ${index + 1}`).join('\n\n')
+  const firstContent = paragraphs('first')
+  const otherContent = paragraphs('other')
+  await resetEditor(page, {
+    content: firstContent,
+    extraTabs: [
+      {
+        id: 'source-smoke-preview-other-tab',
+        path: null,
+        name: 'OtherTab.md',
+        content: otherContent,
+        savedContent: otherContent,
+        isDirty: false,
+      },
+    ],
+  })
+  await page.click('button:has([data-view-mode="preview"])')
+
+  const readPreview = () =>
+    page.evaluate(() => {
+      const preview = document.querySelector('.markdown-preview')
+      return preview ? { text: preview.textContent ?? '', scrollTop: preview.scrollTop } : null
+    })
+  const setPreviewScrollTop = (top) =>
+    page.evaluate((value) => {
+      document.querySelector('.markdown-preview').scrollTop = value
+    }, top)
+  const waitForPreview = async (marker, scrollTop, label) => {
+    await waitForCondition(async () => {
+      const preview = await readPreview()
+      return !!preview && preview.text.includes(marker) && Math.abs(preview.scrollTop - scrollTop) <= 2
+    }, label)
+  }
+
+  await waitForPreview('first paragraph 120', 0, 'the first tab preview to render')
+  await setPreviewScrollTop(1200)
+
+  await page.click('[role="tab"][title="OtherTab.md"]')
+  await waitForPreview('other paragraph 120', 0, 'a never-visited tab preview to open at the top')
+  await page.waitForTimeout(300)
+  assert.ok((await readPreview()).scrollTop <= 2, 'Preview scroll leaked from the previous tab')
+  await setPreviewScrollTop(600)
+
+  await page.click('[role="tab"][title="SourceInteractionSmoke.md"]')
+  await waitForPreview('first paragraph 120', 1200, 'the first tab preview to restore its own scroll')
+  await page.click('[role="tab"][title="OtherTab.md"]')
+  await waitForPreview('other paragraph 120', 600, 'the other tab preview to restore its own scroll')
+
+  await page.click('button:has([data-view-mode="source"])')
+  await page.waitForSelector('.cm-content')
+  await page.click('button:has([data-view-mode="preview"])')
+  await waitForPreview('other paragraph 120', 600, 'the preview to restore scroll after a mode switch')
 }
 
 async function runOrdinaryInputScenario(page, diagnostics) {
@@ -1367,6 +1442,7 @@ async function main() {
     await page.waitForSelector('.cm-content')
 
     await runRemountViewportRestoreScenario(page, diagnostics)
+    await runPreviewPerTabScrollScenario(page)
     await runOrdinaryInputScenario(page, diagnostics)
     await runDeleteKeyScenario(page, diagnostics)
     await runEnterKeyScenario(page, diagnostics)

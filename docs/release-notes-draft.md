@@ -8,29 +8,28 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.27.13`
+`No.1 Markdown Editor v0.27.14`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.27.13 keeps your place in a document: switching files or view modes no longer sends the editor back to the top.
+No.1 Markdown Editor v0.27.14 makes the preview remember where you were in each file, so switching files no longer carries one file's scroll position over to another.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- Returning to a file restores the cursor and scroll position you left it at.
-- Switching between Source, Split, and Preview modes keeps the editor where it was.
+- The preview keeps a separate scroll position for every open file.
+- A file you open for the first time starts at the top of the preview.
 
 ### Why This Release Matters
 
-Losing your place every time you glance at another file or check the preview breaks writing flow, especially in long documents.
+v0.27.13 kept the editor in place across file switches, but the preview still shared a single scroll position between files. Each file now keeps its own place in both the editor and the preview.
 
 ### User-Facing Improvements
 
 #### Fixes
 
-- Switching to another file and back keeps the editor cursor and scroll position instead of jumping to the top.
-- Switching between Source, Split, and Preview modes keeps the editor cursor and scroll position.
+- Switching files in Preview or Split mode restores each file's own preview position instead of reusing the previous file's position.
 
 ### Suggested Upgrade Notes Section
 
@@ -39,7 +38,7 @@ Losing your place every time you glance at another file or check the preview bre
 
 ### Suggested Who Should Update Section
 
-This release is recommended for everyone who works across multiple files or switches view modes while writing.
+This release is recommended for everyone who reads or edits several files in Preview or Split mode.
 
 ## Packaging Checklist Before Release
 
@@ -47,7 +46,7 @@ This release is recommended for everyone who works across multiple files or swit
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.27.13`.
-- Run `npm run release:validate -- 0.27.13` so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.27.13`.
-- After publication, run `npm run release:draft:advance -- 0.27.13`.
+- Run `npm run release:prepare -- 0.27.14`.
+- Run `npm run release:validate -- 0.27.14` so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.27.14`.
+- After publication, run `npm run release:draft:advance -- 0.27.14`.

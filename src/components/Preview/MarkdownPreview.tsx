@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   countPendingMermaidShells,
@@ -41,6 +41,10 @@ import { isExternalWorkspaceLink } from '../../lib/workspaceLinks.ts'
 
 const MERMAID_AUTO_RENDER_DELAY_MS = 650
 const MERMAID_AUTO_RENDER_ROOT_MARGIN = '240px 0px'
+
+// The preview container is shared across tabs, so keep each tab's own scroll
+// position instead of letting one file's viewport leak into the next.
+const previewScrollTopByTabId = new Map<string, number>()
 
 export default function MarkdownPreview() {
   const { t, i18n } = useTranslation()
@@ -99,6 +103,34 @@ export default function MarkdownPreview() {
   )
   const previewRef = useRef<HTMLDivElement>(null)
   const pendingExternalFallbacksRef = useRef(new Set<string>())
+  const activeTabId = activeTab?.id ?? null
+  const displayedScrollTabIdRef = useRef<string | null>(null)
+  const pendingScrollRestoreRef = useRef<{ tabId: string | null; htmlAtSwitch: string }>({
+    tabId: activeTabId,
+    htmlAtSwitch: html,
+  })
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current
+    pendingScrollRestoreRef.current = { tabId: activeTabId, htmlAtSwitch: html }
+    return () => {
+      // Still showing the outgoing tab's HTML here, so its scrollTop is valid.
+      const displayedTabId = displayedScrollTabIdRef.current
+      if (preview && displayedTabId) previewScrollTopByTabId.set(displayedTabId, preview.scrollTop)
+    }
+    // `html` is only read as the baseline the new tab's render must replace.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabId])
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current
+    const pending = pendingScrollRestoreRef.current
+    // Wait for the incoming tab's HTML; html changes only once its render lands.
+    if (!preview || !pending.tabId || !html || html === pending.htmlAtSwitch) return
+    pendingScrollRestoreRef.current = { tabId: null, htmlAtSwitch: '' }
+    displayedScrollTabIdRef.current = pending.tabId
+    preview.scrollTop = previewScrollTopByTabId.get(pending.tabId) ?? 0
+  }, [html, previewHtml])
 
   useEffect(() => {
     // Capture the node now: React detaches refs before unmount cleanups run,
