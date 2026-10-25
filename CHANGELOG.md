@@ -16,11 +16,15 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- User-visible fix affecting Markdown fidelity, files, preview, export, performance, or stability. -->
 
-- Switching to another file or between Source, Split, and Preview modes now keeps the editor cursor and scroll position instead of jumping back to the top.
-
 ### Internal
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
+
+## 0.27.13 - 2026-10-25
+
+### Fixed
+
+- Switching to another file or between Source, Split, and Preview modes now keeps the editor cursor and scroll position instead of jumping back to the top.
 
 ## 0.27.12 - 2026-07-01
 
