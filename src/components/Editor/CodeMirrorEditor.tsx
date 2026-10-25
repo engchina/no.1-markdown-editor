@@ -84,6 +84,7 @@ import {
 import { prepareImageMarkdownInsertion } from '../../lib/imageMarkdownInsertion'
 import { prepareMarkdownInsertion } from '../../lib/markdownInsertion'
 import { resolveSafeEditorInsertion } from '../../lib/editorInsertion.ts'
+import { diffTextChangeRange } from '../../lib/lineDiff.ts'
 import {
   appendEditorSelectionScrollEffect,
   captureEditorScrollSnapshot,
@@ -844,7 +845,9 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     if (current === content) return
 
     isUpdatingRef.current = true
-    view.dispatch({ changes: { from: 0, to: current.length, insert: content } })
+    // External updates (disk reload, AI apply, image-host link rewrite) replace
+    // only the changed span, so the cursor and viewport stay in place.
+    view.dispatch({ changes: diffTextChangeRange(current, content) })
     isUpdatingRef.current = false
     syncGhostTextState(view)
     syncProvenanceState(view)

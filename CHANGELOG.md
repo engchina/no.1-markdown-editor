@@ -16,6 +16,10 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- User-visible fix affecting Markdown fidelity, files, preview, export, performance, or stability. -->
 
+- The editor no longer jumps when Mermaid diagrams, videos, or other embedded content finish rendering, and diagrams that were already rendered reappear instantly when you switch back to a file.
+- Reloading a file changed outside the app, applying AI output, or rewriting image links after an upload no longer sends the cursor and view back to the top.
+- Each sidebar panel (outline, files, search, recent) now keeps its own scroll position.
+
 ### Internal
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->

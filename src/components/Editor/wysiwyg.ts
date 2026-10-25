@@ -2894,18 +2894,8 @@ class WysiwygPluginValue {
   setextHeadings: WysiwygSetextHeading[]
   footnoteIndices: Map<string, number>
   activeTableCell: ActiveWysiwygTableCell | null
-  readonly contentDOM: HTMLElement
-  readonly requestMeasure: () => void
 
   constructor(view: EditorView) {
-    // Rendered images grow their line once loaded. Without a re-measure the
-    // height map goes stale and a later, unrelated measure (blur, tab switch)
-    // "corrects" scrollTop and jumps the viewport.
-    this.contentDOM = view.contentDOM
-    this.requestMeasure = () => view.requestMeasure()
-    this.contentDOM.addEventListener('load', this.requestMeasure, true)
-    this.contentDOM.addEventListener('error', this.requestMeasure, true)
-
     const analysis = analyzeWysiwygDocument(view.state.doc)
     this.fencedCodeBlocks = analysis.fencedCodeBlocks
     this.mathBlocks = analysis.mathBlocks
@@ -2927,11 +2917,6 @@ class WysiwygPluginValue {
       this.setextHeadings,
       this.footnoteIndices
     )
-  }
-
-  destroy() {
-    this.contentDOM.removeEventListener('load', this.requestMeasure, true)
-    this.contentDOM.removeEventListener('error', this.requestMeasure, true)
   }
 
   update(update: ViewUpdate) {

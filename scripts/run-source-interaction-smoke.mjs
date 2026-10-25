@@ -744,8 +744,8 @@ async function waitForEditorTopElement(page, expected, label) {
   }, `${label} to keep the exact editor viewport`)
 }
 
-// WYSIWYG renders images inline; they grow their line after loading. The view
-// must stay put on blur and come back to the exact same spot after remounts.
+// WYSIWYG renders images and Mermaid diagrams after the view is built; they grow
+// their lines once loaded. The view must stay put on blur and come back to the exact same spot after remounts.
 async function runWysiwygImageViewportScenario(page) {
   await page.route('**/viewport-smoke-images/**', async (route) => {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 400))
@@ -753,6 +753,11 @@ async function runWysiwygImageViewportScenario(page) {
       contentType: 'image/svg+xml',
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#8ac"/></svg>',
     })
+  })
+  // Slow the Mermaid chunks so diagrams land after CodeMirror's last measure.
+  await page.route('**/assets/mermaid.core-*.js', async (route) => {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 800))
+    await route.continue()
   })
   const origin = new URL(page.url()).origin
   const sections = Array.from({ length: 40 }, (_unused, index) => [
@@ -762,6 +767,11 @@ async function runWysiwygImageViewportScenario(page) {
     `const value = ${index + 1}`,
     '```',
     `![pic ${index + 1}](${origin}/viewport-smoke-images/${index + 1}.svg)`,
+    '',
+    // Mermaid renders asynchronously and grows its widget without a load event.
+    '```mermaid',
+    `graph TD; A${index}-->B${index}; B${index}-->C${index}; C${index}-->D${index}`,
+    '```',
     '',
   ].join('\n'))
   const content = sections.join('\n')
@@ -786,8 +796,12 @@ async function runWysiwygImageViewportScenario(page) {
     view.focus()
     view.dispatch({ selection: { anchor }, effects: view.constructor.scrollIntoView(anchor, { y: 'center' }) })
   })
-  // Let every image in and around the viewport load.
-  await page.waitForTimeout(1500)
+  // Let every image and diagram in and around the viewport finish rendering.
+  await waitForCondition(
+    () => page.evaluate(() => document.querySelector('.cm-wysiwyg-mermaid[data-mermaid-state="loading"]') === null),
+    'WYSIWYG Mermaid diagrams to render'
+  )
+  await page.waitForTimeout(800)
   const before = await readEditorTopElement(page)
   assert.ok(before, 'Expected a visible editor line before switching')
 
@@ -809,6 +823,72 @@ async function runWysiwygImageViewportScenario(page) {
   await page.waitForSelector('.cm-content')
   await waitForEditorTopElement(page, before, 'switching back from preview mode')
   await page.unroute('**/viewport-smoke-images/**')
+  await page.unroute('**/assets/mermaid.core-*.js')
+}
+
+// External content updates (disk reload, AI apply, image-host link rewrite)
+// reach the editor through the store. Drive one through the editor's own
+// `onChange` prop (EditorPane -> updateTabContent) and make sure the cursor and
+// viewport stay on the same text instead of collapsing to the document top.
+async function runExternalContentUpdateScenario(page) {
+  await resetEditor(page)
+  await placeCursorAtLineEnd(page, TARGET_LINE_TEXT)
+  const before = await readEditorSnapshot(page)
+  const topBefore = await readEditorTopElement(page)
+
+  await page.evaluate(() => {
+    const container = document.querySelector('.cm-editor')?.parentElement
+    const fiberKey = Object.keys(container).find((key) => key.startsWith('__reactFiber$'))
+    let fiber = container[fiberKey]
+    while (fiber && !(typeof fiber.memoizedProps?.onChange === 'function' && 'content' in fiber.memoizedProps)) {
+      fiber = fiber.return
+    }
+    if (!fiber) throw new Error('Unable to find the CodeMirrorEditor props')
+    const { content, onChange } = fiber.memoizedProps
+    onChange(content.replace('line 005', 'line 005 changed outside the editor'))
+  })
+
+  await waitForCondition(
+    async () => (await readEditorSnapshot(page))?.docText.includes('line 005 changed outside the editor'),
+    'the external content update to reach the editor'
+  )
+  await page.waitForTimeout(200)
+  const after = await readEditorSnapshot(page)
+  const topAfter = await readEditorTopElement(page)
+  assert.equal(after.lineText, before.lineText, 'External updates must keep the cursor on its line')
+  assert.equal(after.column, before.column, 'External updates must keep the cursor column')
+  assert.ok(
+    topAfter && Math.abs(topAfter.offset - topBefore.offset) <= 2 && Math.abs(after.scrollTop - before.scrollTop) <= 2,
+    `External updates must keep the viewport (before ${JSON.stringify(topBefore)}, after ${JSON.stringify(topAfter)})`
+  )
+}
+
+// The sidebar panels share one scroll container: each panel must keep its own
+// position instead of inheriting (and clamping away) another panel's offset.
+async function runSidebarPanelScrollScenario(page) {
+  const headings = Array.from({ length: 150 }, (_unused, index) => `## heading ${index + 1}\n\ntext`).join('\n\n')
+  await resetEditor(page, { content: headings })
+  const sidebarScroll = page.locator('.sidebar-surface__scroll')
+  await page.click('[data-sidebar-tab="outline"]')
+  await waitForCondition(
+    async () => (await sidebarScroll.evaluate((element) => element.scrollHeight - element.clientHeight)) > 1000,
+    'the outline panel to become scrollable'
+  )
+  await sidebarScroll.evaluate((element) => {
+    element.scrollTop = 800
+  })
+  await page.waitForTimeout(100)
+
+  await page.click('[data-sidebar-tab="recent"]')
+  await waitForCondition(
+    async () => (await sidebarScroll.evaluate((element) => element.scrollTop)) === 0,
+    'the recent panel to open at its own (top) position'
+  )
+  await page.click('[data-sidebar-tab="outline"]')
+  await waitForCondition(
+    async () => Math.abs((await sidebarScroll.evaluate((element) => element.scrollTop)) - 800) <= 1,
+    'the outline panel to restore its own scroll position'
+  )
 }
 
 async function runOrdinaryInputScenario(page, diagnostics) {
@@ -1533,6 +1613,8 @@ async function main() {
     await runRemountViewportRestoreScenario(page, diagnostics)
     await runPreviewPerTabScrollScenario(page)
     await runWysiwygImageViewportScenario(page)
+    await runExternalContentUpdateScenario(page)
+    await runSidebarPanelScrollScenario(page)
     await runOrdinaryInputScenario(page, diagnostics)
     await runDeleteKeyScenario(page, diagnostics)
     await runEnterKeyScenario(page, diagnostics)

@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEditorStore } from '../../store/editor'
 import AppIcon from '../Icons/AppIcon'
@@ -8,11 +9,20 @@ interface Props {
   width: number
 }
 
+// All panels share one scroll container; keep each panel's own position so the
+// file tree's offset does not leak into the outline (and is not lost on return).
+const sidebarScrollTopBySurface = new Map<string, number>()
+
 export default function Sidebar({ width }: Props) {
   const { t } = useTranslation()
   const { sidebarTab, setSidebarTab } = useEditorStore()
   const activeSurface = SIDEBAR_SURFACES.find((surface) => surface.id === sidebarTab) ?? SIDEBAR_SURFACES[0]
   const ActivePanel = activeSurface.component
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = sidebarScrollTopBySurface.get(activeSurface.id) ?? 0
+  }, [activeSurface.id])
 
   return (
     <div
@@ -53,7 +63,13 @@ export default function Sidebar({ width }: Props) {
         </div>
       </div>
 
-      <div className="sidebar-surface__scroll flex-1 min-h-0 overflow-y-auto px-1.5 pb-1.5">
+      <div
+        ref={scrollRef}
+        className="sidebar-surface__scroll flex-1 min-h-0 overflow-y-auto px-1.5 pb-1.5"
+        // Recorded on scroll, not on switch: by the time the switch commits, the
+        // incoming (possibly shorter) panel has already clamped scrollTop.
+        onScroll={(event) => sidebarScrollTopBySurface.set(activeSurface.id, event.currentTarget.scrollTop)}
+      >
         <SidebarSectionSurface className={activeSurface.surfaceClassName ?? 'px-3 py-3'}>
           <ActivePanel />
         </SidebarSectionSurface>

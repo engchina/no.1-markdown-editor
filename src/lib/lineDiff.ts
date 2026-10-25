@@ -207,3 +207,28 @@ function countCommonSuffix(localLines: string[], diskLines: string[], prefixLeng
   }
   return count
 }
+
+export interface TextChangeRange {
+  from: number
+  to: number
+  insert: string
+}
+
+// Smallest single replacement turning `previous` into `next`: the common prefix
+// and suffix are kept, so editor selections and scroll anchors outside the
+// changed span stay where they are instead of collapsing to the document start.
+export function diffTextChangeRange(previous: string, next: string): TextChangeRange {
+  const maxShared = Math.min(previous.length, next.length)
+  let prefix = 0
+  while (prefix < maxShared && previous.charCodeAt(prefix) === next.charCodeAt(prefix)) prefix++
+
+  let suffix = 0
+  while (
+    suffix < maxShared - prefix &&
+    previous.charCodeAt(previous.length - 1 - suffix) === next.charCodeAt(next.length - 1 - suffix)
+  ) {
+    suffix++
+  }
+
+  return { from: prefix, to: previous.length - suffix, insert: next.slice(prefix, next.length - suffix) }
+}

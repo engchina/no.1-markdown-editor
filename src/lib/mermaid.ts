@@ -470,7 +470,7 @@ function getMermaidCacheKey(source: string, theme: MermaidTheme): string {
   return `${theme}\u0000${source}`
 }
 
-function getCachedMermaidSvg(source: string, theme: MermaidTheme): string | null {
+export function getCachedMermaidSvg(source: string, theme: MermaidTheme): string | null {
   const key = getMermaidCacheKey(source, theme)
   const svg = mermaidRenderCache.get(key) ?? null
   if (svg) {
