@@ -51,7 +51,7 @@ export async function scanWorkspaceSnapshot(rootPath: string): Promise<Workspace
         continue
       }
 
-      documents.push(buildWorkspaceIndexDocument(childPath, content))
+      documents.push(buildWorkspaceIndexDocument(childPath, content, rootPath))
     }
   }
 

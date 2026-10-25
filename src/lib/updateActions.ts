@@ -11,6 +11,7 @@ import {
   type UpdateActionSource,
 } from './update'
 import { useUpdateStore } from '../store/update'
+import { isMacPlatform } from './platform'
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -113,6 +114,24 @@ export async function openGitHubReleasesPage(): Promise<void> {
   await openUpdateUrlWithNotice(GITHUB_RELEASES_URL)
 }
 
+export function canInstallAvailableReleaseInApp(): boolean {
+  return isDesktopApp() && isMacPlatform()
+}
+
 export async function downloadAvailableRelease(release: Pick<AvailableRelease, 'downloadUrl' | 'releaseUrl'>): Promise<void> {
+  if (canInstallAvailableReleaseInApp()) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('install_app_update')
+    } catch (error) {
+      const reason = toErrorMessage(error)
+      pushErrorNotice('notices.updateInstallErrorTitle', 'notices.updateInstallErrorMessage', {
+        values: { reason },
+      })
+      throw error
+    }
+    return
+  }
+
   await openUpdateUrlWithNotice(getReleaseDownloadUrl(release))
 }

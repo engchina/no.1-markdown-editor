@@ -1,6 +1,7 @@
 import { MARKDOWN_FILE_EXTENSIONS, isLikelyWorkspaceAssetFileName, isSupportedDocumentName } from '../fileTypes.ts'
 import { extractHeadings } from '../outline.ts'
 import { buildWorkspaceDiagnostics } from './diagnostics.ts'
+import { getFrontMatterValue, parseFrontMatter, type FrontMatterParseResult } from '../frontMatter.ts'
 import type {
   WorkspaceIndexAsset,
   WorkspaceIndexDocument,
@@ -8,21 +9,25 @@ import type {
   WorkspaceIndexLink,
 } from './types.ts'
 
-const FRONT_MATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u
-const FRONT_MATTER_KEY_PATTERN = /^[ \t]*([A-Za-z0-9_-]+)\s*:/gmu
 const MARKDOWN_LINK_PATTERN = /(?<!!)\[[^\]]*\]\(([^)]+)\)/gu
 const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\(([^)]+)\)/gu
 const HTML_IMAGE_PATTERN = /<img\b[^>]*\bsrc=(["'])(.*?)\1[^>]*>/giu
 const WIKILINK_PATTERN = /\[\[([^[\]|]+)(?:\|[^[]+)?\]\]/gu
 const HTML_ALT_PATTERN = /\balt=(["'])(.*?)\1/iu
 
-export function buildWorkspaceIndexDocument(path: string, content: string): WorkspaceIndexDocument {
+export function buildWorkspaceIndexDocument(
+  path: string,
+  content: string,
+  rootPath?: string | null
+): WorkspaceIndexDocument {
   const name = deriveWorkspaceDocumentName(path)
   const headings = extractHeadings(content)
+  const frontMatter = parseFrontMatter(content)
+  const frontMatterSummary = summarizeWorkspaceFrontMatter(frontMatter)
+  const okf = buildOkfConceptSummary(path, rootPath, frontMatter)
   const title = headings[0]?.text ?? stripMarkdownExtension(name)
-  const links = extractWorkspaceLinks(content)
-  const assets = extractWorkspaceAssets(content)
-  const frontMatter = extractWorkspaceFrontMatter(content)
+  const links = extractWorkspaceLinks(content, frontMatter)
+  const assets = extractWorkspaceAssets(content, frontMatter)
   const diagnostics = buildWorkspaceDiagnostics(content, headings, assets, frontMatter)
 
   return {
@@ -32,7 +37,8 @@ export function buildWorkspaceIndexDocument(path: string, content: string): Work
     headings,
     links,
     assets,
-    frontMatter,
+    frontMatter: frontMatterSummary,
+    okf,
     diagnostics,
   }
 }
@@ -42,7 +48,10 @@ export function deriveWorkspaceDocumentName(path: string): string {
   return normalized.split('/').pop() ?? normalized
 }
 
-export function extractWorkspaceLinks(content: string): WorkspaceIndexLink[] {
+export function extractWorkspaceLinks(
+  content: string,
+  parsedFrontMatter = parseFrontMatter(content)
+): WorkspaceIndexLink[] {
   const links: Array<WorkspaceIndexLink & { index: number }> = []
 
   collectPatternMatches(MARKDOWN_LINK_PATTERN, content, (match) => {
@@ -54,11 +63,13 @@ export function extractWorkspaceLinks(content: string): WorkspaceIndexLink[] {
     const rawTargetIndex = (match[0] ?? '').indexOf(rawTarget)
     if (rawTargetIndex < 0) return
     const index = match.index ?? 0
+    if (isOffsetInsideFrontMatter(index, parsedFrontMatter)) return
     const line = getLineNumberAtOffset(content, index)
     links.push({
       target,
       kind: 'markdown',
       local: isLocalTarget(target),
+      listItem: isMarkdownListItemAtOffset(content, index),
       line,
       sourceStart: index + rawTargetIndex + sourceRange.start,
       sourceEnd: index + rawTargetIndex + sourceRange.end,
@@ -71,11 +82,13 @@ export function extractWorkspaceLinks(content: string): WorkspaceIndexLink[] {
     const target = normalizeWikiLinkTarget(rawTarget)
     if (!target) return
     const index = match.index ?? 0
+    if (isOffsetInsideFrontMatter(index, parsedFrontMatter)) return
     const line = getLineNumberAtOffset(content, index)
     links.push({
       target,
       kind: 'wikilink',
       local: true,
+      listItem: isMarkdownListItemAtOffset(content, index),
       line,
       sourceStart: index + 2,
       sourceEnd: index + 2 + rawTarget.length,
@@ -90,7 +103,10 @@ export function extractWorkspaceLinks(content: string): WorkspaceIndexLink[] {
   )
 }
 
-export function extractWorkspaceAssets(content: string): WorkspaceIndexAsset[] {
+export function extractWorkspaceAssets(
+  content: string,
+  parsedFrontMatter = parseFrontMatter(content)
+): WorkspaceIndexAsset[] {
   const assets: Array<WorkspaceIndexAsset & { index: number }> = []
 
   collectPatternMatches(MARKDOWN_IMAGE_PATTERN, content, (match) => {
@@ -104,6 +120,7 @@ export function extractWorkspaceAssets(content: string): WorkspaceIndexAsset[] {
     const rawTargetIndex = (match[0] ?? '').indexOf(rawTarget)
     if (rawTargetIndex < 0) return
     const index = match.index ?? 0
+    if (isOffsetInsideFrontMatter(index, parsedFrontMatter)) return
     const line = getLineNumberAtOffset(content, index)
     assets.push({
       source,
@@ -121,6 +138,7 @@ export function extractWorkspaceAssets(content: string): WorkspaceIndexAsset[] {
     const source = match[2]?.trim() ?? ''
     if (!source) return
     const index = match.index ?? 0
+    if (isOffsetInsideFrontMatter(index, parsedFrontMatter)) return
     const line = getLineNumberAtOffset(content, index)
     const fullTag = match[0] ?? ''
     const sourceIndex = fullTag.indexOf(source)
@@ -149,6 +167,7 @@ export function extractWorkspaceAssets(content: string): WorkspaceIndexAsset[] {
     const rawTargetIndex = (match[0] ?? '').indexOf(rawTarget)
     if (rawTargetIndex < 0) return
     const index = match.index ?? 0
+    if (isOffsetInsideFrontMatter(index, parsedFrontMatter)) return
     const line = getLineNumberAtOffset(content, index)
     assets.push({
       source,
@@ -168,22 +187,47 @@ export function extractWorkspaceAssets(content: string): WorkspaceIndexAsset[] {
 }
 
 export function extractWorkspaceFrontMatter(content: string): WorkspaceIndexFrontMatterSummary | null {
-  const match = content.match(FRONT_MATTER_PATTERN)
-  if (!match) return null
+  return summarizeWorkspaceFrontMatter(parseFrontMatter(content))
+}
 
-  const raw = match[1]?.trim() ?? ''
-  if (!raw) {
-    return {
-      raw,
-      keys: [],
-    }
-  }
-
-  const keys = Array.from(raw.matchAll(FRONT_MATTER_KEY_PATTERN)).map((entry) => entry[1])
+function summarizeWorkspaceFrontMatter(
+  parsed: FrontMatterParseResult
+): WorkspaceIndexFrontMatterSummary | null {
+  if (parsed.status === 'absent') return null
   return {
-    raw,
-    keys,
+    raw: parsed.yaml?.trim() ?? '',
+    keys: Object.keys(parsed.data),
+    status: parsed.status,
+    closingMarker: parsed.closingMarker,
   }
+}
+
+function buildOkfConceptSummary(
+  path: string,
+  rootPath: string | null | undefined,
+  parsed: FrontMatterParseResult
+): WorkspaceIndexDocument['okf'] {
+  if (parsed.status !== 'valid') return null
+  const conceptId = deriveConceptId(path, rootPath)
+  return {
+    conceptId,
+    type: getFrontMatterValue(parsed.data, 'type'),
+    title: getFrontMatterValue(parsed.data, 'title'),
+    description: getFrontMatterValue(parsed.data, 'description'),
+    resource: getFrontMatterValue(parsed.data, 'resource'),
+    tags: getFrontMatterValue(parsed.data, 'tags'),
+    timestamp: getFrontMatterValue(parsed.data, 'timestamp'),
+    okfVersion: getFrontMatterValue(parsed.data, 'okf_version'),
+  }
+}
+
+function deriveConceptId(path: string, rootPath: string | null | undefined): string {
+  const normalizedPath = path.replace(/\\/gu, '/')
+  const normalizedRoot = rootPath?.replace(/\\/gu, '/').replace(/\/+$/u, '') ?? ''
+  const relativePath = normalizedRoot && normalizedPath.startsWith(`${normalizedRoot}/`)
+    ? normalizedPath.slice(normalizedRoot.length + 1)
+    : normalizedPath.replace(/^\/+/, '')
+  return relativePath.replace(/\.md$/iu, '')
 }
 
 export function isWorkspaceDocumentPath(path: string): boolean {
@@ -216,6 +260,17 @@ function isLocalTarget(target: string): boolean {
 
 function stripMarkdownExtension(value: string): string {
   return value.replace(/\.(md|markdown|mdx|txt)$/iu, '')
+}
+
+function isMarkdownListItemAtOffset(content: string, offset: number): boolean {
+  const lineStart = Math.max(content.lastIndexOf('\n', Math.max(offset - 1, 0)) + 1, 0)
+  const prefix = content.slice(lineStart, offset)
+  return /^\s*(?:[-+*]|\d+[.)])\s+/u.test(prefix)
+}
+
+function isOffsetInsideFrontMatter(offset: number, parsed: FrontMatterParseResult): boolean {
+  if (parsed.range) return offset >= parsed.range.from && offset <= parsed.range.to
+  return parsed.status === 'unclosed'
 }
 
 function dedupeLinkEntries(links: WorkspaceIndexLink[]): WorkspaceIndexLink[] {

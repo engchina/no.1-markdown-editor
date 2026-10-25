@@ -582,6 +582,17 @@ export function getMermaidRenderErrorMessage(
   return getMermaidErrorMessage(error, fallbackMessage)
 }
 
+// WebKit (macOS WKWebView) measures label text as ~0 width when the font is
+// not ready yet, which makes mermaid's getBBox-based sizing collapse the whole
+// diagram to a few pixels. Chromium uses fallback metrics so Windows is fine.
+// Wait for fonts before rendering; resolves instantly once loaded.
+// ponytail: 5s safety cap in case fonts.ready hangs (known WebKit edge cases).
+async function waitForFontsReady(): Promise<void> {
+  const fonts = (globalThis as { document?: Document & { fonts?: FontFaceSet } }).document?.fonts
+  if (!fonts?.ready) return
+  await Promise.race([fonts.ready, new Promise((resolve) => setTimeout(resolve, 5000))])
+}
+
 export async function renderMermaidToSvg(
   source: string,
   theme: MermaidTheme,
@@ -593,6 +604,7 @@ export async function renderMermaidToSvg(
   const mermaid = await loadConfiguredMermaid()
   await ensureMermaidDiagramSupport(mermaid, source)
   mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' })
+  await waitForFontsReady()
 
   const { svg } = await mermaid.render(
     `${idPrefix}-${Date.now()}-${mermaidRenderSequence++}`,

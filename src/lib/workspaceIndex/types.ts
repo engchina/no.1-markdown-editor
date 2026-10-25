@@ -1,9 +1,11 @@
 import type { OutlineHeading } from '../outline.ts'
+import type { FrontMatterStatus, FrontMatterValue } from '../frontMatter.ts'
 
 export interface WorkspaceIndexLink {
   target: string
   kind: 'markdown' | 'wikilink'
   local: boolean
+  listItem?: boolean
   line: number
   sourceStart: number
   sourceEnd: number
@@ -22,6 +24,19 @@ export interface WorkspaceIndexAsset {
 export interface WorkspaceIndexFrontMatterSummary {
   raw: string
   keys: string[]
+  status?: FrontMatterStatus
+  closingMarker?: '---' | '...' | null
+}
+
+export interface OkfConceptSummary {
+  conceptId: string
+  type?: FrontMatterValue
+  title?: FrontMatterValue
+  description?: FrontMatterValue
+  resource?: FrontMatterValue
+  tags?: FrontMatterValue
+  timestamp?: FrontMatterValue
+  okfVersion?: FrontMatterValue
 }
 
 export interface WorkspaceIndexDiagnostic {
@@ -39,6 +54,8 @@ export interface WorkspaceIndexDiagnostic {
     | 'frontmatter-unclosed'
     | 'frontmatter-empty'
     | 'frontmatter-duplicate-key'
+    | 'frontmatter-invalid-yaml'
+    | 'frontmatter-non-mapping-root'
     | 'publish-missing-title'
     | 'publish-title-mismatch'
     | 'publish-remote-asset'
@@ -52,6 +69,7 @@ export interface WorkspaceIndexDocument {
   links: WorkspaceIndexLink[]
   assets: WorkspaceIndexAsset[]
   frontMatter: WorkspaceIndexFrontMatterSummary | null
+  okf?: OkfConceptSummary | null
   diagnostics: WorkspaceIndexDiagnostic[]
 }
 

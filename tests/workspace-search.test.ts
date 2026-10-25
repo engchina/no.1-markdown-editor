@@ -164,6 +164,23 @@ test('findWorkspaceDocumentReferences keeps workspace content loading lazy until
   assert.equal(runtime.readCount, 1)
 })
 
+test('workspace document references prefer OKF front matter titles without renaming files', async () => {
+  const contentByPath = new Map<string, string>([[
+    'notes/orders.md',
+    '---\ntype: BigQuery Table\ntitle: Customer Orders\n---\n\n# Physical table\n',
+  ]])
+  const references = await findWorkspaceDocumentReferences({
+    query: 'customer orders',
+    tabs: [],
+    rootPath: 'notes',
+    limit: 1,
+    runtime: createWorkspaceSearchRuntime(contentByPath),
+  })
+
+  assert.equal(references[0]?.name, 'Customer Orders')
+  assert.equal(references[0]?.path, 'notes/orders.md')
+})
+
 function createWorkspaceSearchRuntime(
   contentByPath: Map<string, string>
 ): WorkspaceSearchRuntime & { readCount: number } {

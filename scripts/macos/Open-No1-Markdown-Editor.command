@@ -1,17 +1,19 @@
 #!/bin/bash
-# No.1 Markdown Editor - macOS first-launch helper / 初回起動ヘルパー / 首次启动助手
+# No.1 Markdown Editor - initial-install or one-time-migration helper / 初回インストール・一度限りの移行ヘルパー / 首次安装或一次性迁移助手
 #
-# This macOS build is not notarized by Apple, so Gatekeeper blocks the first
-# launch (and every launch right after an update). This script removes the
-# quarantine attribute and opens the app. No Terminal command to memorize:
-# just double-click this file after installing and after each update.
+# Use this only when macOS blocks the initial installation or a migration from
+# v0.27.10 or earlier. Do not use it for normal in-app updates. This script
+# removes the quarantine attribute and opens the app.
 #
-# この macOS ビルドは Apple の公証を受けていないため、初回起動時（および
-# アップデート直後）にセキュリティ警告でブロックされます。このファイルを
-# ダブルクリックするだけで quarantine 属性を解除してアプリを起動します。
-# コマンドを覚える必要はありません。
+# 初回インストール時、または v0.27.10 以前からの移行時に macOS にブロックされた
+# 場合のみ使用してください。通常のアプリ内更新では使用しません。
+# 仅在首次安装或从 v0.27.10 及更早版本迁移时被 macOS 阻止启动的情况下使用。
+# 正常的应用内更新不要运行此助手。
 
 set -u
+
+echo "初回インストール・旧版からの移行専用です。通常の更新では使用しません。 / Initial install or legacy migration only. Do not use for normal updates. / 仅用于首次安装或旧版迁移，请勿用于正常更新。"
+echo ""
 
 APP_NAME="No.1 Markdown Editor.app"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

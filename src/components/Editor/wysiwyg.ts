@@ -9,13 +9,13 @@
 
 import {
   ViewPlugin,
-  DecorationSet,
   Decoration,
   EditorView,
   GutterMarker,
   gutterLineClass,
-  ViewUpdate,
   WidgetType,
+  type DecorationSet,
+  type ViewUpdate,
 } from '@codemirror/view'
 import { RangeSet, RangeSetBuilder, StateField, type EditorState as CodeMirrorState } from '@codemirror/state'
 import katex from 'katex'
@@ -73,7 +73,8 @@ import {
 } from './wysiwygSetextHeading.ts'
 import { detectDocumentLanguage, resolveDocumentSpellcheckConfig } from '../../lib/documentLanguage.ts'
 import { hasTerminalBlankLine } from '../../lib/editorTerminalBlankLine.ts'
-import { stripFrontMatter, type FrontMatterMeta } from '../../lib/markdownShared.ts'
+import { buildFrontMatterHtml, stripFrontMatter, type FrontMatterMeta } from '../../lib/markdownShared.ts'
+import { parseFrontMatter, type FrontMatterParseResult } from '../../lib/frontMatter.ts'
 import { rewriteRenderedHtmlImageSources } from '../../lib/renderedImageSources.ts'
 import { loadLocalPreviewImage } from '../../lib/previewLocalImage.ts'
 import { rewritePreviewHtmlLocalImages } from '../../lib/previewLocalImages.ts'
@@ -108,7 +109,8 @@ import {
 import { planClipboardTablePaste } from './tablePasteConverter.ts'
 import type { TableAlignment } from './tableBlockRanges.ts'
 import i18n from '../../i18n/index.ts'
-import { useEditorStore } from '../../store/editor'
+import { useEditorStore } from '../../store/editor.ts'
+import { openWebUrlInNewBrowserTab } from '../../lib/browser/openLinkInBrowserTab.ts'
 
 // ── Widgets ────────────────────────────────────────────────────────────────
 
@@ -122,6 +124,33 @@ class HrWidget extends WidgetType {
     return el
   }
   ignoreEvent() { return true }
+}
+
+class FrontMatterWidget extends WidgetType {
+  private readonly parsed: FrontMatterParseResult
+
+  constructor(parsed: FrontMatterParseResult) {
+    super()
+    this.parsed = parsed
+  }
+
+  toDOM() {
+    const wrapper = document.createElement('section')
+    wrapper.className = 'cm-wysiwyg-front-matter'
+    wrapper.dataset.frontMatterEditAnchor = String(this.parsed.range?.contentFrom ?? 0)
+    wrapper.setAttribute('role', 'button')
+    wrapper.setAttribute('aria-label', i18n.t('frontMatter.edit'))
+    wrapper.setAttribute('aria-keyshortcuts', 'Enter Space')
+    wrapper.tabIndex = 0
+    wrapper.innerHTML = buildFrontMatterHtml(this.parsed)
+    return wrapper
+  }
+
+  ignoreEvent() { return false }
+
+  eq(other: FrontMatterWidget) {
+    return this.parsed.status === other.parsed.status && this.parsed.raw === other.parsed.raw
+  }
 }
 
 // KaTeX inline math widget
@@ -1479,6 +1508,10 @@ export function buildWysiwygDecorations(
   const { doc } = view.state
   const docText = doc.toString()
   const documentContext = resolveWysiwygDocumentContext(docText)
+  const parsedFrontMatter = parseFrontMatter(docText)
+  const frontMatterRange = resolveFrontMatterSourceRange(parsedFrontMatter, doc.length)
+  const frontMatterSourceVisible = parsedFrontMatter.status === 'unclosed'
+    || (frontMatterRange !== null && stateSelectionTouchesRange(view.state, frontMatterRange.from, frontMatterRange.to))
   const blockquoteLines = collectWysiwygBlockquoteLines(docText)
   const setextContentLevelByLineStart = new Map<number, 1 | 2>()
   const setextUnderlineLineStarts = new Map<number, 1 | 2>()
@@ -1498,6 +1531,35 @@ export function buildWysiwygDecorations(
   let detailsIndex = 0
   let rawHtmlIndex = 0
   const detailsGapLineStarts = new Set<number>()
+
+  if (frontMatterRange && !frontMatterSourceVisible) {
+    const openingLine = doc.lineAt(frontMatterRange.from)
+    const closingLine = doc.lineAt(frontMatterRange.to)
+    queueDecoration(
+      decorations,
+      openingLine.from,
+      openingLine.from,
+      Decoration.line({ attributes: { class: 'cm-wysiwyg-front-matter-anchor-line' } })
+    )
+    queueDecoration(
+      decorations,
+      openingLine.from,
+      openingLine.to,
+      Decoration.replace({ widget: new FrontMatterWidget(parsedFrontMatter), block: true })
+    )
+    let hiddenLineFrom = openingLine.to + 1
+    while (hiddenLineFrom <= closingLine.to) {
+      const hiddenLine = doc.lineAt(hiddenLineFrom)
+      queueDecoration(
+        decorations,
+        hiddenLine.from,
+        hiddenLine.from,
+        Decoration.line({ attributes: { class: 'cm-wysiwyg-front-matter-hidden-line' } })
+      )
+      queueDecoration(decorations, hiddenLine.from, hiddenLine.to, Decoration.replace({}))
+      hiddenLineFrom = hiddenLine.to + 1
+    }
+  }
 
   for (const detailsBlock of collectInactiveWysiwygDetailsBlocks(view, detailsBlocks)) {
     const openingLine = doc.lineAt(detailsBlock.from)
@@ -1623,6 +1685,19 @@ export function buildWysiwygDecorations(
       const lineFrom = line.from
       const lineTo = line.to
       const onLine = cursorIsOnLine(view, lineFrom, lineTo)
+
+      if (frontMatterRange && lineFrom >= frontMatterRange.from && lineFrom <= frontMatterRange.to) {
+        if (frontMatterSourceVisible) {
+          queueDecoration(
+            decorations,
+            lineFrom,
+            lineFrom,
+            Decoration.line({ attributes: { class: 'cm-wysiwyg-front-matter-source-line' } })
+          )
+        }
+        pos = line.to + 1
+        continue
+      }
 
       while (fenceIndex < fencedCodeBlocks.length && fencedCodeBlocks[fenceIndex].to < lineFrom) {
         fenceIndex += 1
@@ -1973,11 +2048,20 @@ const hiddenGutterMarker = new HiddenGutterMarker()
 const reservedHiddenGutterMarker = new ReservedHiddenGutterMarker()
 
 function stateSelectionTouchesRange(
-  state: CodeMirrorState,
+  state: Pick<CodeMirrorState, 'selection'>,
   from: number,
   to: number
 ): boolean {
   return state.selection.ranges.some((range) => range.from <= to && range.to >= from)
+}
+
+function resolveFrontMatterSourceRange(
+  parsed: FrontMatterParseResult,
+  documentLength: number
+): { from: number; to: number } | null {
+  if (parsed.range) return { from: parsed.range.from, to: parsed.range.to }
+  if (parsed.status === 'unclosed') return { from: 0, to: documentLength }
+  return null
 }
 
 interface WysiwygStructuralBlocks {
@@ -1990,6 +2074,7 @@ interface WysiwygStructuralBlocks {
 }
 
 function collectWysiwygStructuralBlocks(markdown: string): WysiwygStructuralBlocks {
+  markdown = maskFrontMatterSource(markdown, parseFrontMatter(markdown))
   const allFencedCodeBlocks = collectFencedCodeBlocks(markdown)
   const allMathBlocks = collectMathBlocks(markdown, allFencedCodeBlocks)
   const detailsBlocks = collectWysiwygDetailsBlocks(markdown, [
@@ -2032,6 +2117,7 @@ function rangeIntersectsAnyRange(range: { from: number; to: number }, ranges: re
 
 interface WysiwygDocumentAnalysis extends WysiwygStructuralBlocks {
   markdown: string
+  frontMatter: FrontMatterParseResult
   footnoteIndices: Map<string, number>
 }
 
@@ -2046,13 +2132,22 @@ function analyzeWysiwygDocument(doc: CodeMirrorState['doc']): WysiwygDocumentAna
   if (cached) return cached
 
   const markdown = doc.toString()
+  const frontMatter = parseFrontMatter(markdown)
+  const structuralMarkdown = maskFrontMatterSource(markdown, frontMatter)
   const analysis: WysiwygDocumentAnalysis = {
     markdown,
+    frontMatter,
     ...collectWysiwygStructuralBlocks(markdown),
-    footnoteIndices: collectFootnoteIndices(markdown),
+    footnoteIndices: collectFootnoteIndices(structuralMarkdown),
   }
   wysiwygAnalysisCache.set(doc, analysis)
   return analysis
+}
+
+function maskFrontMatterSource(markdown: string, parsed: FrontMatterParseResult): string {
+  const range = resolveFrontMatterSourceRange(parsed, markdown.length)
+  if (!range) return markdown
+  return `${markdown.slice(0, range.from)}${markdown.slice(range.from, range.to).replace(/[^\r\n]/gu, ' ')}${markdown.slice(range.to)}`
 }
 
 function markDetailsGapGutterLine(
@@ -2069,10 +2164,13 @@ function markDetailsGapGutterLine(
 }
 
 function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarker> {
+  const analysis = analyzeWysiwygDocument(state.doc)
   const { fencedCodeBlocks, mathBlocks, tables, detailsBlocks, rawHtmlBlocks, setextHeadings } =
     analyzeWysiwygDocument(state.doc)
+  const { frontMatter } = analysis
   const { doc } = state
   const markers = new Map<number, GutterMarker>()
+  const frontMatterRange = resolveFrontMatterSourceRange(frontMatter, doc.length)
   const setextUnderlineLineStarts = new Set<number>(setextHeadings.map((heading) => heading.underlineFrom))
   const nonTextBlockRanges = [
     ...fencedCodeBlocks.map(({ from, to }) => ({ from, to })),
@@ -2080,7 +2178,23 @@ function buildWysiwygGutterClasses(state: CodeMirrorState): RangeSet<GutterMarke
     ...tables.map(({ from, to }) => ({ from, to })),
     ...detailsBlocks.map(({ from, to }) => ({ from, to })),
     ...rawHtmlBlocks.map(({ from, to }) => ({ from, to })),
+    ...(frontMatterRange ? [frontMatterRange] : []),
   ].sort((left, right) => left.from - right.from)
+
+  if (
+    frontMatterRange
+    && frontMatter.status !== 'unclosed'
+    && !stateSelectionTouchesRange(state, frontMatterRange.from, frontMatterRange.to)
+  ) {
+    const openingLine = doc.lineAt(frontMatterRange.from)
+    const closingLine = doc.lineAt(frontMatterRange.to)
+    let nextFrom = openingLine.to + 1
+    while (nextFrom <= closingLine.to) {
+      const hiddenLine = doc.lineAt(nextFrom)
+      markers.set(hiddenLine.from, hiddenGutterMarker)
+      nextFrom = hiddenLine.to + 1
+    }
+  }
 
   for (const fence of fencedCodeBlocks) {
     if (stateSelectionTouchesRange(state, fence.from, fence.to)) continue
@@ -3656,6 +3770,40 @@ function activateDetailsTarget(view: EditorView, target: EventTarget | null): bo
   return true
 }
 
+function getFrontMatterResourceTarget(target: EventTarget | null): HTMLAnchorElement | null {
+  return (target as HTMLElement | null)?.closest<HTMLAnchorElement>('.cm-wysiwyg-front-matter a.fm-resource') ?? null
+}
+
+function activateFrontMatterTarget(view: EditorView, target: EventTarget | null): boolean {
+  if (getFrontMatterResourceTarget(target)) return false
+  const card = (target as HTMLElement | null)?.closest<HTMLElement>('.cm-wysiwyg-front-matter')
+  if (!card) return false
+  const editAnchor = Number(card.dataset.frontMatterEditAnchor)
+  if (!Number.isFinite(editAnchor)) return false
+  view.dispatch({
+    selection: { anchor: editAnchor },
+    userEvent: 'select.pointer',
+    scrollIntoView: true,
+  })
+  view.focus()
+  return true
+}
+
+function openFrontMatterResource(target: EventTarget | null): boolean {
+  const anchor = getFrontMatterResourceTarget(target)
+  const href = anchor?.getAttribute('href')
+  if (!href) return false
+  if (openWebUrlInNewBrowserTab(href) !== null) return true
+  if (isTauriRuntime()) {
+    void import('@tauri-apps/plugin-opener').then(({ openUrl }) => openUrl(href)).catch((error) => {
+      console.error('Open front matter resource error:', error)
+    })
+  } else if (typeof window !== 'undefined') {
+    window.open(href, '_blank', 'noopener,noreferrer')
+  }
+  return true
+}
+
 // ── Plugin definition ──────────────────────────────────────────────────────
 
 export const wysiwygPlugin = ViewPlugin.fromClass(
@@ -3665,6 +3813,14 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
     eventHandlers: {
       mousedown(event, view) {
         if (getTableCellInputFromTarget(event.target, view)) return false
+        if (getFrontMatterResourceTarget(event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateFrontMatterTarget(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
         if (isRawHtmlInteractiveMediaTarget(event.target)) return true
         if (activateTable(view, event.target)) {
           event.preventDefault()
@@ -3707,6 +3863,14 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
       },
       click(event, view) {
         if (getTableCellInputFromTarget(event.target, view)) return false
+        if (openFrontMatterResource(event.target)) {
+          event.preventDefault()
+          return true
+        }
+        if (activateFrontMatterTarget(view, event.target)) {
+          event.preventDefault()
+          return true
+        }
         if (activatePreviewExternalEmbed(event.target)) {
           event.preventDefault()
           return true
@@ -3777,6 +3941,22 @@ export const wysiwygPlugin = ViewPlugin.fromClass(
         }
 
         if (isRawHtmlInteractiveMediaTarget(event.target)) return true
+
+        const frontMatterResource = getFrontMatterResourceTarget(event.target)
+        if (frontMatterResource) {
+          if (!isPlainInlineRenderedFragmentActivationKey(event)) return false
+          if (!openFrontMatterResource(frontMatterResource)) return false
+          event.preventDefault()
+          return true
+        }
+
+        const frontMatterTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-front-matter')
+        if (frontMatterTarget) {
+          if (!isPlainInlineRenderedFragmentActivationKey(event)) return false
+          if (!activateFrontMatterTarget(view, frontMatterTarget)) return false
+          event.preventDefault()
+          return true
+        }
 
         const checkboxTarget = (event.target as HTMLElement | null)?.closest('.cm-wysiwyg-checkbox')
         if (checkboxTarget) {
@@ -3915,6 +4095,41 @@ export const wysiwygTheme = EditorView.baseTheme({
   '.cm-content': {
     fontFamily: PREVIEW_FONT_FAMILY,
     lineHeight: PROSE_LINE_HEIGHT,
+  },
+  '.cm-wysiwyg-front-matter-anchor-line': {
+    padding: '0 !important',
+  },
+  '.cm-wysiwyg-front-matter-hidden-line': {
+    height: '0',
+    minHeight: '0',
+    padding: '0 !important',
+    lineHeight: '0',
+    fontSize: '0',
+    overflow: 'hidden',
+  },
+  '.cm-wysiwyg-front-matter-source-line': {
+    fontFamily: MONO_FONT_FAMILY,
+    fontSize: '0.9em',
+    color: 'var(--text-secondary)',
+    backgroundColor: 'color-mix(in srgb, var(--bg-secondary) 64%, transparent)',
+  },
+  '.cm-wysiwyg-front-matter': {
+    display: 'block',
+    margin: `0 ${PROSE_BLOCK_INSET}`,
+    cursor: 'text',
+    whiteSpace: 'normal',
+    userSelect: 'none',
+  },
+  '.cm-wysiwyg-front-matter:hover .front-matter': {
+    borderColor: 'color-mix(in srgb, var(--accent) 36%, var(--border))',
+  },
+  '.cm-wysiwyg-front-matter:focus-visible': {
+    outline: '2px solid color-mix(in srgb, var(--accent) 72%, transparent)',
+    outlineOffset: '3px',
+    borderRadius: '10px',
+  },
+  '.cm-wysiwyg-front-matter .fm-resource': {
+    userSelect: 'text',
   },
   // Headings
   '.cm-wysiwyg-h1': { fontSize: 'var(--md-heading-1-size, 2em)', fontWeight: '700', lineHeight: HEADING_LINE_HEIGHT, color: 'var(--text-primary) !important', fontFamily: PREVIEW_FONT_FAMILY },

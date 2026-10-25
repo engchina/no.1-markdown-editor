@@ -23,6 +23,7 @@ import {
   getEditorRedoShortcutLabel,
   getEditorUndoShortcutLabel,
 } from '../lib/editorHistory.ts'
+import { dispatchScreenshotRequest, getScreenshotShortcutLabel } from '../lib/screenshot.ts'
 
 export interface Command {
   id: string
@@ -49,6 +50,7 @@ export function useCommands(): Command[] {
   const appearanceShortcut = formatPrimaryShortcut(',')
   const aiSetupShortcut = formatPrimaryShortcut('J', { shift: true })
   const imageHostingShortcut = formatPrimaryShortcut('H', { shift: true })
+  const screenshotShortcut = getScreenshotShortcutLabel()
   const openShortcut = formatPrimaryShortcut('O')
   const saveShortcut = formatPrimaryShortcut('S')
   const saveAsShortcut = formatPrimaryShortcut('S', { shift: true })
@@ -564,6 +566,16 @@ export function useCommands(): Command[] {
         action: () => emitFormat('image'),
       },
       {
+        id: 'edit.captureScreenshot',
+        label: t('screenshot.capture.command'),
+        description: t('screenshot.capture.commandDescription'),
+        category: 'edit',
+        shortcut: screenshotShortcut,
+        action: () => {
+          dispatchScreenshotRequest()
+        },
+      },
+      {
         id: 'edit.h1',
         label: t('toolbar.h1'),
         icon: 'H1',
@@ -719,6 +731,7 @@ export function useCommands(): Command[] {
     appearanceShortcut,
     aiSetupShortcut,
     imageHostingShortcut,
+    screenshotShortcut,
     store,
     closeFileShortcut,
     copyAsHtml,

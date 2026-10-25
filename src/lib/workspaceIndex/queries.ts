@@ -3,6 +3,10 @@ import { MARKDOWN_FILE_EXTENSIONS } from '../fileTypes.ts'
 import { isLikelyAttachmentFileName } from '../fileTypes.ts'
 import { isLikelyImageFileName } from '../fileTypes.ts'
 import { isLikelyWorkspaceAssetFileName } from '../fileTypes.ts'
+import {
+  resolveWorkspaceDocumentLink,
+  resolveWorkspacePathTarget,
+} from '../workspaceLinks.ts'
 import type {
   WorkspaceIndexAsset,
   WorkspaceIndexDiagnostic,
@@ -289,7 +293,7 @@ export function getWorkspaceAssetReferences(
     for (const asset of document.assets) {
       const resolvedPath =
         asset.local
-          ? resolveRelativeWorkspaceTarget(document.path, asset.source)
+          ? resolveRelativeWorkspaceTarget(document.path, asset.source, snapshot.rootPath)
           : null
 
       references.push({
@@ -443,19 +447,25 @@ function resolveDocumentLink(
     return resolveWikiLinkTarget(link.target, context)
   }
 
-  const { pathTarget, anchor } = splitLinkTarget(link.target)
-  const resolvedPath = resolveRelativeWorkspaceTarget(sourceDocument.path, pathTarget)
-  if (!resolvedPath) {
+  const resolution = resolveWorkspaceDocumentLink(
+    context.rootPath,
+    sourceDocument.path,
+    link.target,
+    context.documents.map((document) => document.path)
+  )
+  const { anchor } = splitLinkTarget(link.target)
+  if (resolution.kind !== 'document' || !resolution.path) {
     return {
       anchor,
       resolvedPath: null,
       resolvedName: null,
       resolvedHeadingLine: null,
       resolvedHeadingText: null,
-      ambiguous: false,
+      ambiguous: resolution.ambiguous,
     }
   }
 
+  const resolvedPath = normalizeWorkspacePath(resolution.path)
   const directDocument = context.documentsByPath.get(resolvedPath)
   if (directDocument) {
     const heading = resolveHeadingReference(directDocument, anchor)
@@ -466,35 +476,6 @@ function resolveDocumentLink(
       resolvedHeadingLine: heading?.line ?? null,
       resolvedHeadingText: heading?.text ?? null,
       ambiguous: false,
-    }
-  }
-
-  if (!hasExtension(pathTarget)) {
-    const candidates = MARKDOWN_FILE_EXTENSIONS
-      .map((extension) => context.documentsByPath.get(`${resolvedPath}.${extension}`))
-      .filter(isPresent)
-
-    if (candidates.length === 1) {
-      const heading = resolveHeadingReference(candidates[0], anchor)
-      return {
-        anchor,
-        resolvedPath: candidates[0].path,
-        resolvedName: candidates[0].name,
-        resolvedHeadingLine: heading?.line ?? null,
-        resolvedHeadingText: heading?.text ?? null,
-        ambiguous: false,
-      }
-    }
-
-    if (candidates.length > 1) {
-      return {
-        anchor,
-        resolvedPath: null,
-        resolvedName: null,
-        resolvedHeadingLine: null,
-        resolvedHeadingText: null,
-        ambiguous: true,
-      }
     }
   }
 
@@ -603,6 +584,7 @@ function buildWorkspaceResolutionContext(snapshot: WorkspaceIndexSnapshot): Work
   }
 
   return {
+    rootPath: snapshot.rootPath,
     documents: snapshot.documents,
     documentsByPath,
     documentsByNormalizedName,
@@ -624,14 +606,13 @@ function pushDocumentLookup(
   map.set(key, [document])
 }
 
-function resolveRelativeWorkspaceTarget(documentPath: string, rawTarget: string): string | null {
-  const { pathTarget } = splitLinkTarget(rawTarget)
-  const target = pathTarget
-  if (!target || !isLocalTarget(target)) return null
-  if (target.startsWith('/')) return normalizeWorkspacePath(target)
-
-  const baseDirectory = getDirectoryPath(documentPath)
-  return normalizeWorkspacePath(joinRelativePath(baseDirectory, target))
+function resolveRelativeWorkspaceTarget(
+  documentPath: string,
+  rawTarget: string,
+  rootPath: string
+): string | null {
+  const target = resolveWorkspacePathTarget(rootPath, documentPath, rawTarget)
+  return target ? normalizeWorkspacePath(target) : null
 }
 
 function isDocumentLikeLink(link: WorkspaceIndexLink): boolean {
@@ -671,11 +652,6 @@ function getPathBaseName(path: string): string {
   const normalized = normalizeWorkspacePath(path)
   const separatorIndex = normalized.lastIndexOf('/')
   return separatorIndex === -1 ? normalized : normalized.slice(separatorIndex + 1)
-}
-
-function joinRelativePath(baseDirectory: string, relativePath: string): string {
-  if (!baseDirectory) return relativePath
-  return `${baseDirectory}/${relativePath}`
 }
 
 function buildRelativeWorkspaceDocumentLinkTarget(
@@ -797,10 +773,6 @@ function normalizeWorkspacePath(path: string): string {
 
 function isLocalTarget(target: string): boolean {
   return !/^(?:https?:|mailto:|tel:|data:|blob:)/iu.test(target) && !target.startsWith('//')
-}
-
-function hasExtension(path: string): boolean {
-  return /\.[A-Za-z0-9]+$/u.test(path)
 }
 
 function getFileExtension(path: string): string | null {
@@ -941,6 +913,7 @@ function splitNormalizedPath(path: string): { prefix: string; absolute: boolean;
 }
 
 interface WorkspaceResolutionContext {
+  rootPath: string
   documents: WorkspaceIndexDocument[]
   documentsByPath: Map<string, WorkspaceIndexDocument>
   documentsByNormalizedName: Map<string, WorkspaceIndexDocument[]>

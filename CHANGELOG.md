@@ -20,6 +20,183 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
 
+## 0.27.13 - 2026-10-25
+
+### Fixed
+
+- Switching to another file or between Source, Split, and Preview modes now keeps the editor cursor and scroll position instead of jumping back to the top.
+
+## 0.27.12 - 2026-07-01
+
+### Changed
+
+- Clarified the macOS guidance: the helper is only for an initial installation or one-time migration from `v0.27.10` or earlier, and must not be used for normal in-app updates.
+
+## 0.27.11 - 2026-07-01
+
+### Fixed
+
+- macOS updates are now signature-verified and installed inside the app, so users no longer have to download a new DMG and approve every update in Privacy & Security after the one-time migration.
+
+### Internal
+
+- Added macOS-only Tauri updater artifacts, GitHub Actions secret validation, and release-asset checks for Universal update metadata and signatures.
+
+## 0.27.10 - 2026-06-30
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Pressing `Esc` now cancels screenshot capture even while a region drag is active, closes the capture overlays, and returns to the editor without inserting an image.
+
+### Internal
+
+- Added regression coverage for screenshot cancellation before, during, and after region selection.
+
+## 0.27.9 - 2026-06-30
+
+### Added
+
+### Changed
+
+### Fixed
+
+- PDF export now wraps long code lines, paginates large code blocks, removes print-only scrollbars, and keeps syntax text readable instead of clipping content such as manifest paths.
+- Screenshot smart selection now follows the visible front-to-back window order and, on Windows, detects real accessible UI controls before falling back to the foreground window, eliminating phantom blue selection boxes from covered background windows.
+
+### Internal
+
+- Added Windows UI Automation target detection, stale-response guards, print CSS contracts, and screenshot/PDF regression coverage.
+
+## 0.27.8 - 2026-06-29
+
+### Fixed
+
+- The screenshot annotation editor no longer momentarily shrinks the captured frame after you finish selecting a region — it now fills the screen edge-to-edge like the selection overlay, so there is no size jump.
+- Linux release packages build again — the screenshot-capture dependency failed to compile on Linux for several releases, so no Linux package shipped; the missing transitive dependency now links correctly.
+
+## 0.27.7 - 2026-06-29
+
+### Added
+
+- Screenshot region selection now shows a pixel-accurate magnifier loupe with live coordinate and RGB/HEX readout, plus full-screen crosshair guides for precise aiming.
+- Hover a window during capture to highlight it and click to grab exactly that window's region.
+- The annotation toolbar can now copy the finished screenshot to the system clipboard or save it to a PNG file, in addition to inserting it into the note.
+
+### Changed
+
+- Triggering a screenshot is now near-instant: the selection overlay is pre-warmed and reused across captures instead of cold-booting a webview every time, and the artificial pre-capture delay was removed.
+- `Enter` inserts the screenshot into the note; copying places it on the clipboard and dismisses the capture without pulling the editor back to the foreground.
+- Refreshed the selection and annotation visuals — softer dim mask, accent selection frame with corner marks, glass toolbar, and one-click colour swatches.
+
+### Fixed
+
+- Copying large screenshots is no longer seconds-slow: image bytes now travel over Tauri's raw IPC channel instead of being JSON-serialised into a number array.
+- The annotation toolbar no longer clips its icons when the selection sits near the left or right edge of the screen.
+- On Windows, dismissing the capture after copying no longer flashes the editor window before it minimises.
+
+### Internal
+
+- Reusable per-monitor overlay window pool, new screenshot copy/dismiss/window-rect commands, and expanded screenshot wiring coverage.
+
+## 0.27.6 - 2026-06-29
+
+### Added
+
+### Changed
+
+- Pressing `Enter` now confirms and inserts a screenshot from the annotation canvas; `Space` creates or edits the active annotation while toolbar controls keep their native keyboard activation.
+
+### Fixed
+
+- Linux X11 screenshot capture now uses the pure-Rust x11rb backend, removing xcap's unused PipeWire recording dependency that prevented Linux release packages from building.
+
+### Internal
+
+- Added keyboard-flow, Linux dependency-tree, X11 pixel-conversion, and screenshot smoke regression coverage.
+
+## 0.27.5 - 2026-06-29
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Linux release builds use the PipeWire-compatible xcap 0.8.0 dependency, restoring Ubuntu runner packaging for screenshot-enabled releases.
+
+### Internal
+
+- Pinned the Linux capture dependency and added a regression assertion for the release-compatible version.
+
+## 0.27.4 - 2026-06-29
+
+### Added
+
+### Changed
+
+- Screenshot annotation controls now use a compact dark floating toolbar, clearer selection handles, and a cleaner filled arrowhead.
+
+### Fixed
+
+- Screenshot capture now keeps the editor visible until the prepared selection overlay is on screen, removing the remaining desktop flash during startup.
+
+### Internal
+
+- Added regression coverage for delayed main-window hiding and arrow raster rendering.
+
+## 0.27.3 - 2026-06-29
+
+### Added
+
+- The desktop editor can now capture a screen region with global `Alt+A`, annotate it with crop, arrow, rectangle, text, and mosaic tools, and insert the flattened PNG through the existing document or draft image workflow.
+
+### Changed
+
+### Fixed
+
+- Screenshot text annotations now preserve in-progress text when confirming, provide a clear edit action, and use a larger hit area for selecting or double-clicking existing text.
+- `Alt+A` now also starts screenshot capture through an in-app fallback, including when an embedded browser tab has focus.
+- Screenshot capture now opens substantially faster and avoids flashing an empty overlay or briefly switching Preview to Source.
+
+### Internal
+
+- Added screenshot session, annotation, insertion-strategy, localization, and entry-point regression coverage, plus the Linux capture and portal build dependencies.
+
+## 0.27.2 - 2026-06-29
+
+### Added
+
+- YAML Front Matter now supports lossless editing, nested values, arrays, multiline values, CRLF files, validation diagnostics, and compact metadata cards shared by Preview and WYSIWYG mode.
+- Workspaces can opt into OKF v0.1 validation with automatic root `index.md` detection, a compact status popover, per-file issue counts, and direct issue navigation.
+- Internal Markdown links now resolve consistently from the workspace root or current document, including directory indexes and cross-document heading anchors.
+
+### Changed
+
+- Front Matter parsing is shared by rendering, AI context, outline, image paths, workspace indexing, and navigation without rewriting unknown YAML fields during save.
+
+### Fixed
+
+### Internal
+
+- Added regression coverage for YAML parsing, OKF validation, workspace links, WYSIWYG metadata switching, localization, and OKF UI wiring.
+
+## 0.27.1 - 2026-06-25
+
+### Fixed
+
+- macOS (JIS keyboard): zoom, undo/redo, and command shortcuts are no longer swallowed while a Japanese IME is composing.
+
+## 0.27.0 - 2026-06-25
+
+### Fixed
+
+- Mermaid diagrams no longer render at a tiny size on macOS. On the macOS WebView (WebKit), label text could be measured as zero-width before fonts finished loading, collapsing the whole diagram to a few pixels; rendering now waits for fonts to be ready, so diagrams size correctly. Windows was unaffected.
+- Editor zoom and anchored overlays (such as menus and popovers) scale correctly on macOS again. The zoom level is now applied as a unitless value, which older WebKit honors, instead of a percentage that was ignored before Safari 16.4.
+
 ## 0.26.7 - 2026-06-22
 
 ### Added

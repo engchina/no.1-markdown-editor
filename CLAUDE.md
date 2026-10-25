@@ -79,7 +79,7 @@ Anything touching AI flows almost certainly needs matching updates to tests in `
 - `ai/` — AI provider HTTP proxy so API keys never touch the renderer. `mod.rs` holds shared types/constants/state, `commands.rs` the Tauri command surface; the rest is split by domain: `secrets.rs` (keyring), `config.rs` (provider config), `urls.rs`, `http.rs` (client + error normalization), `openai.rs`, `oci.rs` (Responses/NL2SQL), `oci_sign.rs` (IAM request signing), `hosted.rs` (hosted agent + OAuth), `mcp.rs`, `responses.rs` (payloads/grounding), `enrichment.rs`, `streaming.rs` (SSE), `tests.rs`.
 - `update.rs` — update check/download.
 
-Versioning is triple-pinned: keep `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` in sync. Release is tag-driven via `.github/workflows/release.yml` — pushing `vX.Y.Z` builds Win x64, universal macOS (unsigned, `--target universal-apple-darwin --no-sign`), and Linux x64, and the workflow fails fast if the tag does not match the app version.
+Versioning is triple-pinned: keep `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` in sync. Release is tag-driven via `.github/workflows/release.yml` — pushing `vX.Y.Z` builds Win x64, ad-hoc-signed universal macOS with signed in-app updater artifacts, and Linux x64, and the workflow fails fast if the tag does not match the app version.
 
 ### Testing conventions
 

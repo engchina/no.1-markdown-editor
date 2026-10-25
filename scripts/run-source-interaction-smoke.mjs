@@ -65,6 +65,7 @@ function buildPersistedEditorState(options = {}) {
     content = SOURCE_SMOKE_MARKDOWN,
     name = 'SourceInteractionSmoke.md',
     wysiwygMode = false,
+    extraTabs = [],
   } = options
 
   return {
@@ -89,6 +90,7 @@ function buildPersistedEditorState(options = {}) {
           savedContent: content,
           isDirty: false,
         },
+        ...extraTabs,
       ],
       activeTabId: SOURCE_SMOKE_TAB_ID,
     },
@@ -591,6 +593,58 @@ async function readRenderedTableCellHtml(page, options) {
     const cell = document.querySelector(query)
     return cell?.innerHTML ?? null
   }, selector)
+}
+
+async function waitForRestoredViewport(page, before, label) {
+  await waitForCondition(async () => {
+    const snapshot = await readEditorSnapshot(page)
+    return (
+      snapshot?.lineText === before.lineText &&
+      snapshot.selectionHead === before.selectionHead &&
+      Math.abs(snapshot.scrollTop - before.scrollTop) <= snapshot.defaultLineHeight * 2
+    )
+  }, `${label} to restore the editor cursor and viewport`)
+}
+
+async function runRemountViewportRestoreScenario(page, diagnostics) {
+  const otherContent = 'other tab\n\nshort content'
+  await resetEditor(page, {
+    extraTabs: [
+      {
+        id: 'source-smoke-other-tab',
+        path: null,
+        name: 'OtherTab.md',
+        content: otherContent,
+        savedContent: otherContent,
+        isDirty: false,
+      },
+    ],
+  })
+  await placeCursorAtLineEnd(page, TARGET_LINE_TEXT)
+  const before = await readEditorSnapshot(page)
+  diagnostics.remountRestoreBefore = before
+
+  await page.click('[role="tab"][title="OtherTab.md"]')
+  await waitForCondition(
+    async () => (await readEditorSnapshot(page))?.docText === otherContent,
+    'the other tab to become active'
+  )
+  await page.click('[role="tab"][title="SourceInteractionSmoke.md"]')
+  await waitForRestoredViewport(page, before, 'tab switch')
+  diagnostics.remountRestoreAfterTab = await readEditorSnapshot(page)
+
+  for (const mode of ['preview', 'split']) {
+    await page.click(`button:has([data-view-mode="${mode}"])`)
+    if (mode === 'preview') {
+      await waitForCondition(
+        async () => (await page.locator('.cm-content').count()) === 0,
+        'preview mode to unmount the editor'
+      )
+    }
+    await page.click('button:has([data-view-mode="source"])')
+    await page.waitForSelector('.cm-content')
+    await waitForRestoredViewport(page, before, `${mode} -> source switch`)
+  }
 }
 
 async function runOrdinaryInputScenario(page, diagnostics) {
@@ -1312,6 +1366,7 @@ async function main() {
     await page.goto(staticServer.origin, { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('.cm-content')
 
+    await runRemountViewportRestoreScenario(page, diagnostics)
     await runOrdinaryInputScenario(page, diagnostics)
     await runDeleteKeyScenario(page, diagnostics)
     await runEnterKeyScenario(page, diagnostics)

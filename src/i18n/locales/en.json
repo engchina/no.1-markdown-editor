@@ -86,6 +86,48 @@
     "alignRight": "Align column right",
     "alignDefault": "Clear column alignment"
   },
+  "frontMatter": {
+    "edit": "Edit YAML front matter"
+  },
+  "okf": {
+    "panelTitle": "OKF workspace",
+    "modeLabel": "OKF workspace mode",
+    "mode": { "auto": "Auto", "enabled": "Enabled", "disabled": "Disabled" },
+    "source": {
+      "declaration": "Enabled by root index.md",
+      "manual": "Enabled manually",
+      "disabled": "Disabled for this workspace",
+      "none": "No OKF declaration detected"
+    },
+    "statusTitle": "{{source}} · {{errors}} errors · {{suggestions}} suggestions",
+    "summary": "{{errors}} errors · {{suggestions}} suggestions",
+    "issueCount": "{{count}} OKF issues",
+    "disabledHint": "Choose Enabled to validate an undeclared OKF bundle.",
+    "noIssues": "No OKF issues found.",
+    "issue": {
+      "unsupported-version": "Unrecognized version; v0.1 rules are used as a best effort.",
+      "frontmatter-absent": "Concept documents require YAML front matter.",
+      "frontmatter-unclosed": "YAML front matter is not closed.",
+      "frontmatter-empty": "Concept front matter cannot be empty.",
+      "frontmatter-invalid": "Concept front matter must be a valid YAML mapping.",
+      "frontmatter-closing-marker": "OKF front matter must close with ---.",
+      "type-required": "type must be a non-empty string.",
+      "title-recommended": "title is recommended.",
+      "description-recommended": "description is recommended.",
+      "timestamp-recommended": "timestamp is recommended.",
+      "description-format": "description must be a single-line string.",
+      "resource-format": "resource must be an absolute URI.",
+      "tags-format": "tags must be an array of strings.",
+      "timestamp-format": "timestamp must be an ISO 8601 datetime.",
+      "nested-index-frontmatter": "Only the root index.md may contain front matter.",
+      "index-frontmatter-invalid": "index.md front matter must be a valid YAML mapping.",
+      "index-heading-level": "Index groups must use level-two headings.",
+      "index-link-list": "Index document links must be Markdown list items.",
+      "log-frontmatter": "log.md must not contain front matter.",
+      "log-date-heading": "Log entries must use ## YYYY-MM-DD headings.",
+      "log-date-order": "Log dates must be in descending order."
+    }
+  },
   "layout": {
     "sidebarResizeHandle": "Sidebar resize handle",
     "splitResizeHandle": "Editor and preview resize handle",
@@ -299,12 +341,15 @@
     "githubReleases": "GitHub Releases",
     "dialogTitle": "Update Available",
     "dialogMessage": "A newer version is available to download.",
+    "dialogMessageInApp": "A signed update is ready to install in the app.",
     "currentVersion": "Current Version",
     "latestVersion": "Latest Version",
     "publishedAt": "Published",
     "releaseNotes": "Release Notes",
     "releaseNotesEmpty": "Release notes are not available for this release.",
     "downloadLatest": "Download Latest",
+    "installAndRestart": "Install and Restart",
+    "installing": "Installing...",
     "skipVersion": "Skip This Version",
     "cancel": "Cancel"
   },
@@ -943,10 +988,14 @@
     "updateCheckErrorMessage": "{{reason}}",
     "updateOpenErrorTitle": "Couldn't open the update download",
     "updateOpenErrorMessage": "{{reason}}",
+    "updateInstallErrorTitle": "Couldn't install the update",
+    "updateInstallErrorMessage": "{{reason}}",
     "externalImageLoadErrorTitle": "Couldn't load external image",
     "externalImageLoadErrorMessage": "The preview could not load the remote image from {{host}}.",
     "openExternalErrorTitle": "Couldn't open external link",
     "openExternalErrorMessage": "The system default app could not open {{target}}.",
+    "workspaceLinkUnavailableTitle": "Workspace link unavailable",
+    "workspaceLinkUnavailableMessage": "{{target}} could not be resolved inside this workspace.",
     "externalFileReloadedTitle": "File reloaded from disk",
     "externalFileReloadedMessage": "\"{{name}}\" changed on disk and was reloaded.",
     "externalFileMergedTitle": "Merged changes kept in the editor",
@@ -1161,6 +1210,59 @@
     "desktopOnly": {
       "title": "Desktop browser preview",
       "message": "Native webviews only render in the desktop app. Run the Tauri build to browse external sites."
+    }
+  },
+  "screenshot": {
+    "capture": {
+      "command": "Capture screenshot",
+      "commandDescription": "Select, annotate, and insert a screenshot into Markdown",
+      "title": "Select a screenshot area",
+      "hint": "Drag to select · Release to annotate · Esc cancels",
+      "continue": "Annotate"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "editText": "Edit text",
+      "insert": "Insert screenshot",
+      "copy": "Copy",
+      "save": "Save as…",
+      "copied": "Copied to clipboard",
+      "saved": "Saved"
+    },
+    "editor": {
+      "title": "Annotate screenshot",
+      "toolsLabel": "Screenshot tools",
+      "color": "Annotation color",
+      "size": "Size",
+      "canvasLabel": "Screenshot annotation canvas",
+      "textInput": "Annotation text",
+      "textPlaceholder": "Type text, then press Enter",
+      "keyboardHint": "C/A/R/T/M/V tools · Arrow keys move · Shift + Arrow keys resize · Ctrl/Command + Enter inserts",
+      "exporting": "Preparing screenshot"
+    },
+    "tools": {
+      "select": "Select",
+      "crop": "Crop",
+      "arrow": "Arrow",
+      "rectangle": "Rectangle",
+      "text": "Text",
+      "mosaic": "Mosaic"
+    },
+    "notices": {
+      "desktopOnlyTitle": "Screenshot capture requires the desktop app",
+      "desktopOnlyMessage": "Use the desktop app to capture the screen. Image insertion remains available here.",
+      "shortcutConflictTitle": "Alt+A is already in use",
+      "shortcutConflictMessage": "The global shortcut could not be registered. Use the toolbar or Command Palette instead.",
+      "permissionDeniedTitle": "Screen recording permission is required",
+      "permissionDeniedMessage": "Allow screen capture for No.1 Markdown Editor in system settings, then try again.",
+      "captureFailedTitle": "Could not capture the screen",
+      "captureFailedMessage": "The editor returned safely without creating a file. {{reason}}",
+      "insertFailedTitle": "Could not insert the screenshot",
+      "insertFailedMessage": "No Markdown was changed. {{reason}}",
+      "documentChangedTitle": "Screenshot inserted at the original cursor",
+      "documentChangedMessage": "The document changed during capture, so existing text was preserved and the image was inserted near the original cursor.",
+      "copyFailed": "Couldn't copy the image",
+      "saveFailed": "Couldn't save the image"
     }
   },
   "runtimeError": {

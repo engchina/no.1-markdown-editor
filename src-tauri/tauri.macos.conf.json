@@ -1,0 +1,13 @@
+{
+  "bundle": {
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQyNkM1NTE2RkFFMzY4M0UKUldRK2FPUDZGbFZzMGxwVFM2dnEyNWhBd3d5Q3hhajIwRENQcHptRFJIYkNlY0lLVHJqUjFwd3AK",
+      "endpoints": [
+        "https://github.com/engchina/no.1-markdown-editor/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

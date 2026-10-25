@@ -1,4 +1,5 @@
 import { claimHeadingId, createHeadingIdState, type HeadingIdState, slugifyHeading } from './headingIds.ts'
+import { parseFrontMatter } from './frontMatter.ts'
 
 export interface OutlineHeading {
   level: number
@@ -16,25 +17,16 @@ export { slugifyHeading }
 
 export function extractHeadings(markdown: string): OutlineHeading[] {
   const lines = markdown.split(/\r?\n/)
+  const frontMatter = parseFrontMatter(markdown)
+  const frontMatterEndLine = frontMatter.range ? countLinesBefore(markdown, frontMatter.range.to) : 0
   const headings: OutlineHeading[] = []
   const headingIds = createHeadingIdState()
-  let inFrontMatter = false
-  let frontMatterHandled = false
   let fenceMarker: string | null = null
 
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]
 
-    if (!frontMatterHandled && index === 0 && line.trim() === '---') {
-      inFrontMatter = true
-      frontMatterHandled = true
-      continue
-    }
-
-    if (inFrontMatter) {
-      if (line.trim() === '---') inFrontMatter = false
-      continue
-    }
+    if (frontMatterEndLine > 0 && index < frontMatterEndLine) continue
 
     const fenceMatch = line.match(/^\s{0,3}(`{3,}|~{3,})/)
     if (fenceMatch) {
@@ -70,6 +62,10 @@ export function extractHeadings(markdown: string): OutlineHeading[] {
   }
 
   return headings
+}
+
+function countLinesBefore(source: string, offset: number): number {
+  return (source.slice(0, offset).match(/\r\n|\n|\r/gu)?.length ?? 0) + 1
 }
 
 function pushHeading(

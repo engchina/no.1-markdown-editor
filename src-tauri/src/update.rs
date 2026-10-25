@@ -82,6 +82,36 @@ pub async fn check_for_app_update<R: tauri::Runtime>(
     })
 }
 
+#[tauri::command]
+pub async fn install_app_update<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_plugin_updater::UpdaterExt;
+
+        let Some(update) = app
+            .updater()
+            .map_err(|error| format!("Failed to initialize updater: {error}"))?
+            .check()
+            .await
+            .map_err(|error| format!("Failed to check signed update: {error}"))?
+        else {
+            return Err("No newer signed update is available".to_string());
+        };
+
+        update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|error| format!("Failed to install signed update: {error}"))?;
+        app.restart();
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Err("In-app installation is only enabled on macOS".to_string())
+    }
+}
+
 async fn fetch_latest_release() -> Result<GitHubLatestReleaseResponse, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))

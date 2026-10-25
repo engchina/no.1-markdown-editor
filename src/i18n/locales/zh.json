@@ -86,6 +86,48 @@
     "alignRight": "列右对齐",
     "alignDefault": "清除列对齐"
   },
+  "frontMatter": {
+    "edit": "编辑 YAML Front Matter"
+  },
+  "okf": {
+    "panelTitle": "OKF 工作区",
+    "modeLabel": "OKF 工作区模式",
+    "mode": { "auto": "自动", "enabled": "启用", "disabled": "禁用" },
+    "source": {
+      "declaration": "由根目录 index.md 启用",
+      "manual": "已手动启用",
+      "disabled": "此工作区已禁用",
+      "none": "未检测到 OKF 声明"
+    },
+    "statusTitle": "{{source}} · {{errors}} 个错误 · {{suggestions}} 个建议",
+    "summary": "{{errors}} 个错误 · {{suggestions}} 个建议",
+    "issueCount": "{{count}} 个 OKF 问题",
+    "disabledHint": "可选择“启用”来校验未声明版本的 OKF bundle。",
+    "noIssues": "未发现 OKF 问题。",
+    "issue": {
+      "unsupported-version": "版本无法识别，当前按 v0.1 规则尽力校验。",
+      "frontmatter-absent": "概念文档必须包含 YAML Front Matter。",
+      "frontmatter-unclosed": "YAML Front Matter 没有闭合。",
+      "frontmatter-empty": "概念文档的 Front Matter 不能为空。",
+      "frontmatter-invalid": "概念文档的 Front Matter 必须是合法的 YAML mapping。",
+      "frontmatter-closing-marker": "OKF Front Matter 必须使用 --- 闭合。",
+      "type-required": "type 必须是非空字符串。",
+      "title-recommended": "建议提供 title。",
+      "description-recommended": "建议提供 description。",
+      "timestamp-recommended": "建议提供 timestamp。",
+      "description-format": "description 必须是单行字符串。",
+      "resource-format": "resource 必须是绝对 URI。",
+      "tags-format": "tags 必须是字符串数组。",
+      "timestamp-format": "timestamp 必须是 ISO 8601 日期时间。",
+      "nested-index-frontmatter": "只有根目录 index.md 可以包含 Front Matter。",
+      "index-frontmatter-invalid": "index.md 的 Front Matter 必须是合法的 YAML mapping。",
+      "index-heading-level": "索引分组必须使用二级标题。",
+      "index-link-list": "索引中的文档链接必须使用 Markdown 列表项。",
+      "log-frontmatter": "log.md 不能包含 Front Matter。",
+      "log-date-heading": "日志条目必须使用 ## YYYY-MM-DD 标题。",
+      "log-date-order": "日志日期必须按倒序排列。"
+    }
+  },
   "layout": {
     "sidebarResizeHandle": "侧边栏宽度调节滑块",
     "splitResizeHandle": "编辑区和预览区宽度调节滑块",
@@ -294,12 +336,15 @@
     "githubReleases": "GitHub Releases",
     "dialogTitle": "发现新版本",
     "dialogMessage": "有新版本可供下载。",
+    "dialogMessageInApp": "已验证签名的更新可以直接在应用内安装。",
     "currentVersion": "当前版本",
     "latestVersion": "最新版本",
     "publishedAt": "发布时间",
     "releaseNotes": "发布说明",
     "releaseNotesEmpty": "这个版本没有可显示的发布说明。",
     "downloadLatest": "下载最新版",
+    "installAndRestart": "安装并重启",
+    "installing": "正在安装...",
     "skipVersion": "跳过这个版本",
     "cancel": "取消"
   },
@@ -937,10 +982,14 @@
     "updateCheckErrorMessage": "{{reason}}",
     "updateOpenErrorTitle": "无法打开更新下载",
     "updateOpenErrorMessage": "{{reason}}",
+    "updateInstallErrorTitle": "无法安装更新",
+    "updateInstallErrorMessage": "{{reason}}",
     "externalImageLoadErrorTitle": "无法加载外链图片",
     "externalImageLoadErrorMessage": "预览无法加载来自 {{host}} 的远程图片。",
     "openExternalErrorTitle": "无法打开外部链接",
     "openExternalErrorMessage": "系统默认应用无法打开「{{target}}」。",
+    "workspaceLinkUnavailableTitle": "工作区链接不可用",
+    "workspaceLinkUnavailableMessage": "无法在当前工作区内解析「{{target}}」。",
     "externalFileReloadedTitle": "已从磁盘重新加载文件",
     "externalFileReloadedMessage": "「{{name}}」在磁盘上发生变化，已重新加载。",
     "externalFileMergedTitle": "合并结果已保留在编辑器中",
@@ -1155,6 +1204,59 @@
     "desktopOnly": {
       "title": "桌面浏览器预览",
       "message": "原生 Webview 只会在桌面应用中渲染。请运行 Tauri 版本来浏览外部网站。"
+    }
+  },
+  "screenshot": {
+    "capture": {
+      "command": "截屏",
+      "commandDescription": "选择区域、添加标注并插入 Markdown",
+      "title": "选择截屏区域",
+      "hint": "拖动选择 · 松手直接标注 · Esc 取消",
+      "continue": "添加标注"
+    },
+    "actions": {
+      "cancel": "取消",
+      "editText": "编辑文字",
+      "insert": "插入截图",
+      "copy": "复制",
+      "save": "另存为…",
+      "copied": "已复制到剪贴板",
+      "saved": "已保存"
+    },
+    "editor": {
+      "title": "截图标注",
+      "toolsLabel": "截图工具",
+      "color": "标注颜色",
+      "size": "尺寸",
+      "canvasLabel": "截图标注画布",
+      "textInput": "标注文字",
+      "textPlaceholder": "输入文字，按 Enter 完成",
+      "keyboardHint": "C/A/R/T/M/V 切换工具 · 方向键移动 · Shift + 方向键缩放 · Ctrl/Command + Enter 插入",
+      "exporting": "正在生成截图"
+    },
+    "tools": {
+      "select": "选择",
+      "crop": "裁剪",
+      "arrow": "箭头",
+      "rectangle": "矩形",
+      "text": "文字",
+      "mosaic": "马赛克"
+    },
+    "notices": {
+      "desktopOnlyTitle": "截屏功能仅支持桌面端",
+      "desktopOnlyMessage": "请使用桌面应用截取屏幕；当前环境仍可正常插入图片。",
+      "shortcutConflictTitle": "Alt+A 已被其他程序占用",
+      "shortcutConflictMessage": "全局快捷键注册失败，你仍可通过工具栏或命令面板启动截屏。",
+      "permissionDeniedTitle": "需要屏幕录制权限",
+      "permissionDeniedMessage": "请在系统设置中允许 No.1 Markdown Editor 截取屏幕，然后重试。",
+      "captureFailedTitle": "无法截取屏幕",
+      "captureFailedMessage": "编辑器已安全恢复，且没有创建文件。{{reason}}",
+      "insertFailedTitle": "无法插入截图",
+      "insertFailedMessage": "Markdown 内容没有发生变化。{{reason}}",
+      "documentChangedTitle": "截图已插入原光标附近",
+      "documentChangedMessage": "截屏期间文档发生了变化，因此保留了现有文字，并将图片插入最接近原光标的合法位置。",
+      "copyFailed": "无法复制图片",
+      "saveFailed": "无法保存图片"
     }
   },
   "runtimeError": {

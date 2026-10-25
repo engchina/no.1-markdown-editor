@@ -14,6 +14,7 @@ export type AppBrowserShortcutCommand =
   | 'help.keyboardShortcuts'
   | 'view.appearance'
   | 'edit.imageHosting'
+  | 'edit.captureScreenshot'
   | 'view.toggleFocus'
   | 'view.toggleSidebar'
   | 'view.zoomIn'

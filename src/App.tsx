@@ -8,6 +8,7 @@ import ResizableDivider from './components/Layout/ResizableDivider'
 import TitleBar from './components/TitleBar/TitleBar'
 import WindowResizeHandles from './components/TitleBar/WindowResizeHandles'
 import NotificationCenter from './components/Notifications/NotificationCenter'
+import ScreenshotController from './components/Screenshot/ScreenshotController'
 import RecoverableErrorBoundary from './components/ErrorBoundary/RecoverableErrorBoundary'
 import ErrorFallback from './components/ErrorBoundary/ErrorFallback'
 import { buildAIContextPacket, resolveCurrentBlockRange } from './lib/ai/context'
@@ -22,7 +23,7 @@ import { useSplitScrollSync } from './hooks/useSplitScrollSync'
 import { openDesktopDocumentPaths, SINGLE_INSTANCE_OPEN_FILES_EVENT } from './lib/desktopFileOpen'
 import { resolveFocusInlinePaddingPx, resolveFocusWidthPx } from './lib/focusWidth'
 import { clampSidebarWidth, SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from './lib/layout'
-import { hasPrimaryModifier, matchesPrimaryShortcut } from './lib/platform'
+import { matchesPrimaryShortcut, matchZoomShortcut } from './lib/platform'
 import { maybeRunAutomaticUpdateCheck } from './lib/updateActions'
 import { KEYBOARD_SHORTCUTS_OPEN_EVENT } from './lib/keyboardShortcuts'
 import { DEFAULT_BROWSER_URL } from './lib/browser/defaults'
@@ -32,6 +33,7 @@ import {
   type AppBrowserShortcutPayload,
 } from './lib/browser/shortcuts'
 import { hideInactiveBrowserWebviews } from './lib/browser/webviewVisibility'
+import { dispatchScreenshotRequest } from './lib/screenshot'
 import { useAIStore } from './store/ai'
 import { useUpdateStore } from './store/update'
 import { useActiveTab, useEditorStore } from './store/editor'
@@ -147,7 +149,9 @@ export default function App() {
     background: 'transparent',
     '--focus-column-max-width': `${focusColumnWidth}px`,
     '--focus-column-inline-padding': `${focusColumnPadding}px`,
-    zoom: `${zoom}%`,
+    // WebKit (WKWebView/macOS) ignores percentage `zoom` before Safari 16.4;
+    // a unitless numeric value is honored across WebKit and Blink/WebView2.
+    zoom: zoom / 100,
   } as CSSProperties
   useDocumentDrop()
   useExternalFileChanges()
@@ -195,6 +199,9 @@ export default function App() {
           break
         case 'edit.imageHosting':
           document.dispatchEvent(new CustomEvent('app:image-hosting-open'))
+          break
+        case 'edit.captureScreenshot':
+          dispatchScreenshotRequest()
           break
         case 'view.toggleFocus':
           store.setFocusMode(!store.focusMode)
@@ -289,7 +296,10 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (matchesPrimaryShortcut(event, { key: 'p', shift: true })) {
+      if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.code === 'KeyA') {
+        event.preventDefault()
+        runAppShortcutCommand('edit.captureScreenshot')
+      } else if (matchesPrimaryShortcut(event, { key: 'p', shift: true })) {
         event.preventDefault()
         runAppShortcutCommand('view.commandPalette')
       } else if (matchesPrimaryShortcut(event, { key: 'p' })) {
@@ -329,15 +339,14 @@ export default function App() {
         return
       }
 
-      if (event.altKey || !hasPrimaryModifier(event)) return
-
-      if (event.code === 'Equal' || event.key === '=' || event.key === '+') {
+      const zoomShortcut = matchZoomShortcut(event)
+      if (zoomShortcut === 'in') {
         event.preventDefault()
         runAppShortcutCommand('view.zoomIn')
-      } else if (event.code === 'Minus' || event.key === '-') {
+      } else if (zoomShortcut === 'out') {
         event.preventDefault()
         runAppShortcutCommand('view.zoomOut')
-      } else if (event.key === '0') {
+      } else if (zoomShortcut === 'reset') {
         event.preventDefault()
         runAppShortcutCommand('view.zoomReset')
       }
@@ -675,6 +684,7 @@ export default function App() {
         </Suspense>
       )}
       <NotificationCenter />
+      <ScreenshotController />
       {externalMissingDialogOpen && (
         <Suspense fallback={null}>
           <ExternalMissingFileDialog />

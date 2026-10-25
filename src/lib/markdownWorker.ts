@@ -4,7 +4,8 @@ import remarkGfm from 'remark-gfm'
 import remarkRehype from 'remark-rehype'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeStringify from 'rehype-stringify'
-import { finalizeRenderedMarkdownHtml, normalizeSelfClosingRawHtmlBlocks, sanitizeSchema, stripFrontMatter } from './markdownShared.ts'
+import { finalizeRenderedMarkdownHtml, normalizeSelfClosingRawHtmlBlocks, sanitizeSchema } from './markdownShared.ts'
+import { parseFrontMatter } from './frontMatter.ts'
 import { containsLikelyRawHtml } from './markdownHtml.ts'
 import { containsLikelyMath } from './markdownMath.ts'
 import { rehypeHeadingIds } from './rehypeHeadingIds.ts'
@@ -58,7 +59,7 @@ export async function renderMarkdownInWorker(
   markdown: string,
   syntaxHighlightEngine: MarkdownSyntaxHighlightEngine = 'highlightjs'
 ): Promise<string> {
-  const frontMatter = stripFrontMatter(markdown)
+  const frontMatter = parseFrontMatter(markdown)
   const hasMath = containsLikelyMath(frontMatter.body)
   const hasRawHtml = containsLikelyRawHtml(frontMatter.body)
 
@@ -86,5 +87,5 @@ export async function renderMarkdownInWorker(
     value: normalizedBody,
     data: { markdownSource: normalizedBody, sourceLineOffset: frontMatter.bodyLineOffset },
   })
-  return finalizeRenderedMarkdownHtml(frontMatter.meta, String(rendered))
+  return finalizeRenderedMarkdownHtml(frontMatter, String(rendered))
 }

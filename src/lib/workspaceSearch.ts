@@ -317,11 +317,15 @@ async function findWorkspaceIndexDocumentCandidates(
     const exclusionKey = normalizeLookupValue(document.path)
     if (excluded.has(exclusionKey)) continue
 
-    const match = scoreDocumentQuery(document.name, document.path, normalizedQuery)
+    const okfTitle = typeof document.okf?.title === 'string' && document.okf.title.trim()
+      ? document.okf.title.trim()
+      : null
+    const displayName = okfTitle ?? document.name
+    const match = scoreDocumentQuery(displayName, document.path, normalizedQuery)
     if (!match) continue
 
     candidates.push({
-      name: document.name,
+      name: displayName,
       path: document.path,
       tabId: null,
       source: 'workspace',

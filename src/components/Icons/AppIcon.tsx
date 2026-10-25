@@ -3,6 +3,9 @@ import type { CSSProperties } from 'react'
 export type IconName =
   | 'bookmark'
   | 'bold'
+  | 'camera'
+  | 'crop'
+  | 'cursor'
   | 'clock'
   | 'code'
   | 'codeBlock'
@@ -59,12 +62,19 @@ export type IconName =
   | 'alertCircle'
   | 'arrowDown'
   | 'arrowUp'
+  | 'arrowUpRight'
   | 'checkCircle'
   | 'cloudUpload'
+  | 'mosaic'
+  | 'rectangle'
+  | 'text'
 
 const PATHS: Record<IconName, string> = {
   bookmark: 'M7 4h10a1 1 0 0 1 1 1v16l-6-3-6 3V5a1 1 0 0 1 1-1z',
   bold: 'M14 12a4 4 0 0 0 0-8H6v8 M15 20a4 4 0 0 0 0-8H6v8',
+  camera: 'M4 7h3l2-3h6l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z M12 10a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
+  crop: 'M6 2v14a2 2 0 0 0 2 2h14 M2 6h14a2 2 0 0 1 2 2v14',
+  cursor: 'M5 3l14 9-6 2-3 6z M13 14l4 5',
   clock: 'M12 7v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
   code: 'M8 8l-4 4 4 4 M16 8l4 4-4 4',
   codeBlock: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5z M8 9l-2 3 2 3 M16 9l2 3-2 3',
@@ -121,8 +131,12 @@ const PATHS: Record<IconName, string> = {
   alertCircle: 'M12 8v5 M12 16h.01 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
   arrowDown: 'M12 5v14 M5 12l7 7 7-7',
   arrowUp: 'M12 19V5 M5 12l7-7 7 7',
+  arrowUpRight: 'M7 17 17 7 M8 7h9v9',
   checkCircle: 'M9 12l2 2 4-4 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
   cloudUpload: 'M7 18a4.6 4.4 0 0 1 0-9 5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1 M9 15l3-3 3 3 M12 12v6',
+  mosaic: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h3v3h-3z M18 18h3v3h-3z M18 14h3 M14 18v3',
+  rectangle: 'M4 5h16v14H4z',
+  text: 'M5 5h14 M12 5v14 M8 19h8',
 }
 
 interface AppIconProps {
