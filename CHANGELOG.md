@@ -16,6 +16,8 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- User-visible fix affecting Markdown fidelity, files, preview, export, performance, or stability. -->
 
+- The preview now remembers the scroll position of each file separately instead of carrying one file's position over to the next.
+
 ### Internal
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->
