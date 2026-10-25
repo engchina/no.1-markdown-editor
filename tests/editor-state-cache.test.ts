@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { EditorState, type StateCommand, type Transaction } from '@codemirror/state'
+import { EditorState, StateEffect, type StateCommand, type Transaction } from '@codemirror/state'
 import { history, redo, undo } from '@codemirror/commands'
 import {
   clearEditorStateSnapshot,
+  getEditorScrollSnapshot,
   primeAIUndoHistorySnapshot,
   restoreEditorStateSnapshot,
   saveEditorStateSnapshot,
@@ -109,4 +110,20 @@ test('AI-seeded snapshots can stack background updates for the same tab', () => 
   assert.equal(state.doc.toString(), '')
 
   clearEditorStateSnapshot(tabId)
+})
+
+test('snapshots keep the editor scroll position for remounts', () => {
+  const tabId = 'tab-remount-scroll'
+  const state = EditorState.create({ doc: 'hello' })
+  const scroll = StateEffect.define<number>().of(120)
+
+  saveEditorStateSnapshot(tabId, state, scroll)
+  assert.equal(getEditorScrollSnapshot(tabId), scroll)
+
+  saveEditorStateSnapshot(tabId, state)
+  assert.equal(getEditorScrollSnapshot(tabId), undefined)
+
+  saveEditorStateSnapshot(tabId, state, scroll)
+  clearEditorStateSnapshot(tabId)
+  assert.equal(getEditorScrollSnapshot(tabId), undefined)
 })

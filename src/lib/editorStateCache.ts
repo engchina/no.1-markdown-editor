@@ -1,4 +1,4 @@
-import { EditorState, type Extension } from '@codemirror/state'
+import { EditorState, type Extension, type StateEffect } from '@codemirror/state'
 import { history, historyField, isolateHistory } from '@codemirror/commands'
 
 const snapshotFields = {
@@ -11,13 +11,27 @@ const snapshotExtensions = [
 ]
 
 const editorStateSnapshotByTabId = new Map<string, unknown>()
+// EditorView.scrollSnapshot() effects, kept beside the state JSON so remounts
+// (tab switch, view-mode switch) land on the same viewport instead of the top.
+const editorScrollSnapshotByTabId = new Map<string, StateEffect<unknown>>()
 
-export function saveEditorStateSnapshot(tabId: string, state: EditorState): void {
+export function saveEditorStateSnapshot(
+  tabId: string,
+  state: EditorState,
+  scrollSnapshot?: StateEffect<unknown>
+): void {
   editorStateSnapshotByTabId.set(tabId, state.toJSON(snapshotFields))
+  if (scrollSnapshot) editorScrollSnapshotByTabId.set(tabId, scrollSnapshot)
+  else editorScrollSnapshotByTabId.delete(tabId)
+}
+
+export function getEditorScrollSnapshot(tabId: string): StateEffect<unknown> | undefined {
+  return editorScrollSnapshotByTabId.get(tabId)
 }
 
 export function clearEditorStateSnapshot(tabId: string): void {
   editorStateSnapshotByTabId.delete(tabId)
+  editorScrollSnapshotByTabId.delete(tabId)
 }
 
 export function restoreEditorStateSnapshot(options: {

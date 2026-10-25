@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Compartment, EditorState, EditorSelection, type Extension, type StateEffect } from '@codemirror/state'
 import { isolateHistory, redo, undo } from '@codemirror/commands'
@@ -101,6 +101,7 @@ import { convertClipboardHtmlToMarkdown, hasCollapsedDetailsWithOmittedBody } fr
 import { pushErrorNotice, pushInfoNotice } from '../../lib/notices'
 import {
   primeAIUndoHistorySnapshot,
+  getEditorScrollSnapshot,
   restoreEditorStateSnapshot,
   saveEditorStateSnapshot,
 } from '../../lib/editorStateCache.ts'
@@ -153,6 +154,7 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
   const shellRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const unmountScrollSnapshotRef = useRef<StateEffect<unknown> | null>(null)
   const previousAIComposerOpenRef = useRef(aiComposerOpen)
   const aiComposerRestoreSnapshotRef = useRef<AIComposerRestoreSnapshot | null>(null)
   const isUpdatingRef = useRef(false)
@@ -604,6 +606,12 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
 
 
 
+  // Passive-effect cleanup runs after React detaches the DOM on unmount, when
+  // scrollTop already reads 0. Capture the viewport while it is still attached.
+  useLayoutEffect(() => () => {
+    unmountScrollSnapshotRef.current = viewRef.current?.scrollSnapshot() ?? null
+  }, [])
+
   useEffect(() => {
     const container = containerRef.current
     const tabId = activeTab?.id
@@ -674,18 +682,23 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
       footnoteHoverCompartmentRef.current.of(footnoteHoverExtension),
     ]
 
+    const restoredState = restoreEditorStateSnapshot({
+      tabId,
+      content,
+      extensions,
+    })
     const state =
-      restoreEditorStateSnapshot({
-        tabId,
-        content,
-        extensions,
-      }) ??
+      restoredState ??
       EditorState.create({
         doc: content,
         extensions,
       })
 
-    const view = new EditorView({ state, parent: container })
+    const view = new EditorView({
+      state,
+      parent: container,
+      scrollTo: restoredState ? getEditorScrollSnapshot(tabId) : undefined,
+    })
     viewRef.current = view
     useScrollSyncStore.getState().setEditorView(view)
     applySpellcheckConfigToEditable(view.contentDOM, spellcheckConfig)
@@ -696,7 +709,11 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     updateSelectionBubble(view)
 
     return () => {
-      saveEditorStateSnapshot(tabId, view.state)
+      saveEditorStateSnapshot(
+        tabId,
+        view.state,
+        view.dom.isConnected ? view.scrollSnapshot() : unmountScrollSnapshotRef.current ?? undefined
+      )
       const setEditorView = useScrollSyncStore.getState().setEditorView
       if (useScrollSyncStore.getState().editorView === view) setEditorView(null)
       view.destroy()
