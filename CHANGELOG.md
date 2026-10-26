@@ -16,6 +16,8 @@ This changelog focuses on user-visible changes in `No.1 Markdown Editor`.
 
 <!-- User-visible fix affecting Markdown fidelity, files, preview, export, performance, or stability. -->
 
+- Switching back to a long file with images or wrapped paragraphs no longer sometimes lands at the top or a few lines away from where you left it.
+
 ### Internal
 
 <!-- Maintainer-facing refactor, tooling, test, or release-process change worth keeping for project history. -->

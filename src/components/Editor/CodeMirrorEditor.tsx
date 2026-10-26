@@ -737,11 +737,17 @@ export default function CodeMirrorEditor({ content, onChange }: Props) {
     updateSelectionBubble(view)
 
     return () => {
+      // Remounted before the restore landed (StrictMode, or an effect dependency
+      // changing right after mount): the live scroll is not the user's position
+      // yet, so keep the saved anchor instead of overwriting it with the top.
+      const restorePending = viewportPin?.isSettling() ?? false
       viewportPin?.stop()
       saveEditorStateSnapshot(tabId, view.state)
-      const viewportAnchor = view.dom.isConnected
-        ? captureEditorViewportAnchor(view)
-        : unmountViewportAnchorRef.current
+      const viewportAnchor = restorePending
+        ? null
+        : view.dom.isConnected
+          ? captureEditorViewportAnchor(view)
+          : unmountViewportAnchorRef.current
       if (viewportAnchor && !isSameLineViewport(getTabViewportAnchor(tabId), viewportAnchor)) {
         saveTabViewportAnchor(tabId, viewportAnchor)
       }

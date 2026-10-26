@@ -97,12 +97,12 @@ export function createEditorViewportAnchorScroll(
   return EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 0 })
 }
 
-export function pinEditorToViewportAnchor(view: EditorView, anchor: TabViewportAnchor): ViewportPin | null {
-  const target = anchor.editor
-  if (!target || target.pos > view.state.doc.length) return null
+export function pinEditorToViewportAnchor(view: EditorView, anchor: TabViewportAnchor): ViewportPin {
+  const target = anchor.editor && anchor.editor.pos <= view.state.doc.length ? anchor.editor : null
 
   const align = () => {
-    if (!view.dom.isConnected) return
+    // Line-level anchors rely on the `scrollTo` option alone.
+    if (!target || !view.dom.isConnected) return
     const element = Array.from(view.contentDOM.children).find(
       (child) => child.getBoundingClientRect().height > 0 && view.posAtDOM(child) === target.pos
     )
@@ -111,7 +111,7 @@ export function pinEditorToViewportAnchor(view: EditorView, anchor: TabViewportA
       element.getBoundingClientRect().top - view.scrollDOM.getBoundingClientRect().top - target.offset
     if (Math.abs(delta) > 0.5) view.scrollDOM.scrollTop += delta
   }
-  return pinViewportWhileSettling(() => [view.contentDOM], align)
+  return pinViewportWhileSettling(() => [view.contentDOM], align, view.scrollDOM)
 }
 
 export function createEditorSelectionScrollEffect(
