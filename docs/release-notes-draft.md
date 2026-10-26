@@ -1,6 +1,6 @@
 # Upcoming Release Notes Draft
 
-This document is a draft for the next public release after `v0.27.15`.
+This document is a draft for the next public release after `v0.27.16`.
 
 It is intentionally written in release-note language rather than implementation language.
 
@@ -8,31 +8,27 @@ Start from `CHANGELOG.md` `## Unreleased`, then rewrite the user-visible changes
 
 ## Suggested Release Title
 
-`No.1 Markdown Editor v0.27.16`
+`No.1 Markdown Editor v0.27.17`
 
 ## Short Summary
 
-No.1 Markdown Editor v0.27.16 keeps your place in more situations: while diagrams and embedded media render, when a file is reloaded or rewritten from outside the editor, and across sidebar panels.
+No.1 Markdown Editor v0.27.17 makes switching between files return to the exact place you left, including in long documents with images and wrapped paragraphs.
 
 ## Suggested GitHub Release Body
 
 ### Highlights
 
-- The editor stays put while Mermaid diagrams, videos, and other embedded content finish rendering.
-- Reloading a file changed on disk, applying AI output, or rewriting image links after an upload keeps the cursor and view where they were.
-- Each sidebar panel remembers its own scroll position.
+- Switching back to a file now reliably lands exactly where you left it.
 
 ### Why This Release Matters
 
-v0.27.15 made switching files and modes return to the exact same place. A follow-up review found other ways the view could still jump or reset, and this release fixes them at the source.
+In v0.27.16, coming back to a long file could sometimes land at the top or a few lines away from where you left it, especially in documents with images or long wrapped paragraphs. This release fixes the cause, so the position holds while the document finishes laying out.
 
 ### User-Facing Improvements
 
 #### Fixes
 
-- The WYSIWYG editor no longer jumps after Mermaid diagrams or other embedded content finish rendering, and already-rendered diagrams reappear instantly when you switch back to a file.
-- External reloads, AI apply, and image-host link rewrites update only the changed text, so the cursor and view no longer reset to the top.
-- The outline, files, search, and recent panels each keep their own scroll position.
+- Switching back to a long file with images or wrapped paragraphs no longer sometimes lands at the top or a few lines away from where you left it.
 
 ### Suggested Upgrade Notes Section
 
@@ -41,7 +37,7 @@ v0.27.15 made switching files and modes return to the exact same place. A follow
 
 ### Suggested Who Should Update Section
 
-This release is recommended for everyone, especially anyone using Mermaid diagrams, editing files that change outside the app, or using image hosting.
+This release is recommended for everyone who keeps several files open and switches between them.
 
 ## Packaging Checklist Before Release
 
@@ -49,7 +45,7 @@ This release is recommended for everyone, especially anyone using Mermaid diagra
   - `package.json`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/Cargo.toml`
-- Run `npm run release:prepare -- 0.27.16`.
-- Run `npm run release:validate -- 0.27.16` so local metadata and scaffold-placeholder checks fail before CI does.
-- Run `npm run release:notes:preview -- 0.27.16`.
-- After publication, run `npm run release:draft:advance -- 0.27.16`.
+- Run `npm run release:prepare -- 0.27.17`.
+- Run `npm run release:validate -- 0.27.17` so local metadata and scaffold-placeholder checks fail before CI does.
+- Run `npm run release:notes:preview -- 0.27.17`.
+- After publication, run `npm run release:draft:advance -- 0.27.17`.
