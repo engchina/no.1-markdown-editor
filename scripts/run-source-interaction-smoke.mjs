@@ -744,6 +744,53 @@ async function waitForEditorTopElement(page, expected, label) {
   }, `${label} to keep the exact editor viewport`)
 }
 
+// After a remount CodeMirror only knows estimated heights for lines it has not
+// rendered yet. When its measure replaces those estimates (images, wrapped
+// paragraphs) it compensates scrollTop on its own, without resizing anything
+// the pin observes. The restored viewport must absorb such scrolls.
+async function runRestoredViewportCompensationScenario(page) {
+  const content = Array.from({ length: 120 }, (_unused, index) =>
+    [`## section ${index + 1}`, '', `paragraph ${index + 1} ${'wrapped text '.repeat(40)}`, ''].join('\n')
+  ).join('\n')
+  const otherContent = 'other tab\n\nshort content'
+  await resetEditor(page, {
+    content,
+    extraTabs: [
+      {
+        id: 'source-smoke-compensation-other-tab',
+        path: null,
+        name: 'OtherTab.md',
+        content: otherContent,
+        savedContent: otherContent,
+        isDirty: false,
+      },
+    ],
+  })
+
+  const box = await page.locator('.cm-scroller').boundingBox()
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (let index = 0; index < 8; index += 1) {
+    await page.mouse.wheel(0, 400)
+    await page.waitForTimeout(30)
+  }
+  await page.waitForTimeout(500)
+  const expected = await readEditorTopElement(page)
+
+  await page.click('[role="tab"][title="OtherTab.md"]')
+  await waitForCondition(
+    async () => (await readEditorSnapshot(page))?.docText === otherContent,
+    'the other tab to become active'
+  )
+  await page.click('[role="tab"][title="SourceInteractionSmoke.md"]')
+  await waitForEditorTopElement(page, expected, 'returning to the long tab')
+
+  // What CodeMirror's measure does after replacing height estimates.
+  await page.evaluate(() => {
+    document.querySelector('.cm-scroller').scrollTop += 400
+  })
+  await waitForEditorTopElement(page, expected, 'a non-user scroll right after the restore')
+}
+
 // WYSIWYG renders images and Mermaid diagrams after the view is built; they grow
 // their lines once loaded. The view must stay put on blur and come back to the exact same spot after remounts.
 async function runWysiwygImageViewportScenario(page) {
@@ -1613,6 +1660,7 @@ async function main() {
     await runRemountViewportRestoreScenario(page, diagnostics)
     await runPreviewPerTabScrollScenario(page)
     await runWysiwygImageViewportScenario(page)
+    await runRestoredViewportCompensationScenario(page)
     await runExternalContentUpdateScenario(page)
     await runSidebarPanelScrollScenario(page)
     await runOrdinaryInputScenario(page, diagnostics)
